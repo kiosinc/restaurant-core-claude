@@ -1,6 +1,6 @@
-import { FirestoreObject } from '../core/FirestoreObject';
-import { ConnectedAccounts } from '../roots/ConnectedAccounts';
-import { FirestorePaths } from '../../firestore-config/firebaseApp';
+import { FirestoreObject } from "../core/FirestoreObject";
+import { ConnectedAccounts } from "../roots/ConnectedAccounts";
+import { FirestorePaths } from "../../firestore-config/firebaseApp";
 
 export class Event extends FirestoreObject<Id> {
   readonly provider: string;
@@ -14,7 +14,7 @@ export class Event extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: string,
+    Id?: string
   ) {
     super(created, updated, isDeleted, Id ?? Event.identifier(provider, type));
     this.provider = provider;
@@ -41,14 +41,20 @@ export class Event extends FirestoreObject<Id> {
   // STATICS
 
   static collectionRef(businessId: Id) {
-    return ConnectedAccounts.docRef(businessId).collection(FirestorePaths.CollectionNames.events);
+    return ConnectedAccounts.docRef(businessId).collection(
+      FirestorePaths.CollectionNames.events
+    );
   }
 
   static identifier(provider: string, type: string): string {
     return `${provider}.${type}`;
   }
 
-  static find(businessId: Id, provider: Provider, type: string): Promise<Event | void> {
+  static find(
+    businessId: Id,
+    provider: Provider,
+    type: string
+  ): Promise<Event | void> {
     const docId = Event.identifier(provider, type);
     return Event.collectionRef(businessId)
       .doc(docId)
@@ -83,7 +89,7 @@ export class Event extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };

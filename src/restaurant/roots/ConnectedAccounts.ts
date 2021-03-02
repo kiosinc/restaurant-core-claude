@@ -1,6 +1,6 @@
-import { FirestoreObject } from '../core/FirestoreObject';
-import { Business } from './Business';
-import { FirestorePaths } from '../../firestore-config/firebaseApp';
+import { FirestoreObject } from "../core/FirestoreObject";
+import { Business } from "./Business";
+import { FirestorePaths } from "../../firestore-config/firebaseApp";
 
 export class ConnectedAccounts extends FirestoreObject<Id> {
   tokens: { [provider: string]: { [key: string]: string } };
@@ -12,9 +12,14 @@ export class ConnectedAccounts extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: string,
+    Id?: string
   ) {
-    super(created, updated, isDeleted, Id ?? FirestorePaths.CollectionNames.connectedAccounts);
+    super(
+      created,
+      updated,
+      isDeleted,
+      Id ?? FirestorePaths.CollectionNames.connectedAccounts
+    );
 
     this.tokens = tokens;
     this.isSync = isSync;
@@ -39,11 +44,15 @@ export class ConnectedAccounts extends FirestoreObject<Id> {
   // STATICS
 
   static docRef(businessId: Id): FirebaseFirestore.DocumentReference {
-    return Business.privateCollectionRef(businessId).doc(FirestorePaths.CollectionNames.connectedAccounts);
+    return Business.privateCollectionRef(businessId).doc(
+      FirestorePaths.CollectionNames.connectedAccounts
+    );
   }
 
   static firestoreConverter = {
-    toFirestore(connectedAccounts: ConnectedAccounts): FirebaseFirestore.DocumentData {
+    toFirestore(
+      connectedAccounts: ConnectedAccounts
+    ): FirebaseFirestore.DocumentData {
       return {
         tokens: JSON.parse(JSON.stringify(connectedAccounts.tokens)),
         isSync: JSON.parse(JSON.stringify(connectedAccounts.isSync)),
@@ -52,7 +61,9 @@ export class ConnectedAccounts extends FirestoreObject<Id> {
         updated: connectedAccounts.updated.toISOString(),
       };
     },
-    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): ConnectedAccounts {
+    fromFirestore(
+      snapshot: FirebaseFirestore.QueryDocumentSnapshot
+    ): ConnectedAccounts {
       const data = snapshot.data();
 
       return new ConnectedAccounts(
@@ -61,7 +72,7 @@ export class ConnectedAccounts extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };

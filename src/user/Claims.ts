@@ -1,4 +1,4 @@
-import {Constants} from "../firestore-config/config";
+import { Constants } from "../firestore-config/config";
 
 export interface Body {
   businessRole: { [businessId: string]: Constants.Role };

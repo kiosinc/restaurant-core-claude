@@ -1,7 +1,7 @@
-import { FirestoreObject } from '../core/FirestoreObject';
-import { Surfaces } from '../roots/Surfaces';
-import { FirestorePaths } from '../../firestore-config/firebaseApp';
-import { MenuGroupMeta } from './MenuGroup';
+import { FirestoreObject } from "../core/FirestoreObject";
+import { Surfaces } from "../roots/Surfaces";
+import { FirestorePaths } from "../../firestore-config/firebaseApp";
+import { MenuGroupMeta } from "./MenuGroup";
 
 export class Menu extends FirestoreObject<Id> {
   name: string;
@@ -19,7 +19,7 @@ export class Menu extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id,
+    Id?: Id
   ) {
     super(created, updated, isDeleted, Id);
 
@@ -41,7 +41,8 @@ export class Menu extends FirestoreObject<Id> {
 
   metaLinks(businessId: Id): { [p: string]: string } {
     return {
-      [Surfaces.docRef(businessId).path]: FirestorePaths.CollectionNames.menus + '.' + this.Id,
+      [Surfaces.docRef(businessId).path]:
+        FirestorePaths.CollectionNames.menus + "." + this.Id,
     };
   }
 
@@ -55,7 +56,9 @@ export class Menu extends FirestoreObject<Id> {
   // STATICS
 
   static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Surfaces.docRef(businessId).collection(FirestorePaths.CollectionNames.menus);
+    return Surfaces.docRef(businessId).collection(
+      FirestorePaths.CollectionNames.menus
+    );
   }
 
   static firestoreConverter = {
@@ -83,7 +86,7 @@ export class Menu extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };

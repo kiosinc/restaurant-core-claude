@@ -1,7 +1,7 @@
-import { FirestoreObject } from '../core/FirestoreObject';
-import { ProductMeta } from '../catalog/Product';
-import { FirestorePaths } from '../../firestore-config/firebaseApp';
-import { Surfaces } from '../roots/Surfaces';
+import { FirestoreObject } from "../core/FirestoreObject";
+import { ProductMeta } from "../catalog/Product";
+import { FirestorePaths } from "../../firestore-config/firebaseApp";
+import { Surfaces } from "../roots/Surfaces";
 
 export class MenuGroup extends FirestoreObject<Id> {
   // The group's name, meant to be displayable to the customer.
@@ -23,7 +23,7 @@ export class MenuGroup extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id,
+    Id?: Id
   ) {
     super(created, updated, isDeleted, Id);
     this.name = name;
@@ -45,7 +45,8 @@ export class MenuGroup extends FirestoreObject<Id> {
 
   metaLinks(businessId: Id): { [p: string]: string } {
     return {
-      [Surfaces.docRef(businessId).path]: FirestorePaths.CollectionNames.menuGroups + '.' + this.Id,
+      [Surfaces.docRef(businessId).path]:
+        FirestorePaths.CollectionNames.menuGroups + "." + this.Id,
     };
   }
 
@@ -59,7 +60,9 @@ export class MenuGroup extends FirestoreObject<Id> {
   // STATICS
 
   static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Surfaces.docRef(businessId).collection(FirestorePaths.CollectionNames.menuGroups);
+    return Surfaces.docRef(businessId).collection(
+      FirestorePaths.CollectionNames.menuGroups
+    );
   }
 
   static firestoreConverter = {
@@ -67,7 +70,9 @@ export class MenuGroup extends FirestoreObject<Id> {
       return {
         name: menuGroup.name,
         products: JSON.parse(JSON.stringify(menuGroup.products)),
-        productDisplayOrder: JSON.parse(JSON.stringify(menuGroup.productDisplayOrder)),
+        productDisplayOrder: JSON.parse(
+          JSON.stringify(menuGroup.productDisplayOrder)
+        ),
         displayName: menuGroup.displayName,
         parentGroup: menuGroup.parentGroup,
         childGroup: menuGroup.childGroup,
@@ -76,7 +81,9 @@ export class MenuGroup extends FirestoreObject<Id> {
         isDeleted: menuGroup.isDeleted,
       };
     },
-    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): MenuGroup {
+    fromFirestore(
+      snapshot: FirebaseFirestore.QueryDocumentSnapshot
+    ): MenuGroup {
       const data = snapshot.data();
 
       return new MenuGroup(
@@ -89,7 +96,7 @@ export class MenuGroup extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };

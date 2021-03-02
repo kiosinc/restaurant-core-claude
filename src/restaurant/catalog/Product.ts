@@ -1,9 +1,9 @@
-import { FirestoreObject } from '../core/FirestoreObject';
-import { LinkedObject } from '../core/LinkedObject';
-import { CustomizationSetMeta } from './CustomizationSet';
-import { AttributeMeta } from './Attribute';
-import { Catalog } from '../roots/Catalog';
-import { FirestorePaths } from '../../firestore-config/firebaseApp';
+import { FirestoreObject } from "../core/FirestoreObject";
+import { LinkedObject } from "../core/LinkedObject";
+import { CustomizationSetMeta } from "./CustomizationSet";
+import { AttributeMeta } from "./Attribute";
+import { Catalog } from "../roots/Catalog";
+import { FirestorePaths } from "../../firestore-config/firebaseApp";
 
 export class Product extends FirestoreObject<Id> {
   // The product’s name, meant to be displayable to the customer.
@@ -37,7 +37,7 @@ export class Product extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id,
+    Id?: Id
   ) {
     super(created, updated, isDeleted, Id);
     this.name = name;
@@ -61,7 +61,8 @@ export class Product extends FirestoreObject<Id> {
 
   metaLinks(businessId: Id): { [p: string]: string } {
     return {
-      [Catalog.docRef(businessId).path]: FirestorePaths.CollectionNames.products + '.' + this.Id,
+      [Catalog.docRef(businessId).path]:
+        FirestorePaths.CollectionNames.products + "." + this.Id,
     };
   }
 
@@ -73,7 +74,9 @@ export class Product extends FirestoreObject<Id> {
   }
 
   static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(FirestorePaths.CollectionNames.products);
+    return Catalog.docRef(businessId).collection(
+      FirestorePaths.CollectionNames.products
+    );
   }
 
   static firestoreConverter = {
@@ -85,7 +88,9 @@ export class Product extends FirestoreObject<Id> {
         imageUrls: JSON.parse(JSON.stringify(product.imageUrls)),
         attributes: JSON.parse(JSON.stringify(product.attributes)),
         customizations: JSON.parse(JSON.stringify(product.customizations)),
-        customizationsSetting: JSON.parse(JSON.stringify(product.customizationsSetting)),
+        customizationsSetting: JSON.parse(
+          JSON.stringify(product.customizationsSetting)
+        ),
         isActive: product.isActive,
         linkedObjects: JSON.parse(JSON.stringify(product.linkedObjects)),
         created: product.created.toISOString(),
@@ -108,7 +113,7 @@ export class Product extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };

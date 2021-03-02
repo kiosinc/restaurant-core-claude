@@ -1,7 +1,7 @@
-import { FirestoreObject } from '../core/FirestoreObject';
-import { LinkedObject } from '../core/LinkedObject';
-import { Catalog } from '../roots/Catalog';
-import { FirestorePaths } from '../../firebaseApp';
+import { FirestoreObject } from "../core/FirestoreObject";
+import { LinkedObject } from "../core/LinkedObject";
+import { Catalog } from "../roots/Catalog";
+import { FirestorePaths } from "../../firebaseApp";
 
 export class Attribute extends FirestoreObject<Id> {
   name: string;
@@ -21,7 +21,7 @@ export class Attribute extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id,
+    Id?: Id
   ) {
     super(created, updated, isDeleted, Id);
     this.name = name;
@@ -43,7 +43,8 @@ export class Attribute extends FirestoreObject<Id> {
 
   metaLinks(businessId: Id): { [p: string]: string } {
     return {
-      [Catalog.docRef(businessId).path]: FirestorePaths.CollectionNames.attributes + '.' + this.Id,
+      [Catalog.docRef(businessId).path]:
+        FirestorePaths.CollectionNames.attributes + "." + this.Id,
     };
   }
 
@@ -58,7 +59,9 @@ export class Attribute extends FirestoreObject<Id> {
   // STATICS
 
   static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(FirestorePaths.CollectionNames.attributes);
+    return Catalog.docRef(businessId).collection(
+      FirestorePaths.CollectionNames.attributes
+    );
   }
 
   static firestoreConverter = {
@@ -75,7 +78,9 @@ export class Attribute extends FirestoreObject<Id> {
         isDeleted: attribute.isDeleted,
       };
     },
-    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): Attribute {
+    fromFirestore(
+      snapshot: FirebaseFirestore.QueryDocumentSnapshot
+    ): Attribute {
       const data = snapshot.data();
       return new Attribute(
         data.name,
@@ -86,7 +91,7 @@ export class Attribute extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };

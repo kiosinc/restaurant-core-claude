@@ -1,5 +1,5 @@
-import { firestoreApp } from '../../firestore-config/firebaseApp';
-const FieldValue = require('firebase-admin').firestore.FieldValue;
+import { firestoreApp } from "../../firestore-config/firebaseApp";
+const FieldValue = require("firebase-admin").firestore.FieldValue;
 
 export abstract class FirestoreObject<C extends Id | void> {
   // Firebase Document ID
@@ -16,7 +16,12 @@ export abstract class FirestoreObject<C extends Id | void> {
 
   abstract readonly converter: FirebaseFirestore.FirestoreDataConverter<unknown>;
 
-  protected constructor(created?: Date, updated?: Date, isDeleted?: boolean, Id?: Id) {
+  protected constructor(
+    created?: Date,
+    updated?: Date,
+    isDeleted?: boolean,
+    Id?: Id
+  ) {
     let now = new Date();
 
     this.created = created ?? now;
@@ -29,7 +34,10 @@ export abstract class FirestoreObject<C extends Id | void> {
     this.updated = new Date();
 
     const batch = firestoreApp.batch();
-    batch.set(this.collectionRef(businessId).doc(this.Id).withConverter(this.converter), this);
+    batch.set(
+      this.collectionRef(businessId).doc(this.Id).withConverter(this.converter),
+      this
+    );
 
     const metaLinks = this.metaLinks(businessId);
     for (const key in metaLinks) {
@@ -48,7 +56,12 @@ export abstract class FirestoreObject<C extends Id | void> {
     try {
       this.updated = new Date();
 
-      await t.set(this.collectionRef(businessId).doc(this.Id).withConverter(this.converter), this);
+      await t.set(
+        this.collectionRef(businessId)
+          .doc(this.Id)
+          .withConverter(this.converter),
+        this
+      );
 
       const metaLinks = this.metaLinks(businessId);
       for (const key in metaLinks) {
@@ -101,7 +114,10 @@ export abstract class FirestoreObject<C extends Id | void> {
     return batch.commit().then();
   }
 
-  async deletePermanentTransaction(businessId: C, t: FirebaseFirestore.Transaction) {
+  async deletePermanentTransaction(
+    businessId: C,
+    t: FirebaseFirestore.Transaction
+  ) {
     try {
       await t.delete(this.collectionRef(businessId).doc(this.Id));
 
@@ -119,6 +135,6 @@ export abstract class FirestoreObject<C extends Id | void> {
   }
 
   autoId(): Id {
-    return firestoreApp.collection('default').doc().id;
+    return firestoreApp.collection("default").doc().id;
   }
 }

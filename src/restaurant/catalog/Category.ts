@@ -1,8 +1,8 @@
-import { FirestoreObject } from '../core/FirestoreObject';
-import { LinkedObject } from '../core/LinkedObject';
-import { ProductMeta } from './Product';
-import { Catalog } from '../roots/Catalog';
-import { FirestorePaths } from '../../firestore-config/firebaseApp';
+import { FirestoreObject } from "../core/FirestoreObject";
+import { LinkedObject } from "../core/LinkedObject";
+import { ProductMeta } from "./Product";
+import { Catalog } from "../roots/Catalog";
+import { FirestorePaths } from "../../firestore-config/firebaseApp";
 
 export class Category extends FirestoreObject<Id> {
   name: string;
@@ -19,7 +19,7 @@ export class Category extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id,
+    Id?: Id
   ) {
     super(created, updated, isDeleted, Id);
 
@@ -40,7 +40,8 @@ export class Category extends FirestoreObject<Id> {
 
   metaLinks(businessId: Id): { [p: string]: string } {
     return {
-      [Catalog.docRef(businessId).path]: FirestorePaths.CollectionNames.categories + '.' + this.Id,
+      [Catalog.docRef(businessId).path]:
+        FirestorePaths.CollectionNames.categories + "." + this.Id,
     };
   }
 
@@ -53,7 +54,9 @@ export class Category extends FirestoreObject<Id> {
   // STATICS
 
   static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(FirestorePaths.CollectionNames.categories);
+    return Catalog.docRef(businessId).collection(
+      FirestorePaths.CollectionNames.categories
+    );
   }
 
   static firestoreConverter = {
@@ -61,7 +64,9 @@ export class Category extends FirestoreObject<Id> {
       return {
         name: category.name,
         products: JSON.parse(JSON.stringify(category.products)),
-        productDisplayOrder: JSON.parse(JSON.stringify(category.productDisplayOrder)),
+        productDisplayOrder: JSON.parse(
+          JSON.stringify(category.productDisplayOrder)
+        ),
         linkedObjects: JSON.parse(JSON.stringify(category.linkedObjects)),
         created: category.created.toISOString(),
         updated: category.updated.toISOString(),
@@ -79,7 +84,7 @@ export class Category extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };

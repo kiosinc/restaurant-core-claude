@@ -1,4 +1,4 @@
-import { Address } from './Address';
+import { Address } from "./Address";
 
 export class BusinessProfile {
   name: string;
@@ -18,7 +18,9 @@ export class BusinessProfile {
         address: Address.firestoreConverter.toFirestore(profile.address),
       };
     },
-    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): BusinessProfile {
+    fromFirestore(
+      snapshot: FirebaseFirestore.QueryDocumentSnapshot
+    ): BusinessProfile {
       const data = snapshot.data();
       return new BusinessProfile(data.name, data.address as Address);
     },

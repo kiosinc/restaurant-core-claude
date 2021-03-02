@@ -1,15 +1,15 @@
-import { FirestoreObject } from '../Core/FirestoreObject';
-import { firestoreApp } from '../../firestore-config/firebaseApp';
-import { BusinessProfile } from '../Misc/BusinessProfile';
-import { FirestorePaths } from '../../firestore-config/firebaseApp';
-import { User } from '../../user/User';
-import { Address } from '../Misc/Address';
-import { Catalog } from './Catalog';
-import { ConnectedAccounts } from './ConnectedAccounts';
-import { Surfaces } from './Surfaces';
+import { FirestoreObject } from "../Core/FirestoreObject";
+import { firestoreApp } from "../../firestore-config/firebaseApp";
+import { BusinessProfile } from "../Misc/BusinessProfile";
+import { FirestorePaths } from "../../firestore-config/firebaseApp";
+import { User } from "../../user/User";
+import { Address } from "../Misc/Address";
+import { Catalog } from "./Catalog";
+import { ConnectedAccounts } from "./ConnectedAccounts";
+import { Surfaces } from "./Surfaces";
 
 export enum BusinessType {
-  restaurant = 'restaurant',
+  restaurant = "restaurant",
 }
 
 export class Business extends FirestoreObject<void> {
@@ -28,7 +28,7 @@ export class Business extends FirestoreObject<void> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id,
+    Id?: Id
   ) {
     super(created, updated, isDeleted, Id);
     this.agent = agent;
@@ -70,7 +70,9 @@ export class Business extends FirestoreObject<void> {
         agent: account.agent,
         createdBy: account.createdBy,
         type: JSON.parse(JSON.stringify(account.type)),
-        businessProfile: BusinessProfile.firestoreConverter.toFirestore(account.businessProfile),
+        businessProfile: BusinessProfile.firestoreConverter.toFirestore(
+          account.businessProfile
+        ),
         roles: JSON.parse(JSON.stringify(account.roles)),
         created: account.created.toISOString(),
         updated: account.updated.toISOString(),
@@ -89,28 +91,42 @@ export class Business extends FirestoreObject<void> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };
 
-  static publicCollectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Business.docRef(businessId).collection(FirestorePaths.Environment.public);
+  static publicCollectionRef(
+    businessId: Id
+  ): FirebaseFirestore.CollectionReference {
+    return Business.docRef(businessId).collection(
+      FirestorePaths.Environment.public
+    );
   }
 
-  static privateCollectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Business.docRef(businessId).collection(FirestorePaths.Environment.private);
+  static privateCollectionRef(
+    businessId: Id
+  ): FirebaseFirestore.CollectionReference {
+    return Business.docRef(businessId).collection(
+      FirestorePaths.Environment.private
+    );
   }
 
-  static sandboxCollectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Business.docRef(businessId).collection(FirestorePaths.Environment.sandbox);
+  static sandboxCollectionRef(
+    businessId: Id
+  ): FirebaseFirestore.CollectionReference {
+    return Business.docRef(businessId).collection(
+      FirestorePaths.Environment.sandbox
+    );
   }
 
   static create(user: User, type: BusinessType, device: string) {
-    const profile: BusinessProfile = new BusinessProfile('', new Address());
+    const profile: BusinessProfile = new BusinessProfile("", new Address());
 
     const uid = user.token.uid;
-    let newBusiness = new Business(device, uid, type, profile, { [uid]: Role.owner });
+    let newBusiness = new Business(device, uid, type, profile, {
+      [uid]: Role.owner,
+    });
 
     let newCatalog = new Catalog({}, {}, {}, {}, {});
     let newConnectedAccounts = new ConnectedAccounts({}, {});
@@ -129,12 +145,24 @@ export class Business extends FirestoreObject<void> {
         .then(() => {
           const batch = firestoreApp.batch();
 
-          batch.set(Catalog.docRef(newBusiness.Id).withConverter(Catalog.firestoreConverter), newCatalog);
           batch.set(
-            ConnectedAccounts.docRef(newBusiness.Id).withConverter(ConnectedAccounts.firestoreConverter),
-            newConnectedAccounts,
+            Catalog.docRef(newBusiness.Id).withConverter(
+              Catalog.firestoreConverter
+            ),
+            newCatalog
           );
-          batch.set(Surfaces.docRef(newBusiness.Id).withConverter(Surfaces.firestoreConverter), newSurface);
+          batch.set(
+            ConnectedAccounts.docRef(newBusiness.Id).withConverter(
+              ConnectedAccounts.firestoreConverter
+            ),
+            newConnectedAccounts
+          );
+          batch.set(
+            Surfaces.docRef(newBusiness.Id).withConverter(
+              Surfaces.firestoreConverter
+            ),
+            newSurface
+          );
           return batch.commit();
         })
         .then(() => {

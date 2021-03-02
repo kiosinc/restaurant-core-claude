@@ -1,6 +1,6 @@
-import { FirestoreObject } from '../core/FirestoreObject';
-import { ConnectedAccounts } from '../roots/ConnectedAccounts';
-import { FirestorePaths } from '../../firestore-config/firebaseApp';
+import { FirestoreObject } from "../core/FirestoreObject";
+import { ConnectedAccounts } from "../roots/ConnectedAccounts";
+import { FirestorePaths } from "../../firestore-config/firebaseApp";
 
 export class EventNotification extends FirestoreObject<Id> {
   readonly eventId: string;
@@ -14,7 +14,7 @@ export class EventNotification extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: string,
+    Id?: string
   ) {
     super(created, updated, isDeleted, Id);
     this.eventId = eventId;
@@ -41,13 +41,19 @@ export class EventNotification extends FirestoreObject<Id> {
   // STATICS
 
   static collectionRef(businessId: Id) {
-    return ConnectedAccounts.docRef(businessId).collection(FirestorePaths.CollectionNames.eventNotifications);
+    return ConnectedAccounts.docRef(businessId).collection(
+      FirestorePaths.CollectionNames.eventNotifications
+    );
   }
 
-  static find(businessId: Id, provider: Provider, eventId: Id): Promise<EventNotification[]> {
+  static find(
+    businessId: Id,
+    provider: Provider,
+    eventId: Id
+  ): Promise<EventNotification[]> {
     return EventNotification.collectionRef(businessId)
-      .where('eventId', '==', eventId)
-      .where('provider', '==', provider)
+      .where("eventId", "==", eventId)
+      .where("provider", "==", provider)
       .withConverter(EventNotification.firestoreConverter)
       .get()
       .then((snapshot) => {
@@ -58,7 +64,9 @@ export class EventNotification extends FirestoreObject<Id> {
   // STATICS
 
   static firestoreConverter = {
-    toFirestore(notification: EventNotification): FirebaseFirestore.DocumentData {
+    toFirestore(
+      notification: EventNotification
+    ): FirebaseFirestore.DocumentData {
       return {
         eventId: notification.eventId,
         provider: notification.provider,
@@ -68,7 +76,9 @@ export class EventNotification extends FirestoreObject<Id> {
         isDeleted: notification.isDeleted,
       };
     },
-    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): EventNotification {
+    fromFirestore(
+      snapshot: FirebaseFirestore.QueryDocumentSnapshot
+    ): EventNotification {
       const data = snapshot.data();
 
       return new EventNotification(
@@ -78,7 +88,7 @@ export class EventNotification extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };

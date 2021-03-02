@@ -1,11 +1,11 @@
-import { FirestoreObject } from '../core/FirestoreObject';
-import { Business } from './Business';
-import { FirestorePaths } from '../../firestore-config/firebaseApp';
-import { CategoryMeta } from '../catalog/Category';
-import { CustomizationSetMeta } from '../catalog/CustomizationSet';
-import { ProductMeta } from '../catalog/Product';
-import { TaxRateMeta } from '../catalog/TaxRate';
-import { AttributeMeta } from '../catalog/Attribute';
+import { FirestoreObject } from "../core/FirestoreObject";
+import { Business } from "./Business";
+import { FirestorePaths } from "../../firestore-config/firebaseApp";
+import { CategoryMeta } from "../catalog/Category";
+import { CustomizationSetMeta } from "../catalog/CustomizationSet";
+import { ProductMeta } from "../catalog/Product";
+import { TaxRateMeta } from "../catalog/TaxRate";
+import { AttributeMeta } from "../catalog/Attribute";
 
 const catalogKey = FirestorePaths.CollectionNames.catalog;
 
@@ -25,7 +25,7 @@ export class Catalog extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: string,
+    Id?: string
   ) {
     super(created, updated, isDeleted, Id ?? catalogKey);
 
@@ -55,14 +55,18 @@ export class Catalog extends FirestoreObject<Id> {
   // STATICS
 
   static docRef(businessId: Id): FirebaseFirestore.DocumentReference {
-    return Business.publicCollectionRef(businessId).doc(FirestorePaths.CollectionNames.catalog);
+    return Business.publicCollectionRef(businessId).doc(
+      FirestorePaths.CollectionNames.catalog
+    );
   }
 
   static firestoreConverter = {
     toFirestore(catalog: Catalog): FirebaseFirestore.DocumentData {
       return {
         categories: JSON.parse(JSON.stringify(catalog.categories)),
-        customizationSets: JSON.parse(JSON.stringify(catalog.customizationSets)),
+        customizationSets: JSON.parse(
+          JSON.stringify(catalog.customizationSets)
+        ),
         attributes: JSON.parse(JSON.stringify(catalog.attributes)),
         products: JSON.parse(JSON.stringify(catalog.products)),
         taxRates: JSON.parse(JSON.stringify(catalog.taxRates)),
@@ -83,7 +87,7 @@ export class Catalog extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id,
+        snapshot.id
       );
     },
   };

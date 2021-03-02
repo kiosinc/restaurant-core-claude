@@ -1,8 +1,8 @@
-import { Attribute } from '../catalog/Attribute';
-import { Category } from '../catalog/Category';
-import { CustomizationSet } from '../catalog/CustomizationSet';
-import { Product } from '../catalog/Product';
-import { TaxRate } from '../catalog/TaxRate';
+import { Attribute } from "../catalog/Attribute";
+import { Category } from "../catalog/Category";
+import { CustomizationSet } from "../catalog/CustomizationSet";
+import { Product } from "../catalog/Product";
+import { TaxRate } from "../catalog/TaxRate";
 
 export class LinkedObject {
   linkedObjectId: Id;
@@ -17,15 +17,22 @@ export class LinkedObject {
     linkedObjectId: Id,
     provider: Provider,
     fromCollectionRef: FirebaseFirestore.CollectionReference,
-    withConverter: FirebaseFirestore.FirestoreDataConverter<unknown>,
+    withConverter: FirebaseFirestore.FirestoreDataConverter<unknown>
   ): Promise<any> {
-    return this.findQuery(linkedObjectId, provider, fromCollectionRef, withConverter)
+    return this.findQuery(
+      linkedObjectId,
+      provider,
+      fromCollectionRef,
+      withConverter
+    )
       .get()
       .then((snapshot) => {
         if (snapshot.empty) {
           return;
         } else if (snapshot.docs.length > 1) {
-          throw new Error('Error: there is more than one Category with the same linkedID');
+          throw new Error(
+            "Error: there is more than one Category with the same linkedID"
+          );
         }
         return snapshot.docs[0].data();
       });
@@ -35,17 +42,20 @@ export class LinkedObject {
     linkedObjectId: Id,
     provider: Provider,
     fromCollectionRef: FirebaseFirestore.CollectionReference,
-    withConverter: FirebaseFirestore.FirestoreDataConverter<unknown>,
+    withConverter: FirebaseFirestore.FirestoreDataConverter<unknown>
   ): FirebaseFirestore.Query<unknown> {
     return fromCollectionRef
-      .where('linkedObjects' + '.' + provider + '.' + 'linkedObjectId', '==', linkedObjectId)
+      .where(
+        "linkedObjects" + "." + provider + "." + "linkedObjectId",
+        "==",
+        linkedObjectId
+      )
       .withConverter(withConverter);
   }
 
-  static isSyncActive<C extends Attribute | Category | CustomizationSet | Product | TaxRate>(
-    object: C,
-    provider: Provider,
-  ): boolean {
+  static isSyncActive<
+    C extends Attribute | Category | CustomizationSet | Product | TaxRate
+  >(object: C, provider: Provider): boolean {
     const linkedObjectProvider = object.linkedObjects[provider];
     if (linkedObjectProvider) {
       return linkedObjectProvider.isSyncActive;
@@ -55,11 +65,13 @@ export class LinkedObject {
   }
 
   // if the object already exists check against sync and delete flags
-  static shouldStopSync<C extends Attribute | Category | CustomizationSet | Product | TaxRate>(
+  static shouldStopSync<
+    C extends Attribute | Category | CustomizationSet | Product | TaxRate
+  >(
     firestoreObject: C,
     provider: Provider,
     isSourceMarkedDelete: boolean,
-    businessId: Id,
+    businessId: Id
   ) {
     // the object exists, apply sync or delete flag
     // otherwise return no result (undefined)
