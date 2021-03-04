@@ -1,7 +1,7 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import * as Config from '../../firestore-core/config';
 import { firestoreApp } from '../../firestore-core/firebaseApp';
-import BusinessProfile from '../Misc/BusinessProfile';
+import BusinessProfile from '../misc/BusinessProfile';
 
 export enum BusinessType {
   restaurant = 'restaurant',

@@ -1,8 +1,8 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
-import ProductMeta from '../Catalog/ProductMeta';
-import TaxRateMeta from '../Catalog/TaxRateMeta';
+import ProductMeta from '../catalog/ProductMeta';
+import TaxRateMeta from '../catalog/TaxRateMeta';
 import CustomizationSetMeta from '../catalog/CustomizationSetMeta';
 import AttributeMeta from '../catalog/AttributeMeta';
 import CategoryMeta from '../catalog/CategoryMeta';
