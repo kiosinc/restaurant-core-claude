@@ -1,11 +1,12 @@
-import { User } from '../../user';
+import { User } from '../../user/User';
 import BusinessProfile from '../misc/BusinessProfile';
 import Address from '../misc/Address';
 import * as Config from '../../firestore-core/config';
 import * as Writer from '../../firestore-core/core/FirestoreWriter';
 import { BusinessType, Business } from './Business';
 
-export function createBusiness(user: User.User, type: BusinessType, device: string) {
+// eslint-disable-next-line import/prefer-default-export
+export function createBusiness(user: User, type: BusinessType, device: string) {
   const profile: BusinessProfile = new BusinessProfile('', new Address());
 
   const { uid } = user.token;

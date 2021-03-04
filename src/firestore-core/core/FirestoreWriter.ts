@@ -136,6 +136,7 @@ async function setT<C extends FirestoreObjectType>(
     await setT(newConnectedAccounts, ConnectedAccounts.firestoreConverter, businessId, t);
     await setT(newSurface, Surfaces.firestoreConverter, businessId, t);
   }
+  return object.collectionRef(businessId).doc(id).withConverter(converter);
 }
 
 /**

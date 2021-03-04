@@ -1,5 +1,12 @@
-export * as core from './firestore-core';
-export * as user from './user';
+export * as Core from './firestore-core';
+export * as User from './user';
+export * as Request from './user/User+Request';
+
+export { default as LinkedObject } from './firestore-core/core/LinkedObject';
+export { default as LinkedObjectType } from './firestore-core/core/LinkedObjectType';
+export * as LinkedObjectSync from './firestore-core/core/LinkedObjectUtilities';
+
+export * from './firestore-core/config';
 
 export * from './restaurant/catalog/Attribute';
 export { default as AttributeMeta } from './restaurant/catalog/AttributeMeta';

@@ -1,5 +1,6 @@
+import './User+Request';
+
 export * as Authentication from './Authentication';
 export * as Claims from './Claims';
-export * as User from './User';
-export * as UserRequest from './UserRequest';
-export * as Request from './User+Request';
+export * from './User';
+export { default as UserRequest } from './UserRequest';

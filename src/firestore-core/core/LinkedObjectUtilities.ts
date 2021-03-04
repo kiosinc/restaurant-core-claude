@@ -2,14 +2,13 @@
  * Utility functions for LinkedObject
  */
 import * as Config from '../config';
-import FirestoreObjectType from './FirestoreObjectType';
 import * as Writer from './FirestoreWriter';
 import LinkedObjectType from './LinkedObjectType';
 
 /**
  *
  */
-export interface LinkedObjectSyncResult<C> {
+export interface SyncResult<C> {
   object?: C;
   isSyncActive: boolean;
 }
@@ -31,13 +30,15 @@ export function isSyncActive<C extends LinkedObjectType>(
 
 /**
  * If the object already exists check against sync and delete flags
+ * Return a SyncResult if the object should not be synced
+ * or undefined if it should be synced
  */
 export async function isStopSync<C extends LinkedObjectType>(
   firestoreObject: C,
   provider: Config.Constants.Provider,
   isSourceMarkedDelete: boolean,
   businessId: string,
-) {
+): Promise<SyncResult<C> | void> {
   // the object exists, apply sync or delete flag
   // otherwise return no result (undefined)
   if (firestoreObject) {
@@ -57,7 +58,11 @@ export async function isStopSync<C extends LinkedObjectType>(
         object: firestoreObject,
       };
     }
+  } else if (isSourceMarkedDelete) {
+    return { isSyncActive: false };
   }
-  // no object
-  return { isSyncActive: false };
+
+  // Don't stop the sync
+  // By returning undefined
+  return undefined;
 }

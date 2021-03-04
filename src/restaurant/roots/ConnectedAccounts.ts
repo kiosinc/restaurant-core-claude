@@ -21,14 +21,17 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
     this.isSync = isSync;
   }
 
+  // eslint-disable-next-line class-methods-use-this
   collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Business.privateCollectionRef(businessId);
   }
 
+  // eslint-disable-next-line class-methods-use-this
   metaLinks(): { [p: string]: string } {
     return {};
   }
 
+  // eslint-disable-next-line class-methods-use-this
   metadata(): {} {
     return {};
   }
@@ -36,7 +39,8 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
   // STATICS
 
   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-    return Business.privateCollectionRef(businessId).doc(Config.Paths.CollectionNames.connectedAccounts);
+    return Business.privateCollectionRef(businessId)
+      .doc(Config.Paths.CollectionNames.connectedAccounts);
   }
 
   static firestoreConverter = {
