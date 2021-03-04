@@ -1,25 +1,36 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { LinkedObject } from "../core/LinkedObject";
-import { ProductMeta } from "./Product";
-import { Catalog } from "../roots/Catalog";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
+/**
+ * Category class
+ */
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import LinkedObject from '../../firestore-core/core/LinkedObject';
+import ProductMeta from './ProductMeta';
+import CategoryMeta from './CategoryMeta';
+import Catalog from '../Roots/Catalog';
+import * as Config from '../../firestore-core/config';
 
-export class Category extends FirestoreObject<Id> {
+/**
+ * Category class extends FirestoreObject
+ * Categories are exclusive groups (organizers) products.
+ * A product can have a category, but it's not required.
+ */
+export default class Category extends FirestoreObject<string> {
   name: string;
+
   products: { [Id: string]: ProductMeta };
-  productDisplayOrder: Id[];
+
+  productDisplayOrder: string[];
 
   linkedObjects: { [Id: string]: LinkedObject };
 
   constructor(
     name: string,
     products: { [p: string]: ProductMeta },
-    productDisplayOrder: Id[],
+    productDisplayOrder: string[],
     linkedObjects: { [p: string]: LinkedObject },
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id);
 
@@ -30,18 +41,14 @@ export class Category extends FirestoreObject<Id> {
     this.linkedObjects = linkedObjects;
   }
 
-  // FirestoreAdapter
-
-  readonly converter = Category.firestoreConverter;
-
-  collectionRef(businessId: Id) {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string) {
     return Category.collectionRef(businessId);
   }
 
-  metaLinks(businessId: Id): { [p: string]: string } {
+  metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Catalog.docRef(businessId).path]:
-        FirestorePaths.CollectionNames.categories + "." + this.Id,
+      [Catalog.docRef(businessId).path]: `${Config.Paths.CollectionNames.categories}.${this.Id}`,
     };
   }
 
@@ -51,22 +58,26 @@ export class Category extends FirestoreObject<Id> {
     };
   }
 
-  // STATICS
+  // STATICS THAT SHOULD BE IMPLEMENTED BY ALL FIRESTORE OBJECTS
 
-  static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.categories
-    );
+  /**
+   * Category class CollectionReference for given business
+   */
+  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
+    return Catalog.docRef(businessId).collection(Config.Paths.CollectionNames.categories);
   }
 
+  /**
+   * A converter used to convert object to and from firestore, any
+   * '.data' returns an object can can simply be cast with 'as [type]'.
+   * Used in conjunction with Firestore collection references or queries.
+   */
   static firestoreConverter = {
     toFirestore(category: Category): FirebaseFirestore.DocumentData {
       return {
         name: category.name,
         products: JSON.parse(JSON.stringify(category.products)),
-        productDisplayOrder: JSON.parse(
-          JSON.stringify(category.productDisplayOrder)
-        ),
+        productDisplayOrder: JSON.parse(JSON.stringify(category.productDisplayOrder)),
         linkedObjects: JSON.parse(JSON.stringify(category.linkedObjects)),
         created: category.created.toISOString(),
         updated: category.updated.toISOString(),
@@ -84,12 +95,8 @@ export class Category extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };
-}
-
-export interface CategoryMeta {
-  name: string;
 }

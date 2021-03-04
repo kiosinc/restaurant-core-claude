@@ -1,9 +1,14 @@
-export class Address {
+export default class Address {
   addressLine1: string;
+
   addressLine2: string;
+
   city: string;
+
   state: string;
+
   zip: string;
+
   country: string;
 
   constructor(
@@ -12,14 +17,14 @@ export class Address {
     city?: string,
     state?: string,
     zip?: string,
-    country?: string
+    country?: string,
   ) {
-    this.addressLine1 = addressLine1 ?? "";
-    this.addressLine2 = addressLine2 ?? "";
-    this.city = city ?? "";
-    this.state = state ?? "";
-    this.zip = zip ?? "";
-    this.country = country ?? "";
+    this.addressLine1 = addressLine1 ?? '';
+    this.addressLine2 = addressLine2 ?? '';
+    this.city = city ?? '';
+    this.state = state ?? '';
+    this.zip = zip ?? '';
+    this.country = country ?? '';
   }
 
   readonly converter = Address.firestoreConverter;
@@ -43,7 +48,7 @@ export class Address {
         data.city,
         data.state,
         data.zip,
-        data.country
+        data.country,
       );
     },
   };

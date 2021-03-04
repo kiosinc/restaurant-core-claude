@@ -1,30 +1,42 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { LinkedObject } from "../core/LinkedObject";
-import { Catalog } from "../roots/Catalog";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
+/**
+ * CustomizationSet class
+ */
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import LinkedObject from '../../firestore-core/core/LinkedObject';
+import Catalog from '../Roots/Catalog';
+import * as Config from '../../firestore-core/config';
+import CustomizationSetMeta from './CustomizationSetMeta';
 
-export class CustomizationSet extends FirestoreObject<Id> {
+export class CustomizationSet extends FirestoreObject<string> {
   name: string;
+
   options: { [Id: string]: CustomizationSetOption };
+
   minSelection: number;
+
   maxSelection: number;
-  preSelected: Id[];
+
+  preSelected: string[];
+
   displayOrder: number;
 
   linkedObjects: { [Id: string]: LinkedObject };
 
+  /**
+   * Create CusotmizationSet
+   */
   constructor(
     name: string,
     options: { [p: string]: CustomizationSetOption },
     minSelection: number,
     maxSelection: number,
     displayOrder: number,
-    preSelected: Id[],
+    preSelected: string[],
     linkedObjects: { [p: string]: LinkedObject },
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id);
 
@@ -38,18 +50,14 @@ export class CustomizationSet extends FirestoreObject<Id> {
     this.linkedObjects = linkedObjects;
   }
 
-  // FirestoreAdapter
-
-  readonly converter = CustomizationSet.firestoreConverter;
-
-  collectionRef(businessId: Id) {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string) {
     return CustomizationSet.collectionRef(businessId);
   }
 
-  metaLinks(businessId: Id): { [p: string]: string } {
+  metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Catalog.docRef(businessId).path]:
-        FirestorePaths.CollectionNames.customizationSets + "." + this.Id,
+      [Catalog.docRef(businessId).path]: `${Config.Paths.CollectionNames.customizationSets}.${this.Id}`,
     };
   }
 
@@ -60,18 +68,22 @@ export class CustomizationSet extends FirestoreObject<Id> {
     };
   }
 
-  // STATICS
+  // STATICS THAT SHOULD BE IMPLEMENTED BY ALL FIRESTORE OBJECTS
 
-  static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.customizationSets
-    );
+  /**
+     * CustomizationSet class CollectionReference for given business
+     */
+  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
+    return Catalog.docRef(businessId).collection(Config.Paths.CollectionNames.customizationSets);
   }
 
+  /**
+     * A converter used to convert object to and from firestore, any
+     * '.data' returns an object can can simply be cast with 'as [type]'.
+     * Used in conjunction with Firestore collection references or queries.
+     */
   static firestoreConverter = {
-    toFirestore(
-      customizationSet: CustomizationSet
-    ): FirebaseFirestore.DocumentData {
+    toFirestore(customizationSet: CustomizationSet): FirebaseFirestore.DocumentData {
       return {
         name: customizationSet.name,
         options: JSON.parse(JSON.stringify(customizationSet.options)),
@@ -79,17 +91,13 @@ export class CustomizationSet extends FirestoreObject<Id> {
         maxSelection: customizationSet.maxSelection,
         displayOrder: customizationSet.displayOrder,
         preSelected: customizationSet.preSelected,
-        linkedObjects: JSON.parse(
-          JSON.stringify(customizationSet.linkedObjects)
-        ),
+        linkedObjects: JSON.parse(JSON.stringify(customizationSet.linkedObjects)),
         created: customizationSet.created.toISOString(),
         updated: customizationSet.updated.toISOString(),
         isDeleted: customizationSet.isDeleted,
       };
     },
-    fromFirestore(
-      snapshot: FirebaseFirestore.QueryDocumentSnapshot
-    ): CustomizationSet {
+    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): CustomizationSet {
       const data = snapshot.data();
 
       return new CustomizationSet(
@@ -103,22 +111,17 @@ export class CustomizationSet extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };
 }
 
-export interface CustomizationSetMeta {
-  name: string;
-  displayOrder: number;
-}
-
 export interface CustomizationSetOption {
-  name: string;
+  name: string
   // The additional cost of the attribute as an integer in the smallest currency unit.
-  price: number;
+  price: number
   // Sorting order for display
-  displayOrder: number;
-  linkedObjects: { [Id: string]: LinkedObject };
+  displayOrder: number
+  linkedObjects: { [Id: string]: LinkedObject }
 }

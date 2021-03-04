@@ -1,13 +1,18 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { LinkedObject } from "../core/LinkedObject";
-import { Catalog } from "../roots/Catalog";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import LinkedObject from '../../firestore-core/core/LinkedObject';
+import Catalog from '../roots/Catalog';
+import * as Config from '../../firestore-core/config';
+import TaxRateMeta from './TaxRateMeta';
 
-export class TaxRate extends FirestoreObject<Id> {
+export default class TaxRate extends FirestoreObject<string> {
   name: string;
+
   rate: number;
+
   isCalculatedSubTotalPhase: boolean;
+
   isInclusive: boolean;
+
   linkedObjects: { [Id: string]: LinkedObject };
 
   constructor(
@@ -19,7 +24,7 @@ export class TaxRate extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id);
     this.name = name;
@@ -29,16 +34,14 @@ export class TaxRate extends FirestoreObject<Id> {
     this.linkedObjects = linkedObjects;
   }
 
-  readonly converter = TaxRate.firestoreConverter;
-
-  collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return TaxRate.collectionRef(businessId);
   }
 
-  metaLinks(businessId: Id): { [p: string]: string } {
+  metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Catalog.docRef(businessId).path]:
-        FirestorePaths.CollectionNames.taxRates + "." + this.Id,
+      [Catalog.docRef(businessId).path]: `${Config.Paths.CollectionNames.taxRates}.${this.Id}`,
     };
   }
 
@@ -51,10 +54,8 @@ export class TaxRate extends FirestoreObject<Id> {
 
   // STATICS
 
-  static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.taxRates
-    );
+  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
+    return Catalog.docRef(businessId).collection(Config.Paths.CollectionNames.taxRates);
   }
 
   static firestoreConverter = {
@@ -82,13 +83,8 @@ export class TaxRate extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };
-}
-
-export interface TaxRateMeta {
-  name: string;
-  rate: number;
 }

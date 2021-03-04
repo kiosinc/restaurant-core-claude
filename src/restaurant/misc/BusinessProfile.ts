@@ -1,10 +1,14 @@
-import { Address } from "./Address";
+import Address from './Address';
 
-export class BusinessProfile {
+export default class BusinessProfile {
   name: string;
+
   address: Address;
 
-  constructor(name: string, address: Address) {
+  constructor(
+    name: string,
+    address: Address,
+  ) {
     this.name = name;
     this.address = address;
   }
@@ -18,11 +22,12 @@ export class BusinessProfile {
         address: Address.firestoreConverter.toFirestore(profile.address),
       };
     },
-    fromFirestore(
-      snapshot: FirebaseFirestore.QueryDocumentSnapshot
-    ): BusinessProfile {
+    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): BusinessProfile {
       const data = snapshot.data();
-      return new BusinessProfile(data.name, data.address as Address);
+      return new BusinessProfile(
+        data.name,
+        data.address as Address,
+      );
     },
   };
 }

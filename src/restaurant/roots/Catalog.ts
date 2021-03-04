@@ -1,19 +1,23 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { Business } from "./Business";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
-import { CategoryMeta } from "../catalog/Category";
-import { CustomizationSetMeta } from "../catalog/CustomizationSet";
-import { ProductMeta } from "../catalog/Product";
-import { TaxRateMeta } from "../catalog/TaxRate";
-import { AttributeMeta } from "../catalog/Attribute";
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import { Business } from './Business';
+import * as Config from '../../firestore-core/config';
+import ProductMeta from '../Catalog/ProductMeta';
+import TaxRateMeta from '../Catalog/TaxRateMeta';
+import CustomizationSetMeta from '../catalog/CustomizationSetMeta';
+import AttributeMeta from '../catalog/AttributeMeta';
+import CategoryMeta from '../catalog/CategoryMeta';
 
-const catalogKey = FirestorePaths.CollectionNames.catalog;
+const catalogKey = Config.Paths.CollectionNames.catalog;
 
-export class Catalog extends FirestoreObject<Id> {
+export default class Catalog extends FirestoreObject<string> {
   categories: { [Id: string]: CategoryMeta };
+
   customizationSets: { [Id: string]: CustomizationSetMeta };
+
   products: { [Id: string]: ProductMeta };
+
   taxRates: { [Id: string]: TaxRateMeta };
+
   attributes: { [Id: string]: AttributeMeta };
 
   constructor(
@@ -25,7 +29,7 @@ export class Catalog extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: string
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id ?? catalogKey);
 
@@ -36,37 +40,32 @@ export class Catalog extends FirestoreObject<Id> {
     this.taxRates = taxRates;
   }
 
-  // FirebaseAdapter
-
-  readonly converter = Catalog.firestoreConverter;
-
-  collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Business.publicCollectionRef(businessId);
   }
 
+  // eslint-disable-next-line class-methods-use-this
   metaLinks(): { [p: string]: string } {
     return {};
   }
 
+  // eslint-disable-next-line class-methods-use-this
   metadata(): {} {
     return {};
   }
 
   // STATICS
 
-  static docRef(businessId: Id): FirebaseFirestore.DocumentReference {
-    return Business.publicCollectionRef(businessId).doc(
-      FirestorePaths.CollectionNames.catalog
-    );
+  static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
+    return Business.publicCollectionRef(businessId).doc(Config.Paths.CollectionNames.catalog);
   }
 
   static firestoreConverter = {
     toFirestore(catalog: Catalog): FirebaseFirestore.DocumentData {
       return {
         categories: JSON.parse(JSON.stringify(catalog.categories)),
-        customizationSets: JSON.parse(
-          JSON.stringify(catalog.customizationSets)
-        ),
+        customizationSets: JSON.parse(JSON.stringify(catalog.customizationSets)),
         attributes: JSON.parse(JSON.stringify(catalog.attributes)),
         products: JSON.parse(JSON.stringify(catalog.products)),
         taxRates: JSON.parse(JSON.stringify(catalog.taxRates)),
@@ -87,7 +86,7 @@ export class Catalog extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };

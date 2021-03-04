@@ -1,13 +1,14 @@
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
-import { FirestoreObject } from "../Core/FirestoreObject";
-import { Business } from "./Business";
-import { MenuGroupMeta } from "../Surfaces/MenuGroup";
-import { MenuMeta } from "../Surfaces/Menu";
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import { Business } from './Business';
+import * as Config from '../../firestore-core/config';
+import MenuGroupMeta from '../surfaces/MenuGroupMeta';
+import MenuMeta from '../surfaces/MenuMeta';
 
-const surfacesKey = FirestorePaths.CollectionNames.surfaces;
+const surfacesKey = Config.Paths.CollectionNames.surfaces;
 
-export class Surfaces extends FirestoreObject<Id> {
+export default class Surfaces extends FirestoreObject<string> {
   menus: { [Id: string]: MenuMeta };
+
   menuGroups: { [Id: string]: MenuGroupMeta };
 
   constructor(
@@ -17,7 +18,7 @@ export class Surfaces extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: string
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id ?? surfacesKey);
 
@@ -25,28 +26,25 @@ export class Surfaces extends FirestoreObject<Id> {
     this.menuGroups = menuGroups;
   }
 
-  // FirebaseAdapter
-
-  readonly converter = Surfaces.firestoreConverter;
-
-  collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Business.publicCollectionRef(businessId);
   }
 
+  // eslint-disable-next-line class-methods-use-this
   metaLinks(): { [p: string]: string } {
     return {};
   }
 
+  // eslint-disable-next-line class-methods-use-this
   metadata(): {} {
     return {};
   }
 
   // STATICS
 
-  static docRef(businessId: Id): FirebaseFirestore.DocumentReference {
-    return Business.publicCollectionRef(businessId).doc(
-      FirestorePaths.CollectionNames.surfaces
-    );
+  static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
+    return Business.publicCollectionRef(businessId).doc(Config.Paths.CollectionNames.surfaces);
   }
 
   static firestoreConverter = {
@@ -70,7 +68,7 @@ export class Surfaces extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };

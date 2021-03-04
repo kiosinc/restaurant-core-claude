@@ -1,17 +1,31 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { LinkedObject } from "../core/LinkedObject";
-import { Catalog } from "../roots/Catalog";
-import { FirestorePaths } from "../../firebaseApp";
+/**
+ * Attribute class
+ */
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import LinkedObject from '../../firestore-core/core/LinkedObject';
+import Catalog from '../roots/Catalog';
+import * as Config from '../../firestore-core/config';
+import AttributeMeta from './AttributeMeta';
 
-export class Attribute extends FirestoreObject<Id> {
+/**
+ * Attribute class extends FirestoreObject
+ * Attributes are base options for a product, which must have at least one.
+ * Each attribute can have multiple options.  One must be selected
+ */
+export class Attribute extends FirestoreObject<string> {
   name: string;
+
   values: { [Id: string]: AttributeValue };
 
   displayOrder: number;
+
   isActive: boolean;
 
   linkedObjects: { [Id: string]: LinkedObject };
 
+  /**
+   * Create an Attribute
+   */
   constructor(
     name: string,
     values: { [p: string]: AttributeValue },
@@ -21,7 +35,7 @@ export class Attribute extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id);
     this.name = name;
@@ -35,16 +49,15 @@ export class Attribute extends FirestoreObject<Id> {
 
   // FirestoreAdapter
 
-  readonly converter = Attribute.firestoreConverter;
-
-  collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Attribute.collectionRef(businessId);
   }
 
-  metaLinks(businessId: Id): { [p: string]: string } {
+  metaLinks(businessId: string): { [p: string]: string } {
+    const field = `${Config.Paths.CollectionNames.attributes}.${this.Id}`;
     return {
-      [Catalog.docRef(businessId).path]:
-        FirestorePaths.CollectionNames.attributes + "." + this.Id,
+      [Catalog.docRef(businessId).path]: field,
     };
   }
 
@@ -56,14 +69,22 @@ export class Attribute extends FirestoreObject<Id> {
     };
   }
 
-  // STATICS
+  // STATICS THAT SHOULD BE IMPLEMENTED BY ALL FIRESTORE OBJECTS
 
-  static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
+  /**
+   * Attribute class CollectionReference for given business
+   */
+  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Catalog.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.attributes
+      Config.Paths.CollectionNames.attributes,
     );
   }
 
+  /**
+   * A converter used to convert object to and from firestore, any
+   * '.data' returns an object can can simply be cast with 'as [type]'.
+   * Used in conjunction with Firestore collection references or queries.
+   */
   static firestoreConverter = {
     toFirestore(attribute: Attribute): FirebaseFirestore.DocumentData {
       return {
@@ -79,7 +100,7 @@ export class Attribute extends FirestoreObject<Id> {
       };
     },
     fromFirestore(
-      snapshot: FirebaseFirestore.QueryDocumentSnapshot
+      snapshot: FirebaseFirestore.QueryDocumentSnapshot,
     ): Attribute {
       const data = snapshot.data();
       return new Attribute(
@@ -91,16 +112,10 @@ export class Attribute extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };
-}
-
-export interface AttributeMeta {
-  name: string;
-  isActive: boolean;
-  displayOrder: number;
 }
 
 export interface AttributeValue {

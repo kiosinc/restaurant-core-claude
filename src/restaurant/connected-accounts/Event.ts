@@ -1,10 +1,12 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { ConnectedAccounts } from "../roots/ConnectedAccounts";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import ConnectedAccounts from '../Roots/ConnectedAccounts';
+import * as Config from '../../firestore-core/config';
 
-export class Event extends FirestoreObject<Id> {
+export default class Event extends FirestoreObject<string> {
   readonly provider: string;
+
   readonly type: string;
+
   timestamp: Date;
 
   constructor(
@@ -14,7 +16,7 @@ export class Event extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: string
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id ?? Event.identifier(provider, type));
     this.provider = provider;
@@ -22,28 +24,25 @@ export class Event extends FirestoreObject<Id> {
     this.timestamp = timestamp;
   }
 
-  // FirestoreAdapter
-
-  readonly converter = Event.firestoreConverter;
-
-  collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Event.collectionRef(businessId);
   }
 
-  metaLinks(businessId: Id): { [p: string]: string } {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars,class-methods-use-this
+  metaLinks(businessId: string): { [p: string]: string } {
     return {};
   }
 
+  // eslint-disable-next-line class-methods-use-this
   metadata(): {} {
     return {};
   }
 
   // STATICS
 
-  static collectionRef(businessId: Id) {
-    return ConnectedAccounts.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.events
-    );
+  static collectionRef(businessId: string) {
+    return ConnectedAccounts.docRef(businessId).collection(Config.Paths.CollectionNames.events);
   }
 
   static identifier(provider: string, type: string): string {
@@ -51,20 +50,17 @@ export class Event extends FirestoreObject<Id> {
   }
 
   static find(
-    businessId: Id,
-    provider: Provider,
-    type: string
-  ): Promise<Event | void> {
+    businessId: string,
+    provider: Config.Constants.Provider,
+    type: string,
+  ) {
     const docId = Event.identifier(provider, type);
-    return Event.collectionRef(businessId)
-      .doc(docId)
-      .withConverter(Event.firestoreConverter)
-      .get()
+    return Event.collectionRef(businessId).doc(docId).withConverter(Event.firestoreConverter).get()
       .then((snapshot) => {
-        if (!snapshot.exists) {
-          return;
+        if (snapshot.exists) {
+          return snapshot.data() as Event;
         }
-        return snapshot.data() as Event;
+        return undefined;
       });
   }
 
@@ -89,7 +85,7 @@ export class Event extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };

@@ -1,0 +1,259 @@
+import { firestoreApp, FieldValue } from '../firebaseApp';
+import { Attribute } from '../../restaurant/catalog/Attribute';
+import Category from '../../restaurant/catalog/Category';
+import { CustomizationSet } from '../../restaurant/catalog/CustomizationSet';
+import { Product } from '../../restaurant/catalog/Product';
+// import { TaxRate } from '../catalog/TaxRate';
+import MenuGroup from '../../restaurant/surfaces/MenuGroup';
+import { Business } from '../../restaurant/roots/Business';
+import FirestoreObjectType from './FirestoreObjectType';
+import Catalog from '../../restaurant/roots/Catalog';
+import ConnectedAccounts from '../../restaurant/roots/ConnectedAccounts';
+import Surfaces from '../../restaurant/roots/Surfaces';
+
+/**
+ * Delete a firestore object using recursive (if needed) batched transactions
+ * Factory writer to the store
+ * Writes this object and it's metadata to the store,
+ * and also updates relevant relationships
+ */
+async function setT<C extends FirestoreObjectType>(
+  object: C,
+  converter: FirebaseFirestore.FirestoreDataConverter<C>,
+  businessId: string,
+  t: FirebaseFirestore.Transaction,
+) {
+  const id = object.Id;
+  const updatedObject = object;
+  updatedObject.updated = new Date();
+  const metadata = JSON.parse(JSON.stringify(object.metadata()));
+
+  /**
+   * Make applicable updates for relationships
+   * depending on the type of the object
+   */
+  /** Attribute */
+  if (object instanceof Attribute) {
+    // Update Product relationships
+    const productConverter = Product.firestoreConverter;
+    const fieldPath = `attributes.${id}.name`;
+    const query = Product.collectionRef(businessId)
+      .where(fieldPath, '>=', '')
+      .withConverter(productConverter);
+    const querySnapshots = await t.get(query);
+
+    querySnapshots.docs.forEach((snapshot) => {
+      t.update(snapshot.ref, `attributes.${id}`, metadata);
+    });
+  }
+  /** Category */
+  // if (object instanceof Category) {
+  // }
+  /** CustomizationSet */
+  if (object instanceof CustomizationSet) {
+    // Delete Product relationships
+    const productConverter = Product.firestoreConverter;
+    const fieldPath = `customizations.${id}.name`;
+    const query = Product.collectionRef(businessId)
+      .where(fieldPath, '>=', '')
+      .withConverter(productConverter);
+    const querySnapshots = await t.get(query);
+
+    // Update the related objects that were successfully queried
+    querySnapshots.docs.forEach((snapshot) => {
+      t.update(snapshot.ref, `customizations.${id}`, metadata);
+      t.update(snapshot.ref, `customizationsSetting.${id}`, metadata);
+    });
+  }
+  /** Product */
+  if (object instanceof Product) {
+    /** Update menu group, category, attribute relationships */
+    // Setup reads first
+    // MenuGroups
+    const menuGroupQuery = MenuGroup.collectionRef(businessId)
+      .where('productDisplayOrder', 'array-contains', id)
+      .withConverter(MenuGroup.firestoreConverter);
+    const menuGroupQuerySnapshots = await t.get(menuGroupQuery);
+    // Category
+    const categoryQuery = Category.collectionRef(businessId)
+      .where('productDisplayOrder', 'array-contains', id)
+      .withConverter(Category.firestoreConverter);
+    const categoryQuerySnapshots = await t.get(categoryQuery);
+    // End reads
+
+    // Setup writes second
+    // Update from each menu group
+    menuGroupQuerySnapshots.docs.forEach((snapshot) => {
+      t.update(snapshot.ref, `products.${id}`, metadata);
+    });
+
+    // Update each category group
+    categoryQuerySnapshots.docs.forEach((snapshot) => {
+      t.update(snapshot.ref, `products.${id}`, metadata);
+    });
+  }
+  /** TaxRate */
+  // if (object instanceof TaxRate) {
+  // }
+
+  /** FINALIZE and set basic object and it's metadata */
+  t.set(
+    object.collectionRef(businessId).doc(id).withConverter(converter),
+    updatedObject,
+  );
+
+  const metaLinks = object.metaLinks(businessId);
+
+  Object.keys(metaLinks).forEach((key) => {
+    const value = metaLinks[key] as string;
+    const docRef = firestoreApp.doc(key);
+
+    const fields = {
+      [value]: metadata,
+    };
+
+    t.update(docRef, fields);
+  });
+
+  /**
+   * Business
+   * The scaffolding for the business objects needs to be done after the
+   * business is created
+   * */
+  if (object instanceof Business) {
+    const newCatalog = new Catalog({}, {}, {}, {}, {});
+    const newConnectedAccounts = new ConnectedAccounts({}, {});
+    const newSurface = new Surfaces({}, {});
+
+    // TODO security is disabled
+    // .then(() => {
+    //     let claims = user.claims
+    //     claims.businessRole[newBusiness.Id] = Role.owner
+    //     return auth().setCustomUserClaims(uid, Claims.wrapper(claims))
+    // })
+
+    await setT(newCatalog, Catalog.firestoreConverter, businessId, t);
+    await setT(newConnectedAccounts, ConnectedAccounts.firestoreConverter, businessId, t);
+    await setT(newSurface, Surfaces.firestoreConverter, businessId, t);
+  }
+}
+
+/**
+ * Factory writer to the store
+ * Writes this object and it's metadata to the store,
+ * and also updates relevant relationships
+ */
+export function setObject<C extends FirestoreObjectType>(
+  object: C,
+  converter: FirebaseFirestore.FirestoreDataConverter<C>,
+  businessId: string,
+) {
+  return firestoreApp
+    .runTransaction(async (t) => setT(object, converter, businessId, t));
+}
+
+/**
+ * Delete a firestore object using recursive (if needed) batched transactions
+ */
+async function deleteT<C extends FirestoreObjectType>(
+  object: C,
+  businessId: string,
+  t: FirebaseFirestore.Transaction,
+) {
+  const id = object.Id;
+
+  /**
+   * Make applicable updates for relationships
+   * depending on the type of the object
+   */
+  /** Attribute */
+  // if (object instanceof Attribute) {
+  // }
+  /** Category */
+  // if (object instanceof Category) {
+  // }
+  /** CustomizationSet */
+  if (object instanceof CustomizationSet) {
+    /** Delete Product relationships */
+    // Read/find query from firestore
+    const productConverter = Product.firestoreConverter;
+    const fieldPath = `customizations.${id}.name`;
+    const query = Product.collectionRef(businessId)
+      .where(fieldPath, '>=', '')
+      .withConverter(productConverter);
+    const querySnapshots = await t.get(query);
+    // Update the related objects that were successfully queried
+    querySnapshots.docs.forEach((snapshot) => {
+      const product = snapshot.data();
+      delete product.customizations[id];
+      delete product.customizationsSetting[id];
+      t.set(snapshot.ref, product);
+    });
+  }
+  /** For products */
+  if (object instanceof Product) {
+    /** Delete menu group, category, attribute relationships */
+    // Setup reads first
+    // MenuGroups
+    const menuGroupQuery = MenuGroup.collectionRef(businessId)
+      .where('productDisplayOrder', 'array-contains', id)
+      .withConverter(MenuGroup.firestoreConverter);
+    const menuGroupQuerySnapshots = await t.get(menuGroupQuery);
+    // Category
+    const categoryQuery = Category.collectionRef(businessId)
+      .where('productDisplayOrder', 'array-contains', id)
+      .withConverter(Category.firestoreConverter);
+    const categoryQuerySnapshots = await t.get(categoryQuery);
+    // Attributes (to delete)
+    const attributeIds = Object.keys(object.attributes);
+    const attributeDocRefs = attributeIds.map((attributeId) => Attribute.collectionRef(businessId)
+      .withConverter(Attribute.firestoreConverter).doc(attributeId));
+    const attributeSnapshots = await t.getAll(...attributeDocRefs);
+    // End reads
+
+    // Setup writes second
+    // Remove from each menu group
+    menuGroupQuerySnapshots.docs.forEach((snapshot) => {
+      t.update(snapshot.ref, `products.${id}`, FieldValue.delete());
+      t.update(snapshot.ref, 'productDisplayOrder', FieldValue.arrayRemove(id));
+    });
+
+    // Remove from each category group
+    categoryQuerySnapshots.docs.forEach((snapshot) => {
+      t.update(snapshot.ref, `products.${id}`, FieldValue.delete());
+      t.update(snapshot.ref, 'productDisplayOrder', FieldValue.arrayRemove(id));
+    });
+
+    // For each attribute snapshot
+    attributeSnapshots.forEach((snapshot) => {
+      if (snapshot.exists) {
+        const attribute = snapshot.data() as Attribute;
+        deleteT(attribute, businessId, t);
+      }
+    });
+  }
+
+  /** Remove from basic object and it's metadata */
+  t.delete(object.collectionRef(businessId).doc(id));
+
+  const metaLinks = object.metaLinks(businessId);
+  Object.keys(metaLinks).forEach((key) => {
+    const value = metaLinks[key] as string;
+    const docRef = firestoreApp.doc(key);
+
+    const fields = { [value]: FieldValue.delete() };
+    t.update(docRef, fields);
+  });
+}
+
+/**
+ * Permanently deletes the object from firestore
+ * including all metadata and related objects
+ */
+export function deleteObject<C extends FirestoreObjectType>(
+  object: C,
+  businessId: string,
+) {
+  return firestoreApp
+    .runTransaction(async (t) => deleteT(object, businessId, t));
+}

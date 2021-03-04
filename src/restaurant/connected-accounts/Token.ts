@@ -1,11 +1,14 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { ConnectedAccounts } from "../roots/ConnectedAccounts";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import ConnectedAccounts from '../Roots/ConnectedAccounts';
+import * as Config from '../../firestore-core/config';
 
-export abstract class Token extends FirestoreObject<void> {
+export default abstract class Token extends FirestoreObject<void> {
   createdBy: string;
+
   businessId: string;
+
   provider: string;
+
   token: {};
 
   protected constructor(
@@ -13,11 +16,11 @@ export abstract class Token extends FirestoreObject<void> {
     businessId: string,
     token: {},
     provider: string,
-    Id: Id,
+    Id: string,
 
     created?: Date,
     updated?: Date,
-    isDeleted?: boolean
+    isDeleted?: boolean,
   ) {
     super(created, updated, isDeleted, Id);
 
@@ -35,9 +38,7 @@ export abstract class Token extends FirestoreObject<void> {
 
   // STATICS
 
-  static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return ConnectedAccounts.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.tokens
-    );
+  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
+    return ConnectedAccounts.docRef(businessId).collection(Config.Paths.CollectionNames.tokens);
   }
 }

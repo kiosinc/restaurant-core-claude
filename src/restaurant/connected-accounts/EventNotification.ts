@@ -1,10 +1,12 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { ConnectedAccounts } from "../roots/ConnectedAccounts";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import ConnectedAccounts from '../Roots/ConnectedAccounts';
+import * as Config from '../../firestore-core/config';
 
-export class EventNotification extends FirestoreObject<Id> {
+export default class EventNotification extends FirestoreObject<string> {
   readonly eventId: string;
+
   readonly provider: string;
+
   readonly type: string;
 
   constructor(
@@ -14,7 +16,7 @@ export class EventNotification extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: string
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id);
     this.eventId = eventId;
@@ -22,51 +24,46 @@ export class EventNotification extends FirestoreObject<Id> {
     this.type = type;
   }
 
-  // FirestoreAdapter
-
-  readonly converter = EventNotification.firestoreConverter;
-
-  collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return EventNotification.collectionRef(businessId);
   }
 
-  metaLinks(businessId: Id): { [p: string]: string } {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars,class-methods-use-this
+  metaLinks(businessId: string): { [p: string]: string } {
     return {};
   }
 
+  // eslint-disable-next-line class-methods-use-this
   metadata(): {} {
     return {};
   }
 
   // STATICS
 
-  static collectionRef(businessId: Id) {
-    return ConnectedAccounts.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.eventNotifications
-    );
+  static collectionRef(businessId: string) {
+    return ConnectedAccounts.docRef(businessId)
+      .collection(Config.Paths.CollectionNames.eventNotifications);
   }
 
   static find(
-    businessId: Id,
-    provider: Provider,
-    eventId: Id
+    businessId: string,
+    provider: Config.Constants.Provider,
+    eventId: string,
   ): Promise<EventNotification[]> {
     return EventNotification.collectionRef(businessId)
-      .where("eventId", "==", eventId)
-      .where("provider", "==", provider)
+      .where('eventId', '==', eventId)
+      .where('provider', '==', provider)
       .withConverter(EventNotification.firestoreConverter)
       .get()
-      .then((snapshot) => {
-        return snapshot.docs.map((doc) => doc.data() as EventNotification);
-      });
+      .then((snapshot) => snapshot.docs
+        .map((doc) => doc.data() as EventNotification));
   }
 
   // STATICS
 
   static firestoreConverter = {
-    toFirestore(
-      notification: EventNotification
-    ): FirebaseFirestore.DocumentData {
+    toFirestore(notification: EventNotification): FirebaseFirestore.DocumentData {
       return {
         eventId: notification.eventId,
         provider: notification.provider,
@@ -76,9 +73,7 @@ export class EventNotification extends FirestoreObject<Id> {
         isDeleted: notification.isDeleted,
       };
     },
-    fromFirestore(
-      snapshot: FirebaseFirestore.QueryDocumentSnapshot
-    ): EventNotification {
+    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): EventNotification {
       const data = snapshot.data();
 
       return new EventNotification(
@@ -88,7 +83,7 @@ export class EventNotification extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };

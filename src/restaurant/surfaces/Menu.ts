@@ -1,13 +1,18 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { Surfaces } from "../roots/Surfaces";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
-import { MenuGroupMeta } from "./MenuGroup";
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import * as Config from '../../firestore-core/config';
+import Surfaces from '../roots/Surfaces';
+import MenuGroupMeta from './MenuGroupMeta';
+import MenuMeta from './MenuMeta';
 
-export class Menu extends FirestoreObject<Id> {
+export default class Menu extends FirestoreObject<string> {
   name: string;
+
   displayName?: string;
+
   groups: { [Id: string]: MenuGroupMeta };
+
   groupDisplayOrder: string[];
+
   isProductAvailable: { [p: string]: boolean };
 
   constructor(
@@ -19,7 +24,7 @@ export class Menu extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id);
 
@@ -31,18 +36,14 @@ export class Menu extends FirestoreObject<Id> {
     this.displayName = displayName;
   }
 
-  // FirestoreAdapter
-
-  readonly converter = Menu.firestoreConverter;
-
-  collectionRef(businessId: Id) {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string) {
     return Menu.collectionRef(businessId);
   }
 
-  metaLinks(businessId: Id): { [p: string]: string } {
+  metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Surfaces.docRef(businessId).path]:
-        FirestorePaths.CollectionNames.menus + "." + this.Id,
+      [Surfaces.docRef(businessId).path]: `${Config.Paths.CollectionNames.menus}.${this.Id}`,
     };
   }
 
@@ -55,10 +56,8 @@ export class Menu extends FirestoreObject<Id> {
 
   // STATICS
 
-  static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Surfaces.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.menus
-    );
+  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
+    return Surfaces.docRef(businessId).collection(Config.Paths.CollectionNames.menus);
   }
 
   static firestoreConverter = {
@@ -86,13 +85,8 @@ export class Menu extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };
-}
-
-export interface MenuMeta {
-  name: string;
-  displayName?: string;
 }

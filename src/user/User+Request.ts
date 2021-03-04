@@ -1,6 +1,9 @@
-import { User } from "./User";
+/** Merge declaration for Express Request
+ * Adds an optional User property to the request
+ */
+import { User } from './User';
 
-declare module "express" {
+declare module 'express' {
   interface Request {
     user?: User;
   }

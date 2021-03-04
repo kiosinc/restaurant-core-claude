@@ -1,16 +1,22 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { ProductMeta } from "../catalog/Product";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
-import { Surfaces } from "../roots/Surfaces";
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import * as Config from '../../firestore-core/config';
+import Surfaces from '../roots/Surfaces';
+import MenuGroupMeta from './MenuGroupMeta';
+import ProductMeta from '../catalog/ProductMeta';
 
-export class MenuGroup extends FirestoreObject<Id> {
+export default class MenuGroup extends FirestoreObject<string> {
   // The group's name, meant to be displayable to the customer.
   name: string;
+
   displayName?: string;
+
   // Products in this group
   products: { [p: string]: ProductMeta };
+
   productDisplayOrder: string[];
+
   parentGroup?: string;
+
   childGroup?: string;
 
   constructor(
@@ -23,7 +29,7 @@ export class MenuGroup extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id);
     this.name = name;
@@ -37,16 +43,14 @@ export class MenuGroup extends FirestoreObject<Id> {
     this.childGroup = childGroup;
   }
 
-  readonly converter = MenuGroup.firestoreConverter;
-
-  collectionRef(businessId: Id) {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string) {
     return MenuGroup.collectionRef(businessId);
   }
 
-  metaLinks(businessId: Id): { [p: string]: string } {
+  metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Surfaces.docRef(businessId).path]:
-        FirestorePaths.CollectionNames.menuGroups + "." + this.Id,
+      [Surfaces.docRef(businessId).path]: `${Config.Paths.CollectionNames.menuGroups}.${this.Id}`,
     };
   }
 
@@ -59,10 +63,8 @@ export class MenuGroup extends FirestoreObject<Id> {
 
   // STATICS
 
-  static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Surfaces.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.menuGroups
-    );
+  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
+    return Surfaces.docRef(businessId).collection(Config.Paths.CollectionNames.menuGroups);
   }
 
   static firestoreConverter = {
@@ -70,9 +72,7 @@ export class MenuGroup extends FirestoreObject<Id> {
       return {
         name: menuGroup.name,
         products: JSON.parse(JSON.stringify(menuGroup.products)),
-        productDisplayOrder: JSON.parse(
-          JSON.stringify(menuGroup.productDisplayOrder)
-        ),
+        productDisplayOrder: JSON.parse(JSON.stringify(menuGroup.productDisplayOrder)),
         displayName: menuGroup.displayName,
         parentGroup: menuGroup.parentGroup,
         childGroup: menuGroup.childGroup,
@@ -81,9 +81,7 @@ export class MenuGroup extends FirestoreObject<Id> {
         isDeleted: menuGroup.isDeleted,
       };
     },
-    fromFirestore(
-      snapshot: FirebaseFirestore.QueryDocumentSnapshot
-    ): MenuGroup {
+    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): MenuGroup {
       const data = snapshot.data();
 
       return new MenuGroup(
@@ -96,13 +94,8 @@ export class MenuGroup extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };
-}
-
-export interface MenuGroupMeta {
-  name: string;
-  displayName?: string;
 }

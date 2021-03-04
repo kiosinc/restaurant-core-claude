@@ -1,23 +1,27 @@
-import { Request } from "express";
-import "./User+Request";
-import { authApp } from "../firestore-config/firebaseApp";
+/** UserRequest module
+ * Takes an Express Request and injects
+ * a User into the request
+ */
+import { Request } from 'express';
+import './User+Request';
+import { authApp } from '../firestore-core/firebaseApp';
 
-export async function authenticate(req: Request) {
-  const bearerHeader = req.headers["authorization"];
+/**
+ * Authenticates a request and injects resulting User
+ * into the request
+ */
+export default async function authenticateRequest(req: Request) {
+  const bearerHeader = req.headers.authorization;
 
   if (bearerHeader) {
-    try {
-      const bearer = bearerHeader.split(" ");
-      const bearerToken = bearer[1];
+    const bearer = bearerHeader.split(' ');
+    const bearerToken = bearer[1];
 
-      const decodedIdToken = await authApp.verifyIdToken(bearerToken);
+    const decodedIdToken = await authApp.verifyIdToken(bearerToken);
 
-      req.user = {
-        claims: decodedIdToken.claims,
-        token: decodedIdToken,
-      };
-    } catch (e) {
-      throw e;
-    }
+    req.user = {
+      claims: decodedIdToken.claims,
+      token: decodedIdToken,
+    };
   }
 }

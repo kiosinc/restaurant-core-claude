@@ -1,22 +1,30 @@
-import { FirestoreObject } from "../core/FirestoreObject";
-import { LinkedObject } from "../core/LinkedObject";
-import { CustomizationSetMeta } from "./CustomizationSet";
-import { AttributeMeta } from "./Attribute";
-import { Catalog } from "../roots/Catalog";
-import { FirestorePaths } from "../../firestore-config/firebaseApp";
+/**
+ * Product class
+ */
+import FirestoreObject from '../../firestore-core/core/FirestoreObject';
+import LinkedObject from '../../firestore-core/core/LinkedObject';
+import * as Config from '../../firestore-core/config';
+import ProductMeta from './ProductMeta';
+import CustomizationSetMeta from './CustomizationSetMeta';
+import AttributeMeta from './AttributeMeta';
+import Catalog from '../Roots/Catalog';
 
-export class Product extends FirestoreObject<Id> {
+export class Product extends FirestoreObject<string> {
   // The product’s name, meant to be displayable to the customer.
   name: string;
-  // A short one-line description of the product, meant to be displayable to the customer.
+
   caption: string;
-  // The product’s description, meant to be displayable to the customer. Use this field to optionally store a long form explanation of the product being sold for your own rendering purposes.
+
   description: string;
+
   // A list of URLs of images for this product, meant to be displayable to the customer.
   imageUrls: URL[];
+
   // Product data
   attributes: { [Id: string]: AttributeMeta };
+
   customizations: { [Id: string]: CustomizationSetMeta };
+
   customizationsSetting: { [Id: string]: ProductCustomizationSetting };
 
   // Whether the product is currently available for purchase.
@@ -37,7 +45,7 @@ export class Product extends FirestoreObject<Id> {
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
-    Id?: Id
+    Id?: string,
   ) {
     super(created, updated, isDeleted, Id);
     this.name = name;
@@ -51,18 +59,14 @@ export class Product extends FirestoreObject<Id> {
     this.linkedObjects = linkedObjects;
   }
 
-  // FirestoreAdapter
-
-  readonly converter = Product.firestoreConverter;
-
-  collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Product.collectionRef(businessId);
   }
 
-  metaLinks(businessId: Id): { [p: string]: string } {
+  metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Catalog.docRef(businessId).path]:
-        FirestorePaths.CollectionNames.products + "." + this.Id,
+      [Catalog.docRef(businessId).path]: `${Config.Paths.CollectionNames.products}.${this.Id}`,
     };
   }
 
@@ -73,10 +77,8 @@ export class Product extends FirestoreObject<Id> {
     };
   }
 
-  static collectionRef(businessId: Id): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(
-      FirestorePaths.CollectionNames.products
-    );
+  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
+    return Catalog.docRef(businessId).collection(Config.Paths.CollectionNames.products);
   }
 
   static firestoreConverter = {
@@ -88,9 +90,7 @@ export class Product extends FirestoreObject<Id> {
         imageUrls: JSON.parse(JSON.stringify(product.imageUrls)),
         attributes: JSON.parse(JSON.stringify(product.attributes)),
         customizations: JSON.parse(JSON.stringify(product.customizations)),
-        customizationsSetting: JSON.parse(
-          JSON.stringify(product.customizationsSetting)
-        ),
+        customizationsSetting: JSON.parse(JSON.stringify(product.customizationsSetting)),
         isActive: product.isActive,
         linkedObjects: JSON.parse(JSON.stringify(product.linkedObjects)),
         created: product.created.toISOString(),
@@ -113,20 +113,15 @@ export class Product extends FirestoreObject<Id> {
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
-        snapshot.id
+        snapshot.id,
       );
     },
   };
 }
 
-export interface ProductMeta {
-  name: string;
-  isActive: boolean;
-}
-
 export interface ProductCustomizationSetting {
-  minSelection: number; // TODO can delete and rely on customization set
-  maxSelection: number; // TODO can delete and rely on customization set
-  preSelected: Id[]; // TODO can delete and rely on customization set
-  isActive: boolean;
+  minSelection: number // TODO can delete and rely on customization set
+  maxSelection: number // TODO can delete and rely on customization set
+  preSelected: string[] // TODO can delete and rely on customization set
+  isActive: boolean
 }

@@ -1,11 +1,18 @@
-import { Constants } from "../firestore-config/config";
+/**
+ * Claims module
+ * Documents user claims
+ */
+import { Constants } from '../firestore-core/config';
 
+/** Claim body that contains the dictionary
+ * of user roles for given businessId */
 export interface Body {
   businessRole: { [businessId: string]: Constants.Role };
 }
 
+/** Wraps a claim body to be readable on decodedIdToken
+ *"token.claims.businessRole" not "token.claims.claims.businessRole"
+ */
 export function wrapper(body: Body) {
-  // Create a second layer of "claim"
-  // This becomes the property name on the decoded token "token.claims.businessRole" not "token.claims.claims.businessRole"
   return { claims: body };
 }
