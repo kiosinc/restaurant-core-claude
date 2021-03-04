@@ -5,7 +5,7 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import ProductMeta from './ProductMeta';
 import CategoryMeta from './CategoryMeta';
-import Catalog from '../Roots/Catalog';
+import Catalog from '../roots/Catalog';
 import * as Config from '../../firestore-core/config';
 
 /**

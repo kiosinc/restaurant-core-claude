@@ -7,7 +7,7 @@ import * as Config from '../../firestore-core/config';
 import ProductMeta from './ProductMeta';
 import CustomizationSetMeta from './CustomizationSetMeta';
 import AttributeMeta from './AttributeMeta';
-import Catalog from '../Roots/Catalog';
+import Catalog from '../roots/Catalog';
 
 export class Product extends FirestoreObject<string> {
   // The product’s name, meant to be displayable to the customer.

@@ -1,5 +1,5 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import ConnectedAccounts from '../Roots/ConnectedAccounts';
+import ConnectedAccounts from '../roots/ConnectedAccounts';
 import * as Config from '../../firestore-core/config';
 
 export default abstract class Token extends FirestoreObject<void> {

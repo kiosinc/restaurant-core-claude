@@ -51,7 +51,7 @@ async function setT<C extends FirestoreObjectType>(
   // }
   /** CustomizationSet */
   if (object instanceof CustomizationSet) {
-    // Delete Product relationships
+    // Update Product relationships
     const productConverter = Product.firestoreConverter;
     const fieldPath = `customizations.${id}.name`;
     const query = Product.collectionRef(businessId)
@@ -62,7 +62,6 @@ async function setT<C extends FirestoreObjectType>(
     // Update the related objects that were successfully queried
     querySnapshots.docs.forEach((snapshot) => {
       t.update(snapshot.ref, `customizations.${id}`, metadata);
-      t.update(snapshot.ref, `customizationsSetting.${id}`, metadata);
     });
   }
   /** Product */
