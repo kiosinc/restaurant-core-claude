@@ -10,6 +10,7 @@ import FirestoreObjectType from './FirestoreObjectType';
 import Catalog from '../../restaurant/roots/Catalog';
 import ConnectedAccounts from '../../restaurant/roots/ConnectedAccounts';
 import Surfaces from '../../restaurant/roots/Surfaces';
+import Services from '../../restaurant/roots/Services';
 
 /**
  * Delete a firestore object using recursive (if needed) batched transactions
@@ -123,6 +124,8 @@ async function setT<C extends FirestoreObjectType>(
     const newCatalog = new Catalog({}, {}, {}, {}, {});
     const newConnectedAccounts = new ConnectedAccounts({}, {});
     const newSurface = new Surfaces({}, {});
+    const newServices = new Services();
+    newServices.kioskFeeRate = 1.5;
 
     // TODO security is disabled
     // .then(() => {
@@ -134,6 +137,7 @@ async function setT<C extends FirestoreObjectType>(
     await setT(newCatalog, Catalog.firestoreConverter, businessId, t);
     await setT(newConnectedAccounts, ConnectedAccounts.firestoreConverter, businessId, t);
     await setT(newSurface, Surfaces.firestoreConverter, businessId, t);
+    await setT(newServices, Services.firestoreConverter, businessId, t);
   }
   return object.collectionRef(businessId).doc(id).withConverter(converter);
 }

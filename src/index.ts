@@ -32,3 +32,4 @@ export { default as Menu } from './restaurant/surfaces/Menu';
 export { default as MenuGroup } from './restaurant/surfaces/MenuGroup';
 export { default as MenuGroupMeta } from './restaurant/surfaces/MenuGroupMeta';
 export { default as MenuMeta } from './restaurant/surfaces/MenuMeta';
+export { default as Services } from './restaurant/roots/Surfaces';

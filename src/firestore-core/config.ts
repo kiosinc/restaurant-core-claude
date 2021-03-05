@@ -34,7 +34,7 @@ export namespace Paths {
 
     taxRates = 'taxRates',
 
-    serviceRates = 'serviceRates',
+    services = 'services',
 
     surfaces = 'surfaces',
     menus = 'menus',
