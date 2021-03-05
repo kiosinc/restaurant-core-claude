@@ -31,6 +31,7 @@ export namespace Paths {
     products = 'products',
     attributes = 'attributes',
     customizationSets = 'customizationSets',
+    discounts = 'discounts',
 
     taxRates = 'taxRates',
 

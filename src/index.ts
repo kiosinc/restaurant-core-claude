@@ -33,3 +33,5 @@ export { default as MenuGroup } from './restaurant/surfaces/MenuGroup';
 export { default as MenuGroupMeta } from './restaurant/surfaces/MenuGroupMeta';
 export { default as MenuMeta } from './restaurant/surfaces/MenuMeta';
 export { default as Services } from './restaurant/roots/Surfaces';
+export * from './restaurant/catalog/Discount';
+export { default as DiscountMeta } from './restaurant/catalog/DiscountMeta';

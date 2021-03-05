@@ -3,8 +3,9 @@ import Category from '../../restaurant/catalog/Category';
 import { CustomizationSet } from '../../restaurant/catalog/CustomizationSet';
 import { Product } from '../../restaurant/catalog/Product';
 import TaxRate from '../../restaurant/catalog/TaxRate';
+import { Discount } from '../../restaurant/catalog/Discount';
 
 /** Firestore objects that are FirestoreObjects */
-type LinkedObjectType = Attribute | Category | CustomizationSet | Product | TaxRate;
+type LinkedObjectType = Attribute | Category | CustomizationSet | Product | TaxRate | Discount;
 
 export default LinkedObjectType;

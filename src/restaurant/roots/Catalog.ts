@@ -6,6 +6,7 @@ import TaxRateMeta from '../catalog/TaxRateMeta';
 import CustomizationSetMeta from '../catalog/CustomizationSetMeta';
 import AttributeMeta from '../catalog/AttributeMeta';
 import CategoryMeta from '../catalog/CategoryMeta';
+import DiscountMeta from '../catalog/DiscountMeta';
 
 const catalogKey = Config.Paths.CollectionNames.catalog;
 
@@ -20,12 +21,15 @@ export default class Catalog extends FirestoreObject<string> {
 
   attributes: { [Id: string]: AttributeMeta };
 
+  discounts: { [Id: string]: DiscountMeta };
+
   constructor(
     categories: { [p: string]: CategoryMeta },
     attributes: { [Id: string]: AttributeMeta } = {},
     customizationSets: { [p: string]: CustomizationSetMeta },
     products: { [p: string]: ProductMeta },
     taxRates: { [p: string]: TaxRateMeta },
+    discounts: { [p: string]: DiscountMeta },
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -38,6 +42,7 @@ export default class Catalog extends FirestoreObject<string> {
     this.customizationSets = customizationSets;
     this.products = products;
     this.taxRates = taxRates;
+    this.discounts = discounts;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -69,6 +74,7 @@ export default class Catalog extends FirestoreObject<string> {
         attributes: JSON.parse(JSON.stringify(catalog.attributes)),
         products: JSON.parse(JSON.stringify(catalog.products)),
         taxRates: JSON.parse(JSON.stringify(catalog.taxRates)),
+        discounts: JSON.parse(JSON.stringify(catalog.discounts)),
         created: catalog.created.toISOString(),
         updated: catalog.updated.toISOString(),
         isDeleted: catalog.isDeleted,
@@ -83,6 +89,7 @@ export default class Catalog extends FirestoreObject<string> {
         data.customizationsSets,
         data.products,
         data.taxRates,
+        data.discounts,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
