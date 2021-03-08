@@ -1,6 +1,7 @@
+/** Firestore Object type */
 import FirestoreObject from './FirestoreObject';
 
-/** Firestore objects that are FirestoreObjects */
+/** Type for all objects that are FirestoreObjects */
 type FirestoreObjectType = FirestoreObject<string | void>;
 
 export default FirestoreObjectType;

@@ -5,11 +5,8 @@ import * as Config from '../../firestore-core/config';
 export default class ConnectedAccounts extends FirestoreObject<string> {
   tokens: { [provider: string] : { [key: string]: string } };
 
-  isSync: { [provider: string] : boolean };
-
   constructor(
     tokens: { [provider: string] : { [key: string]: string } },
-    isSync: { [provider: string] : boolean },
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -18,7 +15,6 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
     super(created, updated, isDeleted, Id ?? Config.Paths.CollectionNames.connectedAccounts);
 
     this.tokens = tokens;
-    this.isSync = isSync;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -47,7 +43,6 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
     toFirestore(connectedAccounts: ConnectedAccounts): FirebaseFirestore.DocumentData {
       return {
         tokens: JSON.parse(JSON.stringify(connectedAccounts.tokens)),
-        isSync: JSON.parse(JSON.stringify(connectedAccounts.isSync)),
         created: connectedAccounts.created.toISOString(),
         isDeleted: connectedAccounts.isDeleted,
         updated: connectedAccounts.updated.toISOString(),
@@ -58,7 +53,6 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
 
       return new ConnectedAccounts(
         data.tokens,
-        data.isSync,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

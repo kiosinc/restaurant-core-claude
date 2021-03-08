@@ -7,11 +7,14 @@ export default class Event extends FirestoreObject<string> {
 
   readonly type: string;
 
+  isSync: boolean;
+
   timestamp: Date;
 
   constructor(
     provider: string,
     type: string,
+    isSync: boolean,
     timestamp: Date,
     created?: Date,
     updated?: Date,
@@ -21,6 +24,7 @@ export default class Event extends FirestoreObject<string> {
     super(created, updated, isDeleted, Id ?? Event.identifier(provider, type));
     this.provider = provider;
     this.type = type;
+    this.isSync = isSync;
     this.timestamp = timestamp;
   }
 
@@ -69,6 +73,7 @@ export default class Event extends FirestoreObject<string> {
       return {
         provider: event.provider,
         type: event.type,
+        isSync: event.isSync,
         timestamp: event.timestamp.toISOString(),
         created: event.created.toISOString(),
         updated: event.updated.toISOString(),
@@ -81,6 +86,7 @@ export default class Event extends FirestoreObject<string> {
       return new Event(
         data.provider,
         data.type,
+        data.isSync,
         new Date(data.timestamp),
         new Date(data.created),
         new Date(data.updated),

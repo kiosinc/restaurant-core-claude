@@ -1,5 +1,5 @@
 /**
- * Utility functions for LinkedObject
+ * Sync Utility functions for LinkedObject
  */
 import * as Config from '../config';
 import * as Writer from './FirestoreWriter';
@@ -32,6 +32,7 @@ export function isSyncActive<C extends LinkedObjectType>(
  * If the object already exists check against sync and delete flags
  * Return a SyncResult if the object should not be synced
  * or undefined if it should be synced
+ * Delete the object if it exists and is marked for sync and deletion
  */
 export async function isStopSync<C extends LinkedObjectType>(
   firestoreObject: C,

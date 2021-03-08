@@ -1,3 +1,8 @@
+/**
+ * FirestoreWriter functions
+ * Helps write and delete FirestoreObjectTypes to the db
+ */
+
 import { firestoreApp, FieldValue } from '../firebaseApp';
 import { Attribute } from '../../restaurant/catalog/Attribute';
 import Category from '../../restaurant/catalog/Category';
@@ -11,6 +16,7 @@ import Catalog from '../../restaurant/roots/Catalog';
 import ConnectedAccounts from '../../restaurant/roots/ConnectedAccounts';
 import Surfaces from '../../restaurant/roots/Surfaces';
 import Services from '../../restaurant/roots/Services';
+import Orders from '../../restaurant/roots/Orders';
 
 /**
  * Delete a firestore object using recursive (if needed) batched transactions
@@ -122,8 +128,9 @@ async function setT<C extends FirestoreObjectType>(
    * */
   if (object instanceof Business) {
     const newCatalog = new Catalog({}, {}, {}, {}, {}, {});
-    const newConnectedAccounts = new ConnectedAccounts({}, {});
+    const newConnectedAccounts = new ConnectedAccounts({});
     const newSurface = new Surfaces({}, {});
+    const newOrders = new Orders(true);
     const newServices = new Services();
     newServices.kioskFeeRate = 1.5;
 
@@ -137,6 +144,7 @@ async function setT<C extends FirestoreObjectType>(
     await setT(newCatalog, Catalog.firestoreConverter, businessId, t);
     await setT(newConnectedAccounts, ConnectedAccounts.firestoreConverter, businessId, t);
     await setT(newSurface, Surfaces.firestoreConverter, businessId, t);
+    await setT(newOrders, Orders.firestoreConverter, businessId, t);
     await setT(newServices, Services.firestoreConverter, businessId, t);
   }
   return object.collectionRef(businessId).doc(id).withConverter(converter);

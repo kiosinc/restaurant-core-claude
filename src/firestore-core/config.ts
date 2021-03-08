@@ -32,13 +32,13 @@ export namespace Paths {
     attributes = 'attributes',
     customizationSets = 'customizationSets',
     discounts = 'discounts',
-
     taxRates = 'taxRates',
-
-    services = 'services',
 
     surfaces = 'surfaces',
     menus = 'menus',
     menuGroups = 'menuGroups',
+
+    services = 'services',
+    orders = 'orders',
   }
 }
