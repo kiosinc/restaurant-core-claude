@@ -10,14 +10,15 @@ import * as Config from '../config';
 export default class LinkedObject {
   linkedObjectId: string;
 
-  isSyncActive: boolean;
+  /** Is syncing active on this object */
+  isSync: boolean;
 
   constructor(
     linkedObjectId: string,
     isSyncActive: boolean,
   ) {
     this.linkedObjectId = linkedObjectId;
-    this.isSyncActive = isSyncActive;
+    this.isSync = isSyncActive;
   }
 
   /**

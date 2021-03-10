@@ -3,6 +3,8 @@ import ConnectedAccounts from '../roots/ConnectedAccounts';
 import * as Config from '../../firestore-core/config';
 
 export default class EventNotification extends FirestoreObject<string> {
+  readonly businessId: string;
+
   readonly eventId: string;
 
   readonly provider: string;
@@ -10,6 +12,7 @@ export default class EventNotification extends FirestoreObject<string> {
   readonly type: string;
 
   constructor(
+    businessId: string,
     eventId: string,
     provider: string,
     type: string,
@@ -19,6 +22,7 @@ export default class EventNotification extends FirestoreObject<string> {
     Id?: string,
   ) {
     super(created, updated, isDeleted, Id);
+    this.businessId = businessId;
     this.eventId = eventId;
     this.provider = provider;
     this.type = type;
@@ -65,6 +69,7 @@ export default class EventNotification extends FirestoreObject<string> {
   static firestoreConverter = {
     toFirestore(notification: EventNotification): FirebaseFirestore.DocumentData {
       return {
+        businessId: notification.Id,
         eventId: notification.eventId,
         provider: notification.provider,
         type: notification.type,
@@ -77,6 +82,7 @@ export default class EventNotification extends FirestoreObject<string> {
       const data = snapshot.data();
 
       return new EventNotification(
+        data.businessId,
         data.eventId,
         data.provider,
         data.type,

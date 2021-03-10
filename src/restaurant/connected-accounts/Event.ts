@@ -7,6 +7,7 @@ export default class Event extends FirestoreObject<string> {
 
   readonly type: string;
 
+  /** Is syncing active for this event */
   isSync: boolean;
 
   timestamp: Date;
