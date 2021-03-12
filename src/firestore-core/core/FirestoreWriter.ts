@@ -141,11 +141,11 @@ async function setT<C extends FirestoreObjectType>(
     //     return auth().setCustomUserClaims(uid, Claims.wrapper(claims))
     // })
 
-    await setT(newCatalog, Catalog.firestoreConverter, businessId, t);
-    await setT(newConnectedAccounts, ConnectedAccounts.firestoreConverter, businessId, t);
-    await setT(newSurface, Surfaces.firestoreConverter, businessId, t);
-    await setT(newOrders, Orders.firestoreConverter, businessId, t);
-    await setT(newServices, Services.firestoreConverter, businessId, t);
+    await setT(newCatalog, Catalog.firestoreConverter, id, t);
+    await setT(newConnectedAccounts, ConnectedAccounts.firestoreConverter, id, t);
+    await setT(newSurface, Surfaces.firestoreConverter, id, t);
+    await setT(newOrders, Orders.firestoreConverter, id, t);
+    await setT(newServices, Services.firestoreConverter, id, t);
   }
   return object.collectionRef(businessId).doc(id).withConverter(converter);
 }
