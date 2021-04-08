@@ -22,7 +22,7 @@ export function isSyncActive<C extends LinkedObjectType>(
 ): boolean {
   const linkedObjectProvider = object.linkedObjects[provider];
   if (linkedObjectProvider) {
-    return linkedObjectProvider.isSync;
+    return linkedObjectProvider.isSyncActive;
   }
 
   return false;

@@ -11,14 +11,14 @@ export default class LinkedObject {
   linkedObjectId: string;
 
   /** Is syncing active on this object */
-  isSync: boolean;
+  isSyncActive: boolean;
 
   constructor(
     linkedObjectId: string,
     isSyncActive: boolean,
   ) {
     this.linkedObjectId = linkedObjectId;
-    this.isSync = isSyncActive;
+    this.isSyncActive = isSyncActive;
   }
 
   /**
@@ -41,7 +41,7 @@ export default class LinkedObject {
     if (snapshot.empty) {
       return false;
     } if (snapshot.docs.length > 1) {
-      throw new Error('Error: there is more than one Category with the same linkedID');
+      throw new Error(`There is more than one ${fromCollectionRef.path} Collection object ${snapshot.docs.map((t) => t.id)} with the same linkedID ${linkedObjectId}`);
     }
     return snapshot.docs[0].data();
   }
