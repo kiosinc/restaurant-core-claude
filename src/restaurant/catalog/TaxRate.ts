@@ -66,6 +66,8 @@ export default class TaxRate extends FirestoreObject<string> {
         isCalculatedSubTotalPhase: taxRate.isCalculatedSubTotalPhase,
         isInclusive: taxRate.isInclusive,
         linkedObjects: JSON.parse(JSON.stringify(taxRate.linkedObjects)),
+        created: taxRate.created.toISOString(),
+        updated: taxRate.updated.toISOString(),
         isDeleted: taxRate.isDeleted,
       };
     },

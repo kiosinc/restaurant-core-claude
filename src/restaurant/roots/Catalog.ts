@@ -75,6 +75,8 @@ export default class Catalog extends FirestoreObject<string> {
         products: JSON.parse(JSON.stringify(catalog.products)),
         taxRates: JSON.parse(JSON.stringify(catalog.taxRates)),
         discounts: JSON.parse(JSON.stringify(catalog.discounts)),
+        created: catalog.created.toISOString(),
+        updated: catalog.updated.toISOString(),
         isDeleted: catalog.isDeleted,
       };
     },

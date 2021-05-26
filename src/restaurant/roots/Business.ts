@@ -72,6 +72,8 @@ export class Business extends FirestoreObject<void> {
           account.businessProfile,
         ),
         roles: JSON.parse(JSON.stringify(account.roles)),
+        created: account.created.toISOString(),
+        updated: account.updated.toISOString(),
         isDeleted: account.isDeleted,
       };
     },

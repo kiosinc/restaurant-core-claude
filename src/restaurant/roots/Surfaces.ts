@@ -52,6 +52,8 @@ export default class Surfaces extends FirestoreObject<string> {
       return {
         menus: JSON.parse(JSON.stringify(surfaces.menus)),
         menuGroups: JSON.parse(JSON.stringify(surfaces.menuGroups)),
+        created: surfaces.created.toISOString(),
+        updated: surfaces.updated.toISOString(),
         isDeleted: surfaces.isDeleted,
       };
     },

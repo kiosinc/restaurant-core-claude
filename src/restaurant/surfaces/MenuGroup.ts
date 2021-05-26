@@ -76,6 +76,8 @@ export default class MenuGroup extends FirestoreObject<string> {
         displayName: menuGroup.displayName,
         parentGroup: menuGroup.parentGroup,
         childGroup: menuGroup.childGroup,
+        created: menuGroup.created.toISOString(),
+        updated: menuGroup.updated.toISOString(),
         isDeleted: menuGroup.isDeleted,
       };
     },

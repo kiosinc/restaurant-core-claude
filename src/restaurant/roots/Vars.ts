@@ -37,6 +37,8 @@ export default class Vars extends FirestoreObject<string> {
   static firestoreConverter = {
     toFirestore(connectedAccounts: Vars): FirebaseFirestore.DocumentData {
       return {
+        created: connectedAccounts.created.toISOString(),
+        updated: connectedAccounts.updated.toISOString(),
         isDeleted: connectedAccounts.isDeleted,
       };
     },

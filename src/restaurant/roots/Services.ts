@@ -42,6 +42,8 @@ export default class Services extends FirestoreObject<string> {
     toFirestore(services: Services): FirebaseFirestore.DocumentData {
       return {
         kioskFeeRate: services.kioskFeeRate,
+        created: services.created.toISOString(),
+        updated: services.updated.toISOString(),
         isDeleted: services.isDeleted,
       };
     },

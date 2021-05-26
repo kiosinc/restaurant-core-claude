@@ -43,6 +43,8 @@ export default class Orders extends FirestoreObject<string> {
     toFirestore(orders: Orders): FirebaseFirestore.DocumentData {
       return {
         isSMSStateUpdate: orders.isSMSStateUpdate,
+        created: orders.created.toISOString(),
+        updated: orders.updated.toISOString(),
         isDeleted: orders.isDeleted,
       };
     },

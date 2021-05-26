@@ -107,6 +107,8 @@ export class Discount extends FirestoreObject<string> {
         value: discount.value,
         isActive: discount.isActive,
         linkedObjects: JSON.parse(JSON.stringify(discount.linkedObjects)),
+        created: discount.created.toISOString(),
+        updated: discount.updated.toISOString(),
         isDeleted: discount.isDeleted,
       };
     },

@@ -43,6 +43,8 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
     toFirestore(connectedAccounts: ConnectedAccounts): FirebaseFirestore.DocumentData {
       return {
         tokens: JSON.parse(JSON.stringify(connectedAccounts.tokens)),
+        created: connectedAccounts.created.toISOString(),
+        updated: connectedAccounts.updated.toISOString(),
         isDeleted: connectedAccounts.isDeleted,
       };
     },

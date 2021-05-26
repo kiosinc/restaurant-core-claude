@@ -79,6 +79,8 @@ export default class Category extends FirestoreObject<string> {
         products: JSON.parse(JSON.stringify(category.products)),
         productDisplayOrder: JSON.parse(JSON.stringify(category.productDisplayOrder)),
         linkedObjects: JSON.parse(JSON.stringify(category.linkedObjects)),
+        created: category.created.toISOString(),
+        updated: category.updated.toISOString(),
         isDeleted: category.isDeleted,
       };
     },

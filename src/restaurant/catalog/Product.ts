@@ -93,6 +93,8 @@ export class Product extends FirestoreObject<string> {
         customizationsSetting: JSON.parse(JSON.stringify(product.customizationsSetting)),
         isActive: product.isActive,
         linkedObjects: JSON.parse(JSON.stringify(product.linkedObjects)),
+        created: product.created.toISOString(),
+        updated: product.updated.toISOString(),
         isDeleted: product.isDeleted,
       };
     },

@@ -109,6 +109,8 @@ export class Order extends FirestoreObject<string> {
         contactEmail: order.contactEmail,
         contactName: order.contactName,
         linkedObjects: JSON.parse(JSON.stringify(order.linkedObjects)),
+        created: order.created.toISOString(),
+        updated: order.updated.toISOString(),
         isDeleted: order.isDeleted,
       };
     },

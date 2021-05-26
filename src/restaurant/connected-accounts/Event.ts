@@ -76,6 +76,8 @@ export default class Event extends FirestoreObject<string> {
         type: event.type,
         isSync: event.isSync,
         timestamp: event.timestamp?.toISOString() ?? '',
+        created: event.created.toISOString(),
+        updated: event.updated.toISOString(),
         isDeleted: event.isDeleted,
       };
     },

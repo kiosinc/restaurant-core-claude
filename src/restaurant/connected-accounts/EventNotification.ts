@@ -83,6 +83,8 @@ export default class EventNotification extends FirestoreObject<string> {
         eventId: notification.eventId,
         provider: notification.provider,
         type: notification.type,
+        created: notification.created.toISOString(),
+        updated: notification.updated.toISOString(),
         isDeleted: notification.isDeleted,
       };
     },
