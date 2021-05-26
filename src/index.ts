@@ -37,3 +37,5 @@ export * from './restaurant/catalog/Discount';
 export { default as DiscountMeta } from './restaurant/catalog/DiscountMeta';
 export { default as Orders } from './restaurant/roots/Orders';
 export * from './restaurant/orders/Order';
+export { default as Vars } from './restaurant/roots/Vars';
+export { default as Semaphore } from './restaurant/vars/Semaphore';

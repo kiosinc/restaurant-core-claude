@@ -50,15 +50,25 @@ export default class EventNotification extends FirestoreObject<string> {
       .collection(Config.Paths.CollectionNames.eventNotifications);
   }
 
+  static findQuery(
+    businessId: string,
+    provider: Config.Constants.Provider,
+    eventId: string,
+  ) {
+    return EventNotification.collectionRef(businessId)
+      .where('eventId', '==', eventId)
+      .where('provider', '==', provider)
+      .withConverter(EventNotification.firestoreConverter);
+  }
+
   static find(
     businessId: string,
     provider: Config.Constants.Provider,
     eventId: string,
   ): Promise<EventNotification[]> {
-    return EventNotification.collectionRef(businessId)
-      .where('eventId', '==', eventId)
-      .where('provider', '==', provider)
-      .withConverter(EventNotification.firestoreConverter)
+    return EventNotification.findQuery(businessId,
+      provider,
+      eventId)
       .get()
       .then((snapshot) => snapshot.docs
         .map((doc) => doc.data() as EventNotification));

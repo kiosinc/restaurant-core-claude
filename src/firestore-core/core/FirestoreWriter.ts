@@ -17,6 +17,9 @@ import ConnectedAccounts from '../../restaurant/roots/ConnectedAccounts';
 import Surfaces from '../../restaurant/roots/Surfaces';
 import Services from '../../restaurant/roots/Services';
 import Orders from '../../restaurant/roots/Orders';
+import Vars from '../../restaurant/roots/Vars';
+import Semaphore from '../../restaurant/vars/Semaphore';
+import { Constants } from '../config';
 
 /**
  * Delete a firestore object using recursive (if needed) batched transactions
@@ -24,12 +27,12 @@ import Orders from '../../restaurant/roots/Orders';
  * Writes this object and it's metadata to the store,
  * and also updates relevant relationships
  */
-async function setT<C extends FirestoreObjectType>(
+export async function setT<C extends FirestoreObjectType>(
   object: C,
   converter: FirebaseFirestore.FirestoreDataConverter<C>,
   businessId: string,
   t: FirebaseFirestore.Transaction,
-) {
+): Promise<FirebaseFirestore.DocumentReference<C>> {
   const id = object.Id;
   const updatedObject = object;
   updatedObject.updated = new Date();
@@ -133,6 +136,7 @@ async function setT<C extends FirestoreObjectType>(
     const newOrders = new Orders(true);
     const newServices = new Services();
     newServices.kioskFeeRate = 1.5;
+    const newVar = new Vars();
 
     // TODO security is disabled
     // .then(() => {
@@ -146,6 +150,10 @@ async function setT<C extends FirestoreObjectType>(
     await setT(newSurface, Surfaces.firestoreConverter, id, t);
     await setT(newOrders, Orders.firestoreConverter, id, t);
     await setT(newServices, Services.firestoreConverter, id, t);
+    await setT(newVar, Vars.firestoreConverter, id, t);
+
+    const catalogUpdateSemaphore = new Semaphore(Constants.Semaphore.catalogUpdate, true);
+    await setT(catalogUpdateSemaphore, Semaphore.firestoreConverter, id, t);
   }
   return object.collectionRef(businessId).doc(id).withConverter(converter);
 }

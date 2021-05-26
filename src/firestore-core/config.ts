@@ -8,6 +8,10 @@ export namespace Constants {
     admin = 'admin',
     owner = 'owner',
   }
+
+  export const enum Semaphore {
+    catalogUpdate = 'catalog.update',
+  }
 }
 
 /** Constant path and collectionstrings used for firestore doc tree */
@@ -25,6 +29,7 @@ export namespace Paths {
     tokens = 'tokens',
     eventNotifications = 'eventNotifications',
     events = 'events',
+    vars = 'vars',
 
     catalog = 'catalog',
     categories = 'categories',
@@ -39,6 +44,8 @@ export namespace Paths {
     menuGroups = 'menuGroups',
 
     services = 'services',
+    semaphores = 'semaphores',
+
     orders = 'orders',
   }
 }
