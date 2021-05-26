@@ -109,8 +109,6 @@ export class Order extends FirestoreObject<string> {
         contactEmail: order.contactEmail,
         contactName: order.contactName,
         linkedObjects: JSON.parse(JSON.stringify(order.linkedObjects)),
-        created: order.created.toISOString(),
-        updated: order.updated.toISOString(),
         isDeleted: order.isDeleted,
       };
     },
@@ -126,8 +124,8 @@ export class Order extends FirestoreObject<string> {
         data.contactEmail,
         data.contactName,
         data.linkedObjects,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

@@ -37,17 +37,14 @@ export default class Vars extends FirestoreObject<string> {
   static firestoreConverter = {
     toFirestore(connectedAccounts: Vars): FirebaseFirestore.DocumentData {
       return {
-        created: connectedAccounts.created.toISOString(),
         isDeleted: connectedAccounts.isDeleted,
-        updated: connectedAccounts.updated.toISOString(),
       };
     },
     fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): Vars {
       const data = snapshot.data();
-
       return new Vars(
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

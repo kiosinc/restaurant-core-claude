@@ -107,8 +107,6 @@ export class Discount extends FirestoreObject<string> {
         value: discount.value,
         isActive: discount.isActive,
         linkedObjects: JSON.parse(JSON.stringify(discount.linkedObjects)),
-        created: discount.created.toISOString(),
-        updated: discount.updated.toISOString(),
         isDeleted: discount.isDeleted,
       };
     },
@@ -124,8 +122,8 @@ export class Discount extends FirestoreObject<string> {
         data.value as number,
         data.isActive as boolean,
         data.linkedObjects,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

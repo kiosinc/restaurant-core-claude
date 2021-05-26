@@ -43,9 +43,7 @@ export default class Orders extends FirestoreObject<string> {
     toFirestore(orders: Orders): FirebaseFirestore.DocumentData {
       return {
         isSMSStateUpdate: orders.isSMSStateUpdate,
-        created: orders.created.toISOString(),
         isDeleted: orders.isDeleted,
-        updated: orders.updated.toISOString(),
       };
     },
     fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): Orders {
@@ -53,8 +51,8 @@ export default class Orders extends FirestoreObject<string> {
 
       return new Orders(
         data.isSMSStateUpdate,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

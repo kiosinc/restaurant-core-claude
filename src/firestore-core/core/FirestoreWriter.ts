@@ -35,7 +35,6 @@ export async function setT<C extends FirestoreObjectType>(
 ): Promise<FirebaseFirestore.DocumentReference<C>> {
   const id = object.Id;
   const updatedObject = object;
-  updatedObject.updated = new Date();
   const metadata = JSON.parse(JSON.stringify(object.metadata()));
 
   /**
@@ -276,4 +275,17 @@ export function deleteObject<C extends FirestoreObjectType>(
 ) {
   return firestoreApp
     .runTransaction(async (t) => deleteT(object, businessId, t));
+}
+
+/**
+ * Updates the object on firestore
+ * NOT including all metadata and related objects
+ */
+export function updateObject<C extends FirestoreObjectType>(
+  object: C,
+  data: {},
+  businessId: string,
+) {
+  const ref = object.collectionRef(businessId).doc(object.Id);
+  return ref.update(data);
 }

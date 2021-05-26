@@ -93,8 +93,6 @@ export class Product extends FirestoreObject<string> {
         customizationsSetting: JSON.parse(JSON.stringify(product.customizationsSetting)),
         isActive: product.isActive,
         linkedObjects: JSON.parse(JSON.stringify(product.linkedObjects)),
-        created: product.created.toISOString(),
-        updated: product.updated.toISOString(),
         isDeleted: product.isDeleted,
       };
     },
@@ -110,8 +108,8 @@ export class Product extends FirestoreObject<string> {
         data.customizationsSetting,
         data.isActive,
         data.linkedObjects,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

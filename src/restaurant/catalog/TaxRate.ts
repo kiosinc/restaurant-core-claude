@@ -66,8 +66,6 @@ export default class TaxRate extends FirestoreObject<string> {
         isCalculatedSubTotalPhase: taxRate.isCalculatedSubTotalPhase,
         isInclusive: taxRate.isInclusive,
         linkedObjects: JSON.parse(JSON.stringify(taxRate.linkedObjects)),
-        created: taxRate.created.toISOString(),
-        updated: taxRate.updated.toISOString(),
         isDeleted: taxRate.isDeleted,
       };
     },
@@ -80,8 +78,8 @@ export default class TaxRate extends FirestoreObject<string> {
         data.isCalculatedSubTotalPhase,
         data.isInclusive,
         data.linkedObjects,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

@@ -43,9 +43,7 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
     toFirestore(connectedAccounts: ConnectedAccounts): FirebaseFirestore.DocumentData {
       return {
         tokens: JSON.parse(JSON.stringify(connectedAccounts.tokens)),
-        created: connectedAccounts.created.toISOString(),
         isDeleted: connectedAccounts.isDeleted,
-        updated: connectedAccounts.updated.toISOString(),
       };
     },
     fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): ConnectedAccounts {
@@ -53,8 +51,8 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
 
       return new ConnectedAccounts(
         data.tokens,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

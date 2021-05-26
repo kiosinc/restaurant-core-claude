@@ -57,7 +57,6 @@ export default class Semaphore extends FirestoreObject<string> {
         if (sema.isAvailable) {
           const data = {
             isAvailable: false,
-            updated: Date().toString(),
           };
           await t.update(ref, data);
           return true;
@@ -82,7 +81,6 @@ export default class Semaphore extends FirestoreObject<string> {
         if (!sema.isAvailable) {
           const data = {
             isAvailable: true,
-            updated: Date().toString(),
           };
           await t.update(ref, data);
         }
@@ -94,8 +92,6 @@ export default class Semaphore extends FirestoreObject<string> {
     toFirestore(semaphore: Semaphore): FirebaseFirestore.DocumentData {
       return {
         isAvailable: semaphore.isAvailable,
-        created: semaphore.created.toISOString(),
-        updated: semaphore.updated.toISOString(),
         isDeleted: semaphore.isDeleted,
       };
     },
@@ -105,8 +101,8 @@ export default class Semaphore extends FirestoreObject<string> {
       return new Semaphore(
         snapshot.id,
         data.isAvailable,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

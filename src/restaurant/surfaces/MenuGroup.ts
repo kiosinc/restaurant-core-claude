@@ -76,8 +76,6 @@ export default class MenuGroup extends FirestoreObject<string> {
         displayName: menuGroup.displayName,
         parentGroup: menuGroup.parentGroup,
         childGroup: menuGroup.childGroup,
-        created: menuGroup.created.toISOString(),
-        updated: menuGroup.updated.toISOString(),
         isDeleted: menuGroup.isDeleted,
       };
     },
@@ -91,8 +89,8 @@ export default class MenuGroup extends FirestoreObject<string> {
         data.displayName,
         data.parentGroup,
         data.childGroup,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

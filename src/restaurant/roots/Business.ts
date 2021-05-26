@@ -72,8 +72,6 @@ export class Business extends FirestoreObject<void> {
           account.businessProfile,
         ),
         roles: JSON.parse(JSON.stringify(account.roles)),
-        created: account.created.toISOString(),
-        updated: account.updated.toISOString(),
         isDeleted: account.isDeleted,
       };
     },
@@ -86,8 +84,8 @@ export class Business extends FirestoreObject<void> {
         data.type,
         data.businessProfile,
         data.roles,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

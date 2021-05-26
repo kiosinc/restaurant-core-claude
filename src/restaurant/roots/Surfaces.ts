@@ -52,9 +52,6 @@ export default class Surfaces extends FirestoreObject<string> {
       return {
         menus: JSON.parse(JSON.stringify(surfaces.menus)),
         menuGroups: JSON.parse(JSON.stringify(surfaces.menuGroups)),
-
-        created: surfaces.created.toISOString(),
-        updated: surfaces.updated.toISOString(),
         isDeleted: surfaces.isDeleted,
       };
     },
@@ -64,9 +61,8 @@ export default class Surfaces extends FirestoreObject<string> {
       return new Surfaces(
         data.menus,
         data.menuGroups,
-
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

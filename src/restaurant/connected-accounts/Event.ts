@@ -10,13 +10,13 @@ export default class Event extends FirestoreObject<string> {
   /** Is syncing active for this event */
   isSync: boolean;
 
-  timestamp: Date;
+  timestamp?: Date;
 
   constructor(
     provider: string,
     type: string,
     isSync: boolean,
-    timestamp: Date,
+    timestamp?: Date,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -75,9 +75,7 @@ export default class Event extends FirestoreObject<string> {
         provider: event.provider,
         type: event.type,
         isSync: event.isSync,
-        timestamp: event.timestamp.toISOString(),
-        created: event.created.toISOString(),
-        updated: event.updated.toISOString(),
+        timestamp: event.timestamp?.toISOString() ?? '',
         isDeleted: event.isDeleted,
       };
     },
@@ -88,9 +86,9 @@ export default class Event extends FirestoreObject<string> {
         data.provider,
         data.type,
         data.isSync,
-        new Date(data.timestamp),
-        new Date(data.created),
-        new Date(data.updated),
+        data.timestamp === '' ? undefined : new Date(data.timestamp),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

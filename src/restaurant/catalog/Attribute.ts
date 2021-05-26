@@ -94,8 +94,6 @@ export class Attribute extends FirestoreObject<string> {
         displayOrder: attribute.displayOrder,
         isActive: attribute.isActive,
         linkedObjects: JSON.parse(JSON.stringify(attribute.linkedObjects)),
-        created: attribute.created.toISOString(),
-        updated: attribute.updated.toISOString(),
         isDeleted: attribute.isDeleted,
       };
     },
@@ -109,8 +107,8 @@ export class Attribute extends FirestoreObject<string> {
         data.displayOrder,
         data.isActive as boolean,
         data.linkedObjects,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

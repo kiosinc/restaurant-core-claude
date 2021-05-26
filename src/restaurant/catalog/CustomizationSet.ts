@@ -92,8 +92,6 @@ export class CustomizationSet extends FirestoreObject<string> {
         displayOrder: customizationSet.displayOrder,
         preSelected: customizationSet.preSelected,
         linkedObjects: JSON.parse(JSON.stringify(customizationSet.linkedObjects)),
-        created: customizationSet.created.toISOString(),
-        updated: customizationSet.updated.toISOString(),
         isDeleted: customizationSet.isDeleted,
       };
     },
@@ -108,8 +106,8 @@ export class CustomizationSet extends FirestoreObject<string> {
         data.displayOrder,
         data.preselected,
         data.linkedObjects,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

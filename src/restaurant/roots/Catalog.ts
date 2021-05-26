@@ -75,8 +75,6 @@ export default class Catalog extends FirestoreObject<string> {
         products: JSON.parse(JSON.stringify(catalog.products)),
         taxRates: JSON.parse(JSON.stringify(catalog.taxRates)),
         discounts: JSON.parse(JSON.stringify(catalog.discounts)),
-        created: catalog.created.toISOString(),
-        updated: catalog.updated.toISOString(),
         isDeleted: catalog.isDeleted,
       };
     },
@@ -90,8 +88,8 @@ export default class Catalog extends FirestoreObject<string> {
         data.products,
         data.taxRates,
         data.discounts,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

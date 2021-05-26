@@ -42,9 +42,7 @@ export default class Services extends FirestoreObject<string> {
     toFirestore(services: Services): FirebaseFirestore.DocumentData {
       return {
         kioskFeeRate: services.kioskFeeRate,
-        created: services.created.toISOString(),
         isDeleted: services.isDeleted,
-        updated: services.updated.toISOString(),
       };
     },
     fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): Services {
@@ -52,8 +50,8 @@ export default class Services extends FirestoreObject<string> {
 
       return new Services(
         data.kioskFeeRate,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );

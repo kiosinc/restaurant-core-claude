@@ -68,8 +68,6 @@ export default class Menu extends FirestoreObject<string> {
         groups: JSON.parse(JSON.stringify(menu.groups)),
         groupDisplayOrder: JSON.parse(JSON.stringify(menu.groupDisplayOrder)),
         isProductAvailable: JSON.parse(JSON.stringify(menu.isProductAvailable)),
-        created: menu.created.toISOString(),
-        updated: menu.updated.toISOString(),
         isDeleted: menu.isDeleted,
       };
     },
@@ -82,8 +80,8 @@ export default class Menu extends FirestoreObject<string> {
         data.groupDisplayOrder,
         data.isProductAvailable,
         data.displayName,
-        new Date(data.created),
-        new Date(data.updated),
+        snapshot.createTime.toDate(),
+        snapshot.updateTime.toDate(),
         data.isDeleted,
         snapshot.id,
       );
