@@ -9,12 +9,9 @@ export default abstract class Token extends FirestoreObject<void> {
 
   provider: string;
 
-  token: {};
-
   protected constructor(
     createdBy: string,
     businessId: string,
-    token: {},
     provider: string,
     Id: string,
 
@@ -26,7 +23,6 @@ export default abstract class Token extends FirestoreObject<void> {
 
     this.createdBy = createdBy;
     this.businessId = businessId;
-    this.token = token;
     this.provider = provider;
   }
 
