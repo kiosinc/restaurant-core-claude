@@ -37,7 +37,7 @@ export default class MenuGroup extends FirestoreObject<string> {
     this.products = products;
     this.productDisplayOrder = productDisplayOrder;
 
-    this.displayName = displayName;
+    this.displayName = displayName ?? '';
 
     this.parentGroup = parentGroup;
     this.childGroup = childGroup;
