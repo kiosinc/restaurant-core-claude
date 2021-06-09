@@ -96,8 +96,8 @@ export default class EventNotification extends FirestoreObject<string> {
         data.eventId,
         data.provider,
         data.type,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

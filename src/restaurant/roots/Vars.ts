@@ -45,8 +45,8 @@ export default class Vars extends FirestoreObject<string> {
     fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): Vars {
       const data = snapshot.data();
       return new Vars(
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

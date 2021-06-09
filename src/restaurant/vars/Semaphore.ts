@@ -101,8 +101,8 @@ export default class Semaphore extends FirestoreObject<string> {
       return new Semaphore(
         snapshot.id,
         data.isAvailable,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

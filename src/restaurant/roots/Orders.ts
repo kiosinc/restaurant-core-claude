@@ -53,8 +53,8 @@ export default class Orders extends FirestoreObject<string> {
 
       return new Orders(
         data.isSMSStateUpdate,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

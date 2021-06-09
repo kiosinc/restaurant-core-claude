@@ -63,8 +63,8 @@ export default class Surfaces extends FirestoreObject<string> {
       return new Surfaces(
         data.menus,
         data.menuGroups,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

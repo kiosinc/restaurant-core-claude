@@ -92,8 +92,8 @@ export default class Category extends FirestoreObject<string> {
         data.products,
         data.productDisplayOrder,
         data.linkedObjects,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

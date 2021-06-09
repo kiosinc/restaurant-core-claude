@@ -35,6 +35,7 @@ export async function setT<C extends FirestoreObjectType>(
 ): Promise<FirebaseFirestore.DocumentReference<C>> {
   const id = object.Id;
   const updatedObject = object;
+  updatedObject.updated = new Date();
   const metadata = JSON.parse(JSON.stringify(object.metadata()));
 
   /**

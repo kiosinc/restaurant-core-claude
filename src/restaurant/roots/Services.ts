@@ -52,8 +52,8 @@ export default class Services extends FirestoreObject<string> {
 
       return new Services(
         data.kioskFeeRate,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

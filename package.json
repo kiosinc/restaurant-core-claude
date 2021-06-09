@@ -1,6 +1,6 @@
 {
   "name": "@kiosinc/restaurant-core",
-  "version": "0.0.39",
+  "version": "0.0.40",
   "description": "",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -9,7 +9,6 @@
     "build": "tsc",
     "tsc": "tsc -p tsconfig.json",
     "prepublish": "npm run tsc",
-    "publish": "npm publish"
   },
   "repository": {
     "type": "git",

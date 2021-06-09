@@ -90,8 +90,8 @@ export default class Catalog extends FirestoreObject<string> {
         data.products,
         data.taxRates,
         data.discounts,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

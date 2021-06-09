@@ -91,8 +91,8 @@ export default class MenuGroup extends FirestoreObject<string> {
         data.displayName,
         data.parentGroup,
         data.childGroup,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

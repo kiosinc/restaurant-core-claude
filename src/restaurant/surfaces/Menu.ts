@@ -82,8 +82,8 @@ export default class Menu extends FirestoreObject<string> {
         data.groupDisplayOrder,
         data.isProductAvailable,
         data.displayName,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

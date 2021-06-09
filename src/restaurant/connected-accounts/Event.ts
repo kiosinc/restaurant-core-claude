@@ -89,8 +89,8 @@ export default class Event extends FirestoreObject<string> {
         data.type,
         data.isSync,
         data.timestamp === '' ? undefined : new Date(data.timestamp),
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

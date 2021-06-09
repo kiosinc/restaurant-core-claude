@@ -80,8 +80,8 @@ export default class TaxRate extends FirestoreObject<string> {
         data.isCalculatedSubTotalPhase,
         data.isInclusive,
         data.linkedObjects,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );

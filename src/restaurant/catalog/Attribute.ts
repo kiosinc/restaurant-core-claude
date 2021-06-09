@@ -109,8 +109,8 @@ export class Attribute extends FirestoreObject<string> {
         data.displayOrder,
         data.isActive as boolean,
         data.linkedObjects,
-        snapshot.createTime.toDate(),
-        snapshot.updateTime.toDate(),
+        new Date(data.created),
+        new Date(data.updated),
         data.isDeleted,
         snapshot.id,
       );
