@@ -11,6 +11,7 @@ export namespace Constants {
 
   export const enum Semaphore {
     catalogUpdate = 'catalog.update',
+    locationUpdate = 'location.update',
   }
 }
 
@@ -47,5 +48,6 @@ export namespace Paths {
     semaphores = 'semaphores',
 
     orders = 'orders',
+    locations = 'locations',
   }
 }

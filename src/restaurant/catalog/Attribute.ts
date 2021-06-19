@@ -88,7 +88,6 @@ export class Attribute extends FirestoreObject<string> {
   static firestoreConverter = {
     toFirestore(attribute: Attribute): FirebaseFirestore.DocumentData {
       return {
-        // businessId: attribute.businessId,
         name: attribute.name,
         values: JSON.parse(JSON.stringify(attribute.values)),
         displayOrder: attribute.displayOrder,
@@ -121,7 +120,7 @@ export class Attribute extends FirestoreObject<string> {
 export interface AttributeValue {
   name: string;
   price: number;
-
+  locationPrices?: { [locationId: string]: number } // TODO: remove optional
   displayOrder: number;
   isPreSelected: boolean;
   isActive: boolean;

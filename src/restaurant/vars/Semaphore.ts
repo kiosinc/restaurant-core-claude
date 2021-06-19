@@ -92,6 +92,8 @@ export default class Semaphore extends FirestoreObject<string> {
     toFirestore(semaphore: Semaphore): FirebaseFirestore.DocumentData {
       return {
         isAvailable: semaphore.isAvailable,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
         isDeleted: semaphore.isDeleted,
       };
     },

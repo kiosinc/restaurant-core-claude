@@ -14,7 +14,7 @@ export default abstract class FirestoreObject<C extends string | void> {
 
   readonly created: Date;
 
-  // TODO   readonly updated: Date;
+  // TODO   make optional
   updated: Date;
 
   protected isDeleted: boolean;

@@ -39,3 +39,6 @@ export { default as Orders } from './restaurant/roots/Orders';
 export * from './restaurant/orders/Order';
 export { default as Vars } from './restaurant/roots/Vars';
 export { default as Semaphore } from './restaurant/vars/Semaphore';
+export { default as Locations } from './restaurant/roots/Locations';
+export { default as Location } from './restaurant/locations/Location';
+export { default as LocationMeta } from './restaurant/locations/LocationMeta';
