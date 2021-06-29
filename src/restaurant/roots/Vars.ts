@@ -3,17 +3,13 @@ import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 
 export default class Vars extends FirestoreObject<string> {
-  databaseVersion: string;
-
   constructor(
-    databaseVersion: string,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
     Id?: string,
   ) {
     super(created, updated, isDeleted, Id ?? Config.Paths.CollectionNames.vars);
-    this.databaseVersion = databaseVersion;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -41,7 +37,6 @@ export default class Vars extends FirestoreObject<string> {
   static firestoreConverter = {
     toFirestore(vars: Vars): FirebaseFirestore.DocumentData {
       return {
-        databaseVersion: vars.databaseVersion,
         created: vars.created.toISOString(),
         updated: vars.updated.toISOString(),
         isDeleted: vars.isDeleted,
@@ -50,7 +45,6 @@ export default class Vars extends FirestoreObject<string> {
     fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): Vars {
       const data = snapshot.data();
       return new Vars(
-        data.databaseVersion ?? '0.0.0',
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

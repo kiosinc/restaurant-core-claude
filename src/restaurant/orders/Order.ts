@@ -12,7 +12,7 @@ export const enum OrderState {
   // Orders awaiting action (new) that haven't been processed yet
   new = 'new',
   // Orders being prepared.
-  inProgress = 'in_progress',
+  inProgress = 'in_progress', // TODO: change to inProgress
   // All orders ready for fulfillment
   ready = 'ready',
   // Orders that have been fulfilled
@@ -21,8 +21,23 @@ export const enum OrderState {
   cancelled = 'cancelled',
 }
 
+export const enum PaymentState {
+
+  none = 'none',
+
+  approved = 'approved',
+
+  pending = 'pending',
+
+  completed = 'completed',
+
+  cancelled = 'cancelled',
+
+  failed = 'failed',
+}
+
 /**
- * Order class extends FirestoreObject
+ * Order class extends FirestoreObject  // TODO this should be BusinessOrder
  */
 export class Order extends FirestoreObject<string> {
   state: OrderState;
@@ -39,6 +54,10 @@ export class Order extends FirestoreObject<string> {
 
   linkedObjects: { [Id: string]: LinkedObject };
 
+  paymentState: PaymentState;
+
+  receiptUrl: string;
+
   /**
    * Create an Order
    */
@@ -50,6 +69,8 @@ export class Order extends FirestoreObject<string> {
     contactEmail: string,
     contactName: string,
     linkedObjects: { [p: string]: LinkedObject },
+    paymentState: PaymentState,
+    receiptUrl: string,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -63,6 +84,8 @@ export class Order extends FirestoreObject<string> {
     this.contactEmail = contactEmail;
     this.contactName = contactName;
     this.linkedObjects = linkedObjects;
+    this.paymentState = paymentState;
+    this.receiptUrl = receiptUrl;
   }
 
   // FirestoreAdapter
@@ -109,6 +132,8 @@ export class Order extends FirestoreObject<string> {
         contactEmail: order.contactEmail,
         contactName: order.contactName,
         linkedObjects: JSON.parse(JSON.stringify(order.linkedObjects)),
+        paymentState: JSON.parse(JSON.stringify(order.paymentState)),
+        receiptUrl: order.receiptUrl ?? '',
         created: order.created.toISOString(),
         updated: order.updated.toISOString(),
         isDeleted: order.isDeleted,
@@ -126,6 +151,8 @@ export class Order extends FirestoreObject<string> {
         data.contactEmail,
         data.contactName,
         data.linkedObjects,
+        data.paymentState ?? PaymentState.none,
+        data.receiptUrl ?? '',
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
