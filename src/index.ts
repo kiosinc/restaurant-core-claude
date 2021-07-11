@@ -1,6 +1,5 @@
 export * as Core from './firestore-core';
 export * as User from './user';
-export * as Request from './user/User+Request';
 
 export { default as LinkedObject } from './firestore-core/core/LinkedObject';
 export { default as LinkedObjectType } from './firestore-core/core/LinkedObjectType';
@@ -8,13 +7,17 @@ export * as LinkedObjectSync from './firestore-core/core/LinkedObjectUtilities';
 
 export * from './firestore-core/config';
 
-export * from './restaurant/catalog/Attribute';
-export { default as AttributeMeta } from './restaurant/catalog/AttributeMeta';
+export * from './restaurant/catalog/v1/Attribute';
+export { default as AttributeMeta } from './restaurant/catalog/v1/AttributeMeta';
 export { default as Category } from './restaurant/catalog/Category';
 export { default as CategoryMeta } from './restaurant/catalog/CategoryMeta';
-export * from './restaurant/catalog/CustomizationSet';
-export { default as CustomizationSetMeta } from './restaurant/catalog/CustomizationSetMeta';
+export * from './restaurant/catalog/v1/CustomizationSet';
+export { default as CustomizationSetMeta } from './restaurant/catalog/v1/CustomizationSetMeta';
 export * from './restaurant/catalog/Product';
+export { default as OptionSet, OptionSetSelection } from './restaurant/catalog/OptionSet';
+export { default as OptionSetMeta } from './restaurant/catalog/OptionSetMeta';
+export { default as Option } from './restaurant/catalog/Option';
+export { default as OptionMeta } from './restaurant/catalog/OptionMeta';
 export { default as ProductMeta } from './restaurant/catalog/ProductMeta';
 export { default as TaxRate } from './restaurant/catalog/TaxRate';
 export { default as TaxRateMeta } from './restaurant/catalog/TaxRateMeta';
@@ -42,3 +45,4 @@ export { default as Semaphore } from './restaurant/vars/Semaphore';
 export { default as Locations } from './restaurant/roots/Locations';
 export { default as Location } from './restaurant/locations/Location';
 export { default as LocationMeta } from './restaurant/locations/LocationMeta';
+export { InventoryCount, InventoryCountState } from './restaurant/catalog/InventoryCount';

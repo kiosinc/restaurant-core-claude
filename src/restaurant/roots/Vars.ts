@@ -2,6 +2,8 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 
+const varsKey = Config.Paths.CollectionNames.vars;
+
 export default class Vars extends FirestoreObject<string> {
   constructor(
     created?: Date,
@@ -9,7 +11,7 @@ export default class Vars extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? Config.Paths.CollectionNames.vars);
+    super(created, updated, isDeleted, Id ?? varsKey);
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -30,8 +32,7 @@ export default class Vars extends FirestoreObject<string> {
   // STATICS
 
   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-    return Business.privateCollectionRef(businessId)
-      .doc(Config.Paths.CollectionNames.vars);
+    return Business.privateCollectionRef(businessId).doc(varsKey);
   }
 
   static firestoreConverter = {

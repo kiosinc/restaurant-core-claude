@@ -3,25 +3,31 @@ import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 import ProductMeta from '../catalog/ProductMeta';
 import TaxRateMeta from '../catalog/TaxRateMeta';
-import CustomizationSetMeta from '../catalog/CustomizationSetMeta';
-import AttributeMeta from '../catalog/AttributeMeta';
+import CustomizationSetMeta from '../catalog/v1/CustomizationSetMeta';
+import AttributeMeta from '../catalog/v1/AttributeMeta';
 import CategoryMeta from '../catalog/CategoryMeta';
 import DiscountMeta from '../catalog/DiscountMeta';
+import OptionSetMeta from '../catalog/OptionSetMeta';
+import OptionMeta from '../catalog/OptionMeta';
 
 const catalogKey = Config.Paths.CollectionNames.catalog;
 
 export default class Catalog extends FirestoreObject<string> {
   categories: { [Id: string]: CategoryMeta };
 
-  customizationSets: { [Id: string]: CustomizationSetMeta };
+  customizationSets: { [Id: string]: CustomizationSetMeta }; // TODO: delete
 
   products: { [Id: string]: ProductMeta };
 
   taxRates: { [Id: string]: TaxRateMeta };
 
-  attributes: { [Id: string]: AttributeMeta };
+  attributes: { [Id: string]: AttributeMeta }; // TODO: delete
 
   discounts: { [Id: string]: DiscountMeta };
+
+  optionSets: { [Id: string]: OptionSetMeta };
+
+  options: { [Id: string]: OptionMeta };
 
   constructor(
     categories: { [p: string]: CategoryMeta },
@@ -30,6 +36,8 @@ export default class Catalog extends FirestoreObject<string> {
     products: { [p: string]: ProductMeta },
     taxRates: { [p: string]: TaxRateMeta },
     discounts: { [p: string]: DiscountMeta },
+    optionSets: { [Id: string]: OptionSetMeta },
+    options: { [Id: string]: OptionMeta },
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -43,6 +51,8 @@ export default class Catalog extends FirestoreObject<string> {
     this.products = products;
     this.taxRates = taxRates;
     this.discounts = discounts;
+    this.optionSets = optionSets;
+    this.options = options;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -63,7 +73,7 @@ export default class Catalog extends FirestoreObject<string> {
   // STATICS
 
   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-    return Business.publicCollectionRef(businessId).doc(Config.Paths.CollectionNames.catalog);
+    return Business.publicCollectionRef(businessId).doc(catalogKey);
   }
 
   static firestoreConverter = {
@@ -75,6 +85,8 @@ export default class Catalog extends FirestoreObject<string> {
         products: JSON.parse(JSON.stringify(catalog.products)),
         taxRates: JSON.parse(JSON.stringify(catalog.taxRates)),
         discounts: JSON.parse(JSON.stringify(catalog.discounts)),
+        optionSets: JSON.parse(JSON.stringify(catalog.optionSets)),
+        options: JSON.parse(JSON.stringify(catalog.options)),
         created: catalog.created.toISOString(),
         updated: catalog.updated.toISOString(),
         isDeleted: catalog.isDeleted,
@@ -90,6 +102,8 @@ export default class Catalog extends FirestoreObject<string> {
         data.products,
         data.taxRates,
         data.discounts,
+        data.optionSets,
+        data.options,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

@@ -2,6 +2,8 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 
+const servicesKey = Config.Paths.CollectionNames.services;
+
 export default class Services extends FirestoreObject<string> {
   kioskFeeRate: number;
 
@@ -12,7 +14,7 @@ export default class Services extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? Config.Paths.CollectionNames.services);
+    super(created, updated, isDeleted, Id ?? servicesKey);
     this.kioskFeeRate = kioskFeeRate;
   }
 
@@ -34,8 +36,7 @@ export default class Services extends FirestoreObject<string> {
   // STATICS
 
   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-    return Business.privateCollectionRef(businessId)
-      .doc(Config.Paths.CollectionNames.services);
+    return Business.privateCollectionRef(businessId).doc(servicesKey);
   }
 
   static firestoreConverter = {

@@ -2,6 +2,8 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 
+const ordersKey = Config.Paths.CollectionNames.orders;
+
 export default class Orders extends FirestoreObject<string> {
   isSMSStateUpdate: boolean;
 
@@ -12,7 +14,7 @@ export default class Orders extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? Config.Paths.CollectionNames.orders);
+    super(created, updated, isDeleted, Id ?? ordersKey);
 
     this.isSMSStateUpdate = isSMSStateUpdate;
   }
@@ -35,8 +37,7 @@ export default class Orders extends FirestoreObject<string> {
   // STATICS
 
   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-    return Business.publicCollectionRef(businessId)
-      .doc(Config.Paths.CollectionNames.orders);
+    return Business.publicCollectionRef(businessId).doc(ordersKey);
   }
 
   static firestoreConverter = {

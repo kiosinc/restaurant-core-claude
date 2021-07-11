@@ -2,6 +2,8 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 
+const connectedAccountsKey = Config.Paths.CollectionNames.connectedAccounts;
+
 export default class ConnectedAccounts extends FirestoreObject<string> {
   tokens: { [provider: string] : { [key: string]: string } };
 
@@ -12,7 +14,7 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? Config.Paths.CollectionNames.connectedAccounts);
+    super(created, updated, isDeleted, Id ?? connectedAccountsKey);
 
     this.tokens = tokens;
   }
@@ -35,8 +37,7 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
   // STATICS
 
   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-    return Business.privateCollectionRef(businessId)
-      .doc(Config.Paths.CollectionNames.connectedAccounts);
+    return Business.privateCollectionRef(businessId).doc(connectedAccountsKey);
   }
 
   static firestoreConverter = {

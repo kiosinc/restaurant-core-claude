@@ -42,6 +42,8 @@ export const enum PaymentState {
 export class Order extends FirestoreObject<string> {
   state: OrderState;
 
+  timestamp: Date;
+
   source: string;
 
   totalAmount: number;
@@ -58,11 +60,14 @@ export class Order extends FirestoreObject<string> {
 
   receiptUrl: string;
 
+  paymentTimestamp: Date;
+
   /**
    * Create an Order
    */
   constructor(
     state: OrderState,
+    timestamp: Date,
     source: string,
     totalAmount: number,
     contactPhoneNumber: string,
@@ -71,6 +76,7 @@ export class Order extends FirestoreObject<string> {
     linkedObjects: { [p: string]: LinkedObject },
     paymentState: PaymentState,
     receiptUrl: string,
+    paymentTimestamp: Date,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -78,6 +84,7 @@ export class Order extends FirestoreObject<string> {
   ) {
     super(created, updated, isDeleted, Id);
     this.state = state;
+    this.timestamp = timestamp;
     this.source = source;
     this.totalAmount = totalAmount;
     this.contactPhoneNumber = contactPhoneNumber;
@@ -86,6 +93,7 @@ export class Order extends FirestoreObject<string> {
     this.linkedObjects = linkedObjects;
     this.paymentState = paymentState;
     this.receiptUrl = receiptUrl;
+    this.paymentTimestamp = paymentTimestamp;
   }
 
   // FirestoreAdapter
@@ -126,6 +134,7 @@ export class Order extends FirestoreObject<string> {
       return {
         // businessId: attribute.businessId,
         state: JSON.parse(JSON.stringify(order.state)),
+        timestamp: order.timestamp.toISOString(),
         source: order.source,
         totalAmount: order.totalAmount,
         contactPhoneNumber: order.contactPhoneNumber,
@@ -134,6 +143,7 @@ export class Order extends FirestoreObject<string> {
         linkedObjects: JSON.parse(JSON.stringify(order.linkedObjects)),
         paymentState: JSON.parse(JSON.stringify(order.paymentState)),
         receiptUrl: order.receiptUrl ?? '',
+        paymentTimestamp: order.paymentTimestamp.toISOString(),
         created: order.created.toISOString(),
         updated: order.updated.toISOString(),
         isDeleted: order.isDeleted,
@@ -145,6 +155,7 @@ export class Order extends FirestoreObject<string> {
       const data = snapshot.data();
       return new Order(
         data.state,
+        new Date(data.timestamp),
         data.source,
         data.totalAmount,
         data.contactPhoneNumber,
@@ -153,6 +164,7 @@ export class Order extends FirestoreObject<string> {
         data.linkedObjects,
         data.paymentState ?? PaymentState.none,
         data.receiptUrl ?? '',
+        new Date(data.paymentTimestamp),
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

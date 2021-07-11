@@ -4,11 +4,10 @@
  */
 
 import { firestoreApp, FieldValue } from '../firebaseApp';
-import { Attribute } from '../../restaurant/catalog/Attribute';
+import { Attribute } from '../../restaurant/catalog/v1/Attribute';
 import Category from '../../restaurant/catalog/Category';
-import { CustomizationSet } from '../../restaurant/catalog/CustomizationSet';
+import { CustomizationSet } from '../../restaurant/catalog/v1/CustomizationSet';
 import { Product } from '../../restaurant/catalog/Product';
-// import { TaxRate } from '../catalog/TaxRate';
 import MenuGroup from '../../restaurant/surfaces/MenuGroup';
 import { Business } from '../../restaurant/roots/Business';
 import FirestoreObjectType from './FirestoreObjectType';
@@ -131,7 +130,7 @@ export async function setT<C extends FirestoreObjectType>(
    * business is created
    * */
   if (object instanceof Business) {
-    const newCatalog = new Catalog({}, {}, {}, {}, {}, {});
+    const newCatalog = new Catalog({}, {}, {}, {}, {}, {}, {}, {});
     const newConnectedAccounts = new ConnectedAccounts({});
     const newSurface = new Surfaces({}, {});
     const newOrders = new Orders(true);
@@ -159,6 +158,12 @@ export async function setT<C extends FirestoreObjectType>(
     await setT(catalogUpdateSemaphore, Semaphore.firestoreConverter, id, t);
     const locationUpdateSemaphore = new Semaphore(Constants.Semaphore.locationUpdate, true);
     await setT(locationUpdateSemaphore, Semaphore.firestoreConverter, id, t);
+    const inventoryUpdateSemaphore = new Semaphore(Constants.Semaphore.inventoryUpdate, true);
+    await setT(inventoryUpdateSemaphore, Semaphore.firestoreConverter, id, t);
+    const orderUpdateSemaphore = new Semaphore(Constants.Semaphore.orderUpdate, true);
+    await setT(orderUpdateSemaphore, Semaphore.firestoreConverter, id, t);
+    const paymentUpdateSemaphore = new Semaphore(Constants.Semaphore.paymentUpdate, true);
+    await setT(paymentUpdateSemaphore, Semaphore.firestoreConverter, id, t);
   }
   return object.collectionRef(businessId).doc(id).withConverter(converter);
 }

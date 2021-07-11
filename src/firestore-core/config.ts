@@ -12,6 +12,9 @@ export namespace Constants {
   export const enum Semaphore {
     catalogUpdate = 'catalog.update',
     locationUpdate = 'location.update',
+    inventoryUpdate = 'inventory.update',
+    orderUpdate = 'order.update',
+    paymentUpdate = 'payment.update',
   }
 }
 
@@ -39,6 +42,9 @@ export namespace Paths {
     customizationSets = 'customizationSets',
     discounts = 'discounts',
     taxRates = 'taxRates',
+
+    optionSets = 'optionSets',
+    options = 'options',
 
     surfaces = 'surfaces',
     menus = 'menus',

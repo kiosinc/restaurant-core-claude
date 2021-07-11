@@ -13,7 +13,7 @@ export default class Menu extends FirestoreObject<string> {
 
   groupDisplayOrder: string[];
 
-  isProductAvailable: { [p: string]: boolean };
+  isProductAvailable: { [p: string]: boolean }; // TODO: delete
 
   constructor(
     name: string,

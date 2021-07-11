@@ -1,10 +1,10 @@
 /**
  * Attribute class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import LinkedObject from '../../firestore-core/core/LinkedObject';
-import Catalog from '../roots/Catalog';
-import * as Config from '../../firestore-core/config';
+import FirestoreObject from '../../../firestore-core/core/FirestoreObject';
+import LinkedObject from '../../../firestore-core/core/LinkedObject';
+import Catalog from '../../roots/Catalog';
+import * as Config from '../../../firestore-core/config';
 import AttributeMeta from './AttributeMeta';
 
 /**

@@ -44,7 +44,7 @@ export default class Surfaces extends FirestoreObject<string> {
   // STATICS
 
   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-    return Business.publicCollectionRef(businessId).doc(Config.Paths.CollectionNames.surfaces);
+    return Business.publicCollectionRef(businessId).doc(surfacesKey);
   }
 
   static firestoreConverter = {

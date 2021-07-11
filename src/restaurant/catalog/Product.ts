@@ -5,9 +5,15 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import * as Config from '../../firestore-core/config';
 import ProductMeta from './ProductMeta';
-import CustomizationSetMeta from './CustomizationSetMeta';
-import AttributeMeta from './AttributeMeta';
+import CustomizationSetMeta from './v1/CustomizationSetMeta';
+import AttributeMeta from './v1/AttributeMeta';
 import Catalog from '../roots/Catalog';
+import OptionSetMeta from './OptionSetMeta';
+import {
+  InventoryCount,
+  LocationInventoryFromFirestore,
+  LocationInventoryToFirestore,
+} from './InventoryCount';
 
 export class Product extends FirestoreObject<string> {
   // The product’s name, meant to be displayable to the customer.
@@ -21,11 +27,17 @@ export class Product extends FirestoreObject<string> {
   imageUrls: URL[];
 
   // Product data
-  attributes: { [Id: string]: AttributeMeta };
+  attributes: { [Id: string]: AttributeMeta }; // TODO Delete
 
-  customizations: { [Id: string]: CustomizationSetMeta };
+  customizations: { [Id: string]: CustomizationSetMeta }; // TODO Delete
 
-  customizationsSetting: { [Id: string]: ProductCustomizationSetting };
+  customizationsSetting: { [Id: string]: ProductCustomizationSetting }; // TODO Delete
+
+  optionSets: { [p: string]: OptionSetMeta };
+
+  optionSetsSelection: { [Id: string]: ProductCustomizationSetting };
+
+  locationInventory: { [p: string]: InventoryCount };
 
   // Whether the product is currently available for purchase.
   isActive: boolean;
@@ -40,6 +52,9 @@ export class Product extends FirestoreObject<string> {
     attributes: { [p: string]: AttributeMeta },
     customizations: { [p: string]: CustomizationSetMeta },
     customizationsSetting: { [p: string]: ProductCustomizationSetting },
+    optionSets: { [p: string]: OptionSetMeta },
+    optionSetsSelection: { [Id: string]: ProductCustomizationSetting },
+    locationInventory: { [p: string]: InventoryCount },
     isActive: boolean,
     linkedObjects: { [p: string]: LinkedObject },
     created?: Date,
@@ -55,6 +70,9 @@ export class Product extends FirestoreObject<string> {
     this.attributes = attributes;
     this.customizations = customizations;
     this.customizationsSetting = customizationsSetting;
+    this.optionSets = optionSets;
+    this.optionSetsSelection = optionSetsSelection;
+    this.locationInventory = locationInventory;
     this.isActive = isActive;
     this.linkedObjects = linkedObjects;
   }
@@ -91,6 +109,10 @@ export class Product extends FirestoreObject<string> {
         attributes: JSON.parse(JSON.stringify(product.attributes)),
         customizations: JSON.parse(JSON.stringify(product.customizations)),
         customizationsSetting: JSON.parse(JSON.stringify(product.customizationsSetting)),
+        optionSets: JSON.parse(JSON.stringify(product.optionSets ?? {})),
+        optionSetsSelection: JSON.parse(JSON.stringify(product.optionSetsSelection)),
+        locationInventory:
+          JSON.parse(JSON.stringify(LocationInventoryToFirestore(product.locationInventory))),
         isActive: product.isActive,
         linkedObjects: JSON.parse(JSON.stringify(product.linkedObjects)),
         created: product.created.toISOString(),
@@ -108,6 +130,9 @@ export class Product extends FirestoreObject<string> {
         data.attributes,
         data.customizations,
         data.customizationsSetting,
+        data.optionSets ?? {},
+        data.optionSetsSelection,
+        LocationInventoryFromFirestore(data.locationInventory),
         data.isActive,
         data.linkedObjects,
         new Date(data.created),
@@ -120,8 +145,8 @@ export class Product extends FirestoreObject<string> {
 }
 
 export interface ProductCustomizationSetting {
-  minSelection: number // TODO can delete and rely on customization set
-  maxSelection: number // TODO can delete and rely on customization set
-  preSelected: string[] // TODO can delete and rely on customization set
+  minSelection: number
+  maxSelection: number
+  preSelected: string[]
   isActive: boolean
 }

@@ -39,7 +39,7 @@ export default class Locations extends FirestoreObject<string> {
   // STATICS
 
   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-    return Business.publicCollectionRef(businessId).doc(Config.Paths.CollectionNames.locations);
+    return Business.publicCollectionRef(businessId).doc(locationsKey);
   }
 
   static firestoreConverter = {

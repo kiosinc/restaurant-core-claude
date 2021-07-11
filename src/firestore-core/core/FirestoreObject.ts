@@ -12,6 +12,7 @@ export default abstract class FirestoreObject<C extends string | void> {
   // Firebase Document ID
   readonly Id: string;
 
+  // TODO   make optional
   readonly created: Date;
 
   // TODO   make optional
