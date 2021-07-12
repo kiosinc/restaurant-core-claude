@@ -33,6 +33,10 @@ export default class OptionSet extends FirestoreObject<string> {
 
   displayTier: number;
 
+  optionDisplayOrder: string[];
+
+  preselectedOptionIds: string[];
+
   locationInventory: { [p: string]: InventoryCount };
 
   isActive: boolean;
@@ -49,6 +53,8 @@ export default class OptionSet extends FirestoreObject<string> {
     maxSelection: number,
     displayOrder: number,
     displayTier: number,
+    optionDisplayOrder: string[],
+    preselectedOptionIds: string[],
     locationInventory: { [p: string]: InventoryCount },
     isActive: boolean,
     linkedObjects: { [p: string]: LinkedObject },
@@ -66,6 +72,8 @@ export default class OptionSet extends FirestoreObject<string> {
 
     this.displayOrder = displayOrder;
     this.displayTier = displayTier;
+    this.optionDisplayOrder = optionDisplayOrder;
+    this.preselectedOptionIds = preselectedOptionIds;
     this.locationInventory = locationInventory;
     this.isActive = isActive;
     this.linkedObjects = linkedObjects;
@@ -113,6 +121,8 @@ export default class OptionSet extends FirestoreObject<string> {
         maxSelection: optionSet.maxSelection,
         displayOrder: optionSet.displayOrder,
         displayTier: optionSet.displayTier,
+        optionDisplayOrder: JSON.parse(JSON.stringify(optionSet.optionDisplayOrder)),
+        preselectedOptionIds: JSON.parse(JSON.stringify(optionSet.preselectedOptionIds)),
         locationInventory: JSON.parse(JSON.stringify(
           LocationInventoryToFirestore(optionSet.locationInventory),
         )),
@@ -133,6 +143,8 @@ export default class OptionSet extends FirestoreObject<string> {
         data.maxSelection,
         data.displayOrder,
         data.displayTier,
+        data.optionDisplayOrder ?? [],
+        data.preselectedOptionIds ?? [],
         LocationInventoryFromFirestore(data.locationInventory),
         data.isActive,
         data.linkedObjects,

@@ -15,11 +15,6 @@ export default class Option extends FirestoreObject<string> {
   // The additional cost of the attribute as an integer in the smallest currency unit.
   price: number;
 
-  // Sorting order for display
-  displayOrder: number;
-
-  isPreselected: boolean;
-
   locationPrices: { [locationId: string]: number };
 
   locationInventory: { [p: string]: InventoryCount };
@@ -31,8 +26,6 @@ export default class Option extends FirestoreObject<string> {
   constructor(
     name: string,
     price: number,
-    displayOrder: number,
-    isPreselected: boolean,
     locationPrices: { [locationId: string]: number },
     locationInventory: { [locationId: string]: InventoryCount },
     isActive: boolean,
@@ -46,8 +39,6 @@ export default class Option extends FirestoreObject<string> {
 
     this.name = name;
     this.price = price;
-    this.displayOrder = displayOrder;
-    this.isPreselected = isPreselected;
     this.locationPrices = locationPrices;
     this.locationInventory = locationInventory;
     this.isActive = isActive;
@@ -68,8 +59,7 @@ export default class Option extends FirestoreObject<string> {
   metadata(): OptionMeta {
     return {
       name: this.name,
-      displayOrder: this.displayOrder,
-      isPreselected: this.isPreselected, // TODO is this needed?
+      isActive: this.isActive,
     };
   }
 
@@ -92,8 +82,6 @@ export default class Option extends FirestoreObject<string> {
       return {
         name: option.name,
         price: option.price,
-        displayOrder: option.displayOrder,
-        isPreselected: option.isPreselected,
         locationPrices: JSON.parse(JSON.stringify(option.locationPrices)),
         locationInventory:
           JSON.parse(JSON.stringify(LocationInventoryToFirestore(option.locationInventory))),
@@ -109,8 +97,6 @@ export default class Option extends FirestoreObject<string> {
       return new Option(
         data.name,
         data.price,
-        data.displayOrder,
-        data.isPreselected,
         data.locationPrices,
         LocationInventoryFromFirestore(data.locationInventory),
         data.isActive,
