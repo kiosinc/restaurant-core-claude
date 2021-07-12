@@ -20,6 +20,8 @@ import Vars from '../../restaurant/roots/Vars';
 import Semaphore from '../../restaurant/vars/Semaphore';
 import { Constants } from '../config';
 import Locations from '../../restaurant/roots/Locations';
+import OptionSet from '../../restaurant/catalog/OptionSet';
+import Option from '../../restaurant/catalog/Option';
 
 /**
  * Delete a firestore object using recursive (if needed) batched transactions
@@ -101,9 +103,35 @@ export async function setT<C extends FirestoreObjectType>(
       t.update(snapshot.ref, `products.${id}`, metadata);
     });
   }
-  /** TaxRate */
-  // if (object instanceof TaxRate) {
-  // }
+  /** OptionSet */
+  if (object instanceof OptionSet) {
+    const productConverter = Product.firestoreConverter;
+    const fieldPath = `optionSets.${id}.name`;
+    const query = Product.collectionRef(businessId)
+      .where(fieldPath, '>=', '')
+      .withConverter(productConverter);
+    const querySnapshots = await t.get(query);
+
+    // Update the related objects that were successfully queried
+    querySnapshots.docs.forEach((snapshot) => {
+      t.update(snapshot.ref, `optionSets.${id}`, metadata);
+    });
+  }
+
+  /* Option */
+  if (object instanceof Option) {
+    const productConverter = OptionSet.firestoreConverter;
+    const fieldPath = `options.${id}.name`;
+    const query = OptionSet.collectionRef(businessId)
+      .where(fieldPath, '>=', '')
+      .withConverter(productConverter);
+    const querySnapshots = await t.get(query);
+
+    // Update the related objects that were successfully queried
+    querySnapshots.docs.forEach((snapshot) => {
+      t.update(snapshot.ref, `options.${id}`, metadata);
+    });
+  }
 
   /** FINALIZE and set basic object and it's metadata */
   t.set(
