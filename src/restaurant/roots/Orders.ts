@@ -7,8 +7,11 @@ const ordersKey = Config.Paths.CollectionNames.orders;
 export default class Orders extends FirestoreObject<string> {
   isSMSStateUpdate: boolean;
 
+  isLoyaltyAccrue: boolean;
+
   constructor(
     isSMSStateUpdate: boolean,
+    isLoyaltyAccrue: boolean,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -17,6 +20,7 @@ export default class Orders extends FirestoreObject<string> {
     super(created, updated, isDeleted, Id ?? ordersKey);
 
     this.isSMSStateUpdate = isSMSStateUpdate;
+    this.isLoyaltyAccrue = isLoyaltyAccrue;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -44,6 +48,7 @@ export default class Orders extends FirestoreObject<string> {
     toFirestore(orders: Orders): FirebaseFirestore.DocumentData {
       return {
         isSMSStateUpdate: orders.isSMSStateUpdate,
+        isLoyaltyAccrue: orders.isLoyaltyAccrue,
         created: orders.created.toISOString(),
         updated: orders.updated.toISOString(),
         isDeleted: orders.isDeleted,
@@ -54,6 +59,7 @@ export default class Orders extends FirestoreObject<string> {
 
       return new Orders(
         data.isSMSStateUpdate,
+        data.isLoyaltyAccrue ?? true,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

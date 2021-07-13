@@ -161,7 +161,7 @@ export async function setT<C extends FirestoreObjectType>(
     const newCatalog = new Catalog({}, {}, {}, {}, {}, {}, {}, {});
     const newConnectedAccounts = new ConnectedAccounts({});
     const newSurface = new Surfaces({}, {});
-    const newOrders = new Orders(true);
+    const newOrders = new Orders(true, true);
     const newServices = new Services();
     newServices.kioskFeeRate = 1.5;
     const newVar = new Vars();
