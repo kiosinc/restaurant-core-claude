@@ -225,11 +225,20 @@ async function deleteT<C extends FirestoreObjectType>(
    * depending on the type of the object
    */
   /** Attribute */
+  // TODO
   // if (object instanceof Attribute) {
   // }
   /** Category */
-  // if (object instanceof Category) {
-  // }
+  if (object instanceof Category) {
+    const snapshot = await Catalog.docRef(businessId)
+      .withConverter(Catalog.firestoreConverter).get();
+    const catalog = snapshot.data();
+    if (catalog) {
+      delete catalog.categories[id];
+      t.set(snapshot.ref, catalog);
+    }
+  }
+
   /** CustomizationSet */
   if (object instanceof CustomizationSet) {
     /** Delete Product relationships */
@@ -240,6 +249,10 @@ async function deleteT<C extends FirestoreObjectType>(
       .where(fieldPath, '>=', '')
       .withConverter(productConverter);
     const querySnapshots = await t.get(query);
+
+    const catalogSnapshot = await Catalog.docRef(businessId)
+      .withConverter(Catalog.firestoreConverter).get();
+
     // Update the related objects that were successfully queried
     querySnapshots.docs.forEach((snapshot) => {
       const product = snapshot.data();
@@ -247,7 +260,77 @@ async function deleteT<C extends FirestoreObjectType>(
       delete product.customizationsSetting[id];
       t.set(snapshot.ref, product);
     });
+
+    const catalog = catalogSnapshot.data();
+    if (catalog) {
+      delete catalog.customizationSets[id];
+      t.set(catalogSnapshot.ref, catalog);
+    }
   }
+
+  /** OptionSet */
+  if (object instanceof OptionSet) {
+    const productConverter = Product.firestoreConverter;
+    const fieldPath = `optionSets.${id}.name`;
+    const query = Product.collectionRef(businessId)
+      .where(fieldPath, '>=', '')
+      .withConverter(productConverter);
+    const querySnapshots = await t.get(query);
+
+    const catalogSnapshot = await Catalog.docRef(businessId)
+      .withConverter(Catalog.firestoreConverter).get();
+
+    // Update the related objects that were successfully queried
+    querySnapshots.docs.forEach((snapshot) => {
+      const product = snapshot.data();
+      delete product.optionSets[id];
+      delete product.optionSetsSelection[id];
+      t.set(snapshot.ref, product);
+    });
+
+    const catalog = catalogSnapshot.data();
+    if (catalog) {
+      delete catalog.optionSets[id];
+      t.set(catalogSnapshot.ref, catalog);
+    }
+  }
+
+  /* Option */
+  if (object instanceof Option) {
+    const fieldPath = `options.${id}.name`;
+    const query = OptionSet.collectionRef(businessId)
+      .where(fieldPath, '>=', '')
+      .withConverter(OptionSet.firestoreConverter);
+    const querySnapshots = await t.get(query);
+
+    const catalogSnapshot = await Catalog.docRef(businessId)
+      .withConverter(Catalog.firestoreConverter).get();
+
+    // Update the related objects that were successfully queried
+    querySnapshots.docs.forEach((snapshot) => {
+      const optionSet = snapshot.data();
+      delete optionSet.options[id];
+
+      const optionDisplayOrderIndex = optionSet.optionDisplayOrder.indexOf(id);
+      if (optionDisplayOrderIndex >= 0) {
+        optionSet.optionDisplayOrder.splice(optionDisplayOrderIndex, 1);
+      }
+
+      const preselectedOptionIdIndex = optionSet.preselectedOptionIds.indexOf(id);
+      if (preselectedOptionIdIndex >= 0) {
+        optionSet.preselectedOptionIds.splice(preselectedOptionIdIndex, 1);
+      }
+
+      t.set(snapshot.ref, optionSet);
+    });
+
+    const catalog = catalogSnapshot.data();
+    if (catalog) {
+      delete catalog.options[id];
+      t.set(catalogSnapshot.ref, catalog);
+    }
+  }
+
   /** For products */
   if (object instanceof Product) {
     /** Delete menu group, category, attribute relationships */
@@ -267,6 +350,7 @@ async function deleteT<C extends FirestoreObjectType>(
     const attributeDocRefs = attributeIds.map((attributeId) => Attribute.collectionRef(businessId)
       .withConverter(Attribute.firestoreConverter).doc(attributeId));
     const attributeSnapshots = await t.getAll(...attributeDocRefs);
+
     // End reads
 
     // Setup writes second
@@ -289,6 +373,8 @@ async function deleteT<C extends FirestoreObjectType>(
         deleteT(attribute, businessId, t);
       }
     });
+
+    // TODO delete related option sets and options?
   }
 
   /** Remove from basic object and it's metadata */

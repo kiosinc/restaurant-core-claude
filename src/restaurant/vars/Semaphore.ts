@@ -53,17 +53,18 @@ export default class Semaphore extends FirestoreObject<string> {
       const ref = findQuery(businessId, type);
       const doc = await t.get(ref);
       const sema = doc.data() as Semaphore;
-      if (sema) {
-        if (sema.isAvailable) {
-          const data = {
-            isAvailable: false,
-          };
-          await t.update(ref, data);
-          return true;
-        }
+      if (!sema) {
         return false;
       }
-      return false;
+      if (!sema.isAvailable) {
+        return false;
+      }
+
+      const data = {
+        isAvailable: false,
+      };
+      await t.update(ref, data);
+      return true;
     });
 
     return result;

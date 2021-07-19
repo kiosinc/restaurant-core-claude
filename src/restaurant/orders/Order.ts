@@ -5,6 +5,7 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import * as Config from '../../firestore-core/config';
 import Orders from '../roots/Orders';
+import { firestoreApp } from '../../firestore-core/firebaseApp';
 
 export const enum OrderState {
   // Orders that are open
@@ -36,6 +37,11 @@ export const enum PaymentState {
   failed = 'failed',
 }
 
+function findQuery(businessId: string, orderId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  return Order.collectionRef(businessId).doc(orderId).withConverter(Order.firestoreConverter);
+}
+
 /**
  * Order class extends FirestoreObject  // TODO this should be BusinessOrder
  */
@@ -62,6 +68,8 @@ export class Order extends FirestoreObject<string> {
 
   paymentTimestamp: Date;
 
+  isAvailable: boolean;
+
   /**
    * Create an Order
    */
@@ -77,6 +85,7 @@ export class Order extends FirestoreObject<string> {
     paymentState: PaymentState,
     receiptUrl: string,
     paymentTimestamp: Date,
+    isAvailable: boolean,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -94,6 +103,7 @@ export class Order extends FirestoreObject<string> {
     this.paymentState = paymentState;
     this.receiptUrl = receiptUrl;
     this.paymentTimestamp = paymentTimestamp;
+    this.isAvailable = isAvailable;
   }
 
   // FirestoreAdapter
@@ -144,6 +154,7 @@ export class Order extends FirestoreObject<string> {
         paymentState: JSON.parse(JSON.stringify(order.paymentState)),
         receiptUrl: order.receiptUrl ?? '',
         paymentTimestamp: order.paymentTimestamp.toISOString(),
+        isAvailable: order.isAvailable,
         created: order.created.toISOString(),
         updated: order.updated.toISOString(),
         isDeleted: order.isDeleted,
@@ -165,6 +176,7 @@ export class Order extends FirestoreObject<string> {
         data.paymentState ?? PaymentState.none,
         data.receiptUrl ?? '',
         new Date(data.paymentTimestamp),
+        data.isAvailable ?? true,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
@@ -172,4 +184,47 @@ export class Order extends FirestoreObject<string> {
       );
     },
   };
+
+  static async lock(
+    businessId: string,
+    orderId: string,
+  ): Promise<boolean> {
+    const result = await firestoreApp.runTransaction(async (t) => {
+      const ref = findQuery(businessId, orderId);
+      const doc = await t.get(ref);
+      const order = doc.data() as Order;
+      if (!order) {
+        return false;
+      }
+      if (!order.isAvailable) {
+        return false;
+      }
+      const data = {
+        isAvailable: false,
+      };
+      await t.update(ref, data);
+      return true;
+    });
+
+    return result;
+  }
+
+  static async release(
+    businessId: string,
+    orderId: string,
+  ) {
+    await firestoreApp.runTransaction(async (t) => {
+      const ref = findQuery(businessId, orderId);
+      const doc = await t.get(ref);
+      const order = doc.data() as Order;
+      if (order) {
+        if (!order.isAvailable) {
+          const data = {
+            isAvailable: true,
+          };
+          await t.update(ref, data);
+        }
+      }
+    });
+  }
 }
