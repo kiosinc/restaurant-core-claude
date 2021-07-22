@@ -256,15 +256,21 @@ async function deleteT<C extends FirestoreObjectType>(
     // Update the related objects that were successfully queried
     querySnapshots.docs.forEach((snapshot) => {
       const product = snapshot.data();
-      delete product.customizations[id];
-      delete product.customizationsSetting[id];
+      if (product.customizations[id]) {
+        delete product.customizations[id];
+      }
+      if (product.customizationsSetting[id]) {
+        delete product.customizationsSetting[id];
+      }
       t.set(snapshot.ref, product);
     });
 
     const catalog = catalogSnapshot.data();
     if (catalog) {
-      delete catalog.customizationSets[id];
-      t.set(catalogSnapshot.ref, catalog);
+      if (catalog.customizationSets[id]) {
+        delete catalog.customizationSets[id];
+        t.set(catalogSnapshot.ref, catalog);
+      }
     }
   }
 
@@ -283,8 +289,12 @@ async function deleteT<C extends FirestoreObjectType>(
     // Update the related objects that were successfully queried
     querySnapshots.docs.forEach((snapshot) => {
       const product = snapshot.data();
-      delete product.optionSets[id];
-      delete product.optionSetsSelection[id];
+      if (product.optionSets[id]) {
+        delete product.optionSets[id];
+      }
+      if (product.optionSetsSelection[id]) {
+        delete product.optionSetsSelection[id];
+      }
       t.set(snapshot.ref, product);
     });
 
@@ -309,8 +319,9 @@ async function deleteT<C extends FirestoreObjectType>(
     // Update the related objects that were successfully queried
     querySnapshots.docs.forEach((snapshot) => {
       const optionSet = snapshot.data();
-      delete optionSet.options[id];
-
+      if (optionSet.options[id]) {
+        delete optionSet.options[id];
+      }
       const optionDisplayOrderIndex = optionSet.optionDisplayOrder.indexOf(id);
       if (optionDisplayOrderIndex >= 0) {
         optionSet.optionDisplayOrder.splice(optionDisplayOrderIndex, 1);
@@ -326,8 +337,10 @@ async function deleteT<C extends FirestoreObjectType>(
 
     const catalog = catalogSnapshot.data();
     if (catalog) {
-      delete catalog.options[id];
-      t.set(catalogSnapshot.ref, catalog);
+      if (catalog.options[id]) {
+        delete catalog.options[id];
+        t.set(catalogSnapshot.ref, catalog);
+      }
     }
   }
 

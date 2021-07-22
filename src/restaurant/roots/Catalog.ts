@@ -98,7 +98,7 @@ export default class Catalog extends FirestoreObject<string> {
       return new Catalog(
         data.categories,
         data.attributes,
-        data.customizationsSets,
+        data.customizationSets,
         data.products,
         data.taxRates,
         data.discounts,
