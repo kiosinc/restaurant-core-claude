@@ -131,7 +131,7 @@ export class Product extends FirestoreObject<string> {
         data.customizations,
         data.customizationsSetting,
         data.optionSets ?? {},
-        data.optionSetsSelection,
+        data.optionSetsSelection ?? {},
         LocationInventoryFromFirestore(data.locationInventory),
         data.isActive,
         data.linkedObjects,
