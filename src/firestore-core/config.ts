@@ -5,7 +5,7 @@ export namespace Constants {
   }
 
   export const enum Role {
-    admin = 'admin',
+    sysadmin = 'sysadmin',
     owner = 'owner',
   }
 
