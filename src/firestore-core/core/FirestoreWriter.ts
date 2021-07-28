@@ -362,7 +362,17 @@ async function deleteT<C extends FirestoreObjectType>(
     const attributeIds = Object.keys(object.attributes);
     const attributeDocRefs = attributeIds.map((attributeId) => Attribute.collectionRef(businessId)
       .withConverter(Attribute.firestoreConverter).doc(attributeId));
-    const attributeSnapshots = await t.getAll(...attributeDocRefs);
+    if (attributeDocRefs.length > 0) {
+      const attributeSnapshots = await t.getAll(...attributeDocRefs);
+
+      // For each attribute snapshot
+      attributeSnapshots.forEach((snapshot) => {
+        const attribute = snapshot.data() as Attribute;
+        if (attribute) {
+          deleteT(attribute, businessId, t);
+        }
+      });
+    }
 
     // End reads
 
@@ -377,14 +387,6 @@ async function deleteT<C extends FirestoreObjectType>(
     categoryQuerySnapshots.docs.forEach((snapshot) => {
       t.update(snapshot.ref, `products.${id}`, FieldValue.delete());
       t.update(snapshot.ref, 'productDisplayOrder', FieldValue.arrayRemove(id));
-    });
-
-    // For each attribute snapshot
-    attributeSnapshots.forEach((snapshot) => {
-      if (snapshot.exists) {
-        const attribute = snapshot.data() as Attribute;
-        deleteT(attribute, businessId, t);
-      }
     });
 
     // TODO delete related option sets and options?
