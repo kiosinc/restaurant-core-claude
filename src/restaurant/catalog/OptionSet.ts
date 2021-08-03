@@ -17,7 +17,10 @@ export interface OptionSetSelection {
   minSelection: number
   maxSelection: number
   preSelected: string[]
-  isActive: boolean
+  isActive: boolean // TODO Delete or revise- this is actually isEnabledOnItem flag;
+  // or can remove if sync disregards adding
+  // It's only worth keeping this flag if you want to preserve
+  // the override functionality- no if ubiquitous set selections apply
 }
 
 export default class OptionSet extends FirestoreObject<string> {
