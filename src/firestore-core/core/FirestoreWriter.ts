@@ -120,11 +120,11 @@ export async function setT<C extends FirestoreObjectType>(
 
   /* Option */
   if (object instanceof Option) {
-    const productConverter = OptionSet.firestoreConverter;
+    const optionSetConverter = OptionSet.firestoreConverter;
     const fieldPath = `options.${id}.name`;
     const query = OptionSet.collectionRef(businessId)
       .where(fieldPath, '>=', '')
-      .withConverter(productConverter);
+      .withConverter(optionSetConverter);
     const querySnapshots = await t.get(query);
 
     // Update the related objects that were successfully queried
@@ -305,7 +305,7 @@ async function deleteT<C extends FirestoreObjectType>(
     }
   }
 
-  /* Option */
+  /** Option */
   if (object instanceof Option) {
     const fieldPath = `options.${id}.name`;
     const query = OptionSet.collectionRef(businessId)
