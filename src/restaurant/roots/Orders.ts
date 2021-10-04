@@ -9,9 +9,12 @@ export default class Orders extends FirestoreObject<string> {
 
   isLoyaltyAccrue: boolean;
 
+  isStateAutoNewToInProgress: boolean;
+
   constructor(
     isSMSStateUpdate: boolean,
     isLoyaltyAccrue: boolean,
+    isStateAutoNewToInProgress: boolean,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -21,6 +24,7 @@ export default class Orders extends FirestoreObject<string> {
 
     this.isSMSStateUpdate = isSMSStateUpdate;
     this.isLoyaltyAccrue = isLoyaltyAccrue;
+    this.isStateAutoNewToInProgress = isStateAutoNewToInProgress;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -60,6 +64,7 @@ export default class Orders extends FirestoreObject<string> {
       return new Orders(
         data.isSMSStateUpdate,
         data.isLoyaltyAccrue ?? true,
+        data.isStateAutoNewToInProgress ?? false,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
