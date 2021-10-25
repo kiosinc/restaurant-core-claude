@@ -47,3 +47,4 @@ export { default as Location } from './restaurant/locations/Location';
 export { default as LocationMeta } from './restaurant/locations/LocationMeta';
 export { InventoryCount, InventoryCountState } from './restaurant/catalog/InventoryCount';
 export { default as Onboarding } from './restaurant/roots/Onboarding';
+export { OnboardingOrder, InvoiceStatus } from './restaurant/onboarding/OnboardingOrder';
