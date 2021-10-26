@@ -22,6 +22,7 @@ import { Constants } from '../config';
 import Locations from '../../restaurant/roots/Locations';
 import OptionSet from '../../restaurant/catalog/OptionSet';
 import Option from '../../restaurant/catalog/Option';
+import { Onboarding } from '../../restaurant/roots/Onboarding';
 
 /**
  * Delete a firestore object using recursive (if needed) batched transactions
@@ -161,6 +162,7 @@ export async function setT<C extends FirestoreObjectType>(
     const newCatalog = new Catalog({}, {}, {}, {}, {}, {}, {}, {});
     const newConnectedAccounts = new ConnectedAccounts({});
     const newSurface = new Surfaces({}, {});
+    const newOnboarding = new Onboarding('', {}, {});
     const newOrders = new Orders(true, true, false);
     const newServices = new Services();
     newServices.kioskFeeRate = 1.5;
@@ -177,6 +179,7 @@ export async function setT<C extends FirestoreObjectType>(
     await setT(newCatalog, Catalog.firestoreConverter, id, t);
     await setT(newConnectedAccounts, ConnectedAccounts.firestoreConverter, id, t);
     await setT(newSurface, Surfaces.firestoreConverter, id, t);
+    await setT(newOnboarding, Onboarding.firestoreConverter, id, t);
     await setT(newOrders, Orders.firestoreConverter, id, t);
     await setT(newServices, Services.firestoreConverter, id, t);
     await setT(newVar, Vars.firestoreConverter, id, t);

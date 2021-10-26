@@ -4,7 +4,7 @@ import * as Config from '../../firestore-core/config';
 
 const servicesKey = Config.Paths.CollectionNames.onboarding;
 
-export const enum OnboardingStatus {
+export const enum OnboardingStage {
   createBusiness = 'createBusiness',
   squareIntegration = 'squareIntegration',
   scheduleMeeting = 'scheduleMeeting',
@@ -12,12 +12,18 @@ export const enum OnboardingStatus {
   kioskPurchase = 'kioskPurchase',
 }
 
+export const enum OnboardingStageStatus {
+  pending = 'pending',
+  complete = 'complete',
+  skipped = 'skipped',
+}
+
 export class Onboarding extends FirestoreObject<string> {
   stripeCustomerId: string;
 
   menuCategories: { [Id: string]: number };
 
-  onboardingStatus: { OnboardingStatus: boolean };
+  onboardingStatus: { OnboardingStage: OnboardingStageStatus };
 
   constructor(
     stripeCustomerId: string,
