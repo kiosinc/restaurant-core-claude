@@ -70,6 +70,8 @@ export class Order extends FirestoreObject<string> {
 
   isAvailable: boolean;
 
+  locationId: string;
+
   /**
    * Create an Order
    */
@@ -86,6 +88,7 @@ export class Order extends FirestoreObject<string> {
     receiptUrl: string,
     paymentTimestamp: Date,
     isAvailable: boolean,
+    locationId: string,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -104,6 +107,7 @@ export class Order extends FirestoreObject<string> {
     this.receiptUrl = receiptUrl;
     this.paymentTimestamp = paymentTimestamp;
     this.isAvailable = isAvailable;
+    this.locationId = locationId;
   }
 
   // FirestoreAdapter
@@ -155,6 +159,7 @@ export class Order extends FirestoreObject<string> {
         receiptUrl: order.receiptUrl ?? '',
         paymentTimestamp: order.paymentTimestamp.toISOString(),
         isAvailable: order.isAvailable,
+        locationId: order.locationId ?? '',
         created: order.created.toISOString(),
         updated: order.updated.toISOString(),
         isDeleted: order.isDeleted,
@@ -177,6 +182,7 @@ export class Order extends FirestoreObject<string> {
         data.receiptUrl ?? '',
         new Date(data.paymentTimestamp),
         data.isAvailable ?? true,
+        data.locationId ?? '',
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
