@@ -23,12 +23,12 @@ export class Onboarding extends FirestoreObject<string> {
 
   menuCategories: { [Id: string]: number };
 
-  onboardingStatus: { OnboardingStage: OnboardingStageStatus };
+  onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus };
 
   constructor(
     stripeCustomerId: string,
     menuCategories: { [Id: string]: number },
-    onboardingStatus: any,
+    onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus },
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
