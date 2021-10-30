@@ -7,6 +7,7 @@ const servicesKey = Config.Paths.CollectionNames.onboarding;
 export const enum OnboardingStage {
   createBusiness = 'createBusiness',
   squareIntegration = 'squareIntegration',
+  categorySync = 'categorySync',
   scheduleMeeting = 'scheduleMeeting',
   configMenu = 'configMenu',
   kioskPurchase = 'kioskPurchase',
