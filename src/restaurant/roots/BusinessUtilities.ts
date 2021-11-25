@@ -6,8 +6,8 @@ import * as Writer from '../../firestore-core/core/FirestoreWriter';
 import { BusinessType, Business } from './Business';
 
 // eslint-disable-next-line import/prefer-default-export
-export function createBusiness(user: User, type: BusinessType, device: string) {
-  const profile: BusinessProfile = new BusinessProfile('', new Address());
+export function createBusiness(user: User, type: BusinessType, device: string, name?: string) {
+  const profile: BusinessProfile = new BusinessProfile(name ?? '', new Address());
 
   const { uid } = user.token;
   const newBusiness = new Business(device,

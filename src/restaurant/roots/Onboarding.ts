@@ -11,6 +11,7 @@ export const enum OnboardingStage {
   scheduleMeeting = 'scheduleMeeting',
   configMenu = 'configMenu',
   kioskPurchase = 'kioskPurchase',
+  previewKiosk = 'previewKiosk',
 }
 
 export const enum OnboardingStageStatus {
