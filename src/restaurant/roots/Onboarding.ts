@@ -10,7 +10,9 @@ export const enum OnboardingStage {
   categorySync = 'categorySync',
   scheduleMeeting = 'scheduleMeeting',
   configMenu = 'configMenu',
+  shippingInfo = 'shippingInfo',
   kioskPurchase = 'kioskPurchase',
+  kioskCheckout = 'kioskCheckout',
   previewKiosk = 'previewKiosk',
 }
 
