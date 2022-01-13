@@ -1,9 +1,9 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import * as Config from '../../firestore-core/config';
-import Orders from '../roots/Orders';
 import Address from '../misc/Address';
 import { OrderState } from '../orders/Order';
+import OrderLineItem from '../misc/OrderLineItem';
 import { Onboarding } from '../roots/Onboarding';
+import * as Config from '../../firestore-core/config';
 
 // draft- The starting status for all invoices. You can still edit the invoice at
 // this point. You can finalize the invoice to open, or delete it if it’s a one-off.
@@ -37,13 +37,11 @@ export class OnboardingOrder extends FirestoreObject<string> {
 
   shipmentAddress: Address;
 
-  floorStandQuantity: number;
-
-  countertopQuantity: number;
-
   totalAmount: number;
 
   orderStatus: OrderState;
+
+  lineItems: OrderLineItem[];
 
   constructor(
     invoiceId: string,
@@ -51,10 +49,9 @@ export class OnboardingOrder extends FirestoreObject<string> {
     shippingTrackingNumber: string,
     shipmentCarrier: string,
     shipmentAddress: Address,
-    floorStandQuantity: number,
-    countertopQuantity: number,
     totalAmount: number,
     orderStatus: OrderState,
+    lineItems: OrderLineItem[],
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -66,17 +63,16 @@ export class OnboardingOrder extends FirestoreObject<string> {
     this.shippingTrackingNumber = shippingTrackingNumber;
     this.shipmentCarrier = shipmentCarrier;
     this.shipmentAddress = shipmentAddress;
-    this.floorStandQuantity = floorStandQuantity;
-    this.countertopQuantity = countertopQuantity;
     this.totalAmount = totalAmount;
     this.orderStatus = orderStatus;
+    this.lineItems = lineItems;
   }
 
   // FirestoreAdapter
 
   // eslint-disable-next-line class-methods-use-this
   collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Onboarding.docRef(businessId).collection(Config.Paths.CollectionNames.orders);
+    return OnboardingOrder.collectionRef(businessId);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars,class-methods-use-this
@@ -95,9 +91,7 @@ export class OnboardingOrder extends FirestoreObject<string> {
    * Order class CollectionReference for given business
    */
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Orders.docRef(businessId).collection(
-      Config.Paths.CollectionNames.orders,
-    );
+    return Onboarding.docRef(businessId).collection(Config.Paths.CollectionNames.onboardingOrders);
   }
 
   /**
@@ -113,10 +107,9 @@ export class OnboardingOrder extends FirestoreObject<string> {
         shippingTrackingNumber: onboardingOrder.shippingTrackingNumber,
         shipmentCarrier: onboardingOrder.shipmentCarrier,
         shipmentAddress: Address.firestoreConverter.toFirestore(onboardingOrder.shipmentAddress),
-        floorStandQuantity: onboardingOrder.floorStandQuantity,
-        countertopQuantity: onboardingOrder.countertopQuantity,
         totalAmount: onboardingOrder.totalAmount,
         orderStatus: JSON.parse(JSON.stringify(onboardingOrder.orderStatus)),
+        lineItems: JSON.parse(JSON.stringify(onboardingOrder.lineItems)),
         created: onboardingOrder.created.toISOString(),
         updated: onboardingOrder.updated.toISOString(),
         isDeleted: onboardingOrder.isDeleted,
@@ -132,10 +125,9 @@ export class OnboardingOrder extends FirestoreObject<string> {
         data.shippingTrackingNumber,
         data.shipmentCarrier,
         data.shipmentAddress,
-        data.floorStandQuantity,
-        data.countertopQuantity,
         data.totalAmount,
         data.orderStatus,
+        data.lineItems,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

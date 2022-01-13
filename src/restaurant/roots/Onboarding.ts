@@ -29,10 +29,13 @@ export class Onboarding extends FirestoreObject<string> {
 
   onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus };
 
+  onboardingOrderId?: string;
+
   constructor(
     stripeCustomerId: string,
     menuCategories: { [Id: string]: number },
     onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus },
+    onboardingOrderId?: string,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -42,6 +45,7 @@ export class Onboarding extends FirestoreObject<string> {
     this.stripeCustomerId = stripeCustomerId;
     this.menuCategories = menuCategories;
     this.onboardingStatus = onboardingStatus;
+    this.onboardingOrderId = onboardingOrderId;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -71,6 +75,7 @@ export class Onboarding extends FirestoreObject<string> {
         stripeCustomerId: onboarding.stripeCustomerId,
         menuCategories: onboarding.menuCategories,
         onboardingStatus: onboarding.onboardingStatus,
+        onboardingOrderId: onboarding.onboardingOrderId ?? null,
         created: onboarding.created.toISOString(),
         updated: onboarding.updated.toISOString(),
         isDeleted: onboarding.isDeleted,
@@ -83,6 +88,7 @@ export class Onboarding extends FirestoreObject<string> {
         data.stripeCustomerId,
         data.menuCategories,
         data.onboardingStatus,
+        data.onboardingOrderId === null ? undefined : data.onboardingOrderId,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

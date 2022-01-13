@@ -57,5 +57,6 @@ export namespace Paths {
     locations = 'locations',
 
     onboarding = 'onboarding',
+    onboardingOrders = 'onboardingOrders',
   }
 }
