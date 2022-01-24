@@ -356,8 +356,7 @@ export async function setObject<C extends FirestoreObjectType>(
   const batchedUpdatesCount = batchedUpdates.length;
   if (batchedUpdatesCount > 0) {
     const limit = 100;
-    const count = await updateBatch(batchedUpdates, limit);
-    console.log(`Finished batch updating ${count}/${batchedUpdatesCount}`);
+    await updateBatch(batchedUpdates, limit);
   }
 
   return result;
