@@ -115,13 +115,13 @@ export async function setT<C extends FirestoreObjectType>(
 
     // Setup writes second
     // Update from each menu group
-    batchedUpdates.concat(menuGroupQuerySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `products.${id}`, metadata)));
+    batchedUpdates.push(...menuGroupQuerySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `products.${id}`, metadata)));
     // menuGroupQuerySnapshots.docs.forEach((snapshot) => {
     // t.update(snapshot.ref, `products.${id}`, metadata);
     // });
 
     // Update each category group
-    batchedUpdates.concat(categoryQuerySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `products.${id}`, metadata)));
+    batchedUpdates.push(...categoryQuerySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `products.${id}`, metadata)));
     // categoryQuerySnapshots.docs.forEach((snapshot) => {
     // t.update(snapshot.ref, `products.${id}`, metadata);
     // });
@@ -135,7 +135,7 @@ export async function setT<C extends FirestoreObjectType>(
       .withConverter(productConverter);
     const querySnapshots = await t.get(query);
 
-    batchedUpdates.concat(querySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `optionSets.${id}`, metadata)));
+    batchedUpdates.push(...querySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `optionSets.${id}`, metadata)));
 
     // Update the related objects that were successfully queried
     // querySnapshots.docs.forEach((snapshot) => {
@@ -152,7 +152,7 @@ export async function setT<C extends FirestoreObjectType>(
       .withConverter(optionSetConverter);
     const querySnapshots = await t.get(query);
 
-    batchedUpdates.concat(querySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `options.${id}`, metadata)));
+    batchedUpdates.push(...querySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `options.${id}`, metadata)));
     // Update the related objects that were successfully queried
     // querySnapshots.docs.forEach((snapshot) => {
     //   t.update(snapshot.ref, `options.${id}`, metadata);
@@ -227,6 +227,7 @@ export async function setT<C extends FirestoreObjectType>(
 
 async function deleteQueryBatch(query: FirebaseFirestore.Query,
   resolve: (value: number) => void,
+  reject: (reason?: any) => void,
   count: number = 0) {
   const snapshot = await query.get();
 
@@ -247,7 +248,7 @@ async function deleteQueryBatch(query: FirebaseFirestore.Query,
   // Recurse on the next process tick, to avoid
   // exploding the stack.
   process.nextTick(() => {
-    deleteQueryBatch(query, resolve, count + batchSize);
+    deleteQueryBatch(query, resolve, reject, count + batchSize).catch(reject);
   });
 }
 
@@ -255,13 +256,14 @@ export async function deleteQuery(query: FirebaseFirestore.Query, batchSize: num
   const limitedQuery = query.limit(batchSize);
 
   return new Promise<number>((resolve, reject) => {
-    deleteQueryBatch(limitedQuery, resolve).catch(reject);
+    deleteQueryBatch(limitedQuery, resolve, reject).catch(reject);
   });
 }
 
 async function updateQueryBatch(query: FirebaseFirestore.Query,
   data: FirebaseFirestore.UpdateData,
   resolve: (value: number) => void,
+  reject: (reason?: any) => void,
   count: number = 0) {
   const snapshot = await query.get();
 
@@ -285,7 +287,8 @@ async function updateQueryBatch(query: FirebaseFirestore.Query,
     updateQueryBatch(query.startAfter(snapshot.docs[snapshot.docs.length - 1]),
       data,
       resolve,
-      count + batchSize);
+      reject,
+      count + batchSize).catch(reject);
   });
 }
 
@@ -295,20 +298,22 @@ export function updateQuery(query: FirebaseFirestore.Query,
   const limitedQuery = query.limit(batchSize);
 
   return new Promise<number>((resolve, reject) => {
-    updateQueryBatch(limitedQuery, data, resolve).catch(reject);
+    updateQueryBatch(limitedQuery, data, resolve, reject).catch(reject);
   });
 }
 async function updateBatchInfo(updates: BatchUpdateInfo[],
   batchSize: number,
   resolve: (value: number) => void,
+  reject: (reason?: any) => void,
   count: number = 0) {
-  const thisBatchSize = updates.length;
+  const updatesThisTick = updates.splice(0, Math.min(updates.length, batchSize));
+  const thisBatchSize = updatesThisTick.length;
+
   if (thisBatchSize === 0) {
     // When there are no updates left, we are done
     resolve(count);
+    return;
   }
-
-  const updatesThisTick = updates.splice(0, Math.min(updates.length, batchSize));
 
   // Update documents in a batch
   const batch = firestoreApp.batch();
@@ -320,13 +325,13 @@ async function updateBatchInfo(updates: BatchUpdateInfo[],
   // Recurse on the next process tick, to avoid
   // exploding the stack.
   process.nextTick(() => {
-    updateBatchInfo(updates, batchSize, resolve, count + thisBatchSize);
+    updateBatchInfo(updates, batchSize, resolve, reject, count + thisBatchSize).catch(reject);
   });
 }
 
 export async function updateBatch(updates: BatchUpdateInfo[], batchSize: number) {
   return new Promise<number>((resolve, reject) => {
-    updateBatchInfo(updates, batchSize, resolve).catch(reject);
+    updateBatchInfo(updates, batchSize, resolve, reject).catch(reject);
   });
 }
 
@@ -347,9 +352,13 @@ export async function setObject<C extends FirestoreObjectType>(
     .runTransaction(async (t) => setT(object, converter, businessId, t));
 
   // Batch update
-  const limit = 100;
 
-  await updateBatch(batchedUpdates, limit);
+  const batchedUpdatesCount = batchedUpdates.length;
+  if (batchedUpdatesCount > 0) {
+    const limit = 100;
+    const count = await updateBatch(batchedUpdates, limit);
+    console.log(`Finished batch updating ${count}/${batchedUpdatesCount}`);
+  }
 
   return result;
 }
