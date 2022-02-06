@@ -35,7 +35,7 @@ export class Product extends FirestoreObject<string> {
 
   optionSets: { [p: string]: OptionSetMeta };
 
-  optionSetsSelection: { [Id: string]: ProductCustomizationSetting };
+  optionSetsSelection: { [Id: string]: ProductCustomizationSetting }; // TODO: this should be at the optionset level not product
 
   locationInventory: { [p: string]: InventoryCount };
 
