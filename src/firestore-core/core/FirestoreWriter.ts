@@ -4,9 +4,7 @@
  */
 
 import { firestoreApp, FieldValue } from '../firebaseApp';
-import { Attribute } from '../../restaurant/catalog/v1/Attribute';
 import Category from '../../restaurant/catalog/Category';
-import { CustomizationSet } from '../../restaurant/catalog/v1/CustomizationSet';
 import { Product } from '../../restaurant/catalog/Product';
 import MenuGroup from '../../restaurant/surfaces/MenuGroup';
 import { Business } from '../../restaurant/roots/Business';
@@ -53,6 +51,7 @@ export async function setT<C extends FirestoreObjectType>(
   converter: FirebaseFirestore.FirestoreDataConverter<C>,
   businessId: string,
   t: FirebaseFirestore.Transaction,
+  merge: boolean = false,
 ): Promise<BatchUpdateInfo[]> {
   const id = object.Id;
   const updatedObject = object;
@@ -65,38 +64,7 @@ export async function setT<C extends FirestoreObjectType>(
    * Make applicable updates for relationships
    * depending on the type of the object
    */
-  /** Attribute */
-  // if (object instanceof Attribute) {
-  // // Update Product relationships
-  // const productConverter = Product.firestoreConverter;
-  // const fieldPath = `attributes.${id}.name`;
-  // const query = Product.collectionRef(businessId)
-  //   .where(fieldPath, '>=', '')
-  //   .withConverter(productConverter);
-  // const querySnapshots = await t.get(query);
-  //
-  // querySnapshots.docs.forEach((snapshot) => {
-  //   t.update(snapshot.ref, `attributes.${id}`, metadata);
-  // });
-  // }
-  /** Category */
-  // if (object instanceof Category) {
-  // }
-  /** CustomizationSet */
-  // if (object instanceof CustomizationSet) {
-  //   // Update Product relationships
-  //   const productConverter = Product.firestoreConverter;
-  //   const fieldPath = `customizations.${id}.name`;
-  //   const query = Product.collectionRef(businessId)
-  //     .where(fieldPath, '>=', '')
-  //     .withConverter(productConverter);
-  //   const querySnapshots = await t.get(query);
-  //
-  //   // Update the related objects that were successfully queried
-  //   querySnapshots.docs.forEach((snapshot) => {
-  //     t.update(snapshot.ref, `customizations.${id}`, metadata);
-  //   });
-  // }
+
   /** Product */
   if (object instanceof Product) {
     /** Update menu group, category, attribute relationships */
@@ -116,15 +84,9 @@ export async function setT<C extends FirestoreObjectType>(
     // Setup writes second
     // Update from each menu group
     batchedUpdates.push(...menuGroupQuerySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `products.${id}`, metadata)));
-    // menuGroupQuerySnapshots.docs.forEach((snapshot) => {
-    // t.update(snapshot.ref, `products.${id}`, metadata);
-    // });
 
     // Update each category group
     batchedUpdates.push(...categoryQuerySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `products.${id}`, metadata)));
-    // categoryQuerySnapshots.docs.forEach((snapshot) => {
-    // t.update(snapshot.ref, `products.${id}`, metadata);
-    // });
   }
   /** OptionSet */
   if (object instanceof OptionSet) {
@@ -136,11 +98,6 @@ export async function setT<C extends FirestoreObjectType>(
     const querySnapshots = await t.get(query);
 
     batchedUpdates.push(...querySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `optionSets.${id}`, metadata)));
-
-    // Update the related objects that were successfully queried
-    // querySnapshots.docs.forEach((snapshot) => {
-    //   t.update(snapshot.ref, `optionSets.${id}`, metadata);
-    // });
   }
 
   /* Option */
@@ -153,16 +110,13 @@ export async function setT<C extends FirestoreObjectType>(
     const querySnapshots = await t.get(query);
 
     batchedUpdates.push(...querySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `options.${id}`, metadata)));
-    // Update the related objects that were successfully queried
-    // querySnapshots.docs.forEach((snapshot) => {
-    //   t.update(snapshot.ref, `options.${id}`, metadata);
-    // });
   }
 
   /** FINALIZE and set basic object and it's metadata */
   t.set(
     object.collectionRef(businessId).doc(id).withConverter(converter),
     updatedObject,
+    { merge },
   );
 
   const metaLinks = object.metaLinks(businessId);
@@ -214,14 +168,18 @@ export async function setT<C extends FirestoreObjectType>(
     await setT(catalogUpdateSemaphore, Semaphore.firestoreConverter, id, t);
     const locationUpdateSemaphore = new Semaphore(Constants.Semaphore.locationUpdate, true);
     await setT(locationUpdateSemaphore, Semaphore.firestoreConverter, id, t);
+
+    // Not used anymore
     const inventoryUpdateSemaphore = new Semaphore(Constants.Semaphore.inventoryUpdate, true);
     await setT(inventoryUpdateSemaphore, Semaphore.firestoreConverter, id, t);
+    // Not used anymore
     const orderUpdateSemaphore = new Semaphore(Constants.Semaphore.orderUpdate, true);
     await setT(orderUpdateSemaphore, Semaphore.firestoreConverter, id, t);
+    // Not used anymore
     const paymentUpdateSemaphore = new Semaphore(Constants.Semaphore.paymentUpdate, true);
     await setT(paymentUpdateSemaphore, Semaphore.firestoreConverter, id, t);
   }
-  // return object.collectionRef(businessId).doc(id).withConverter(converter);
+
   return batchedUpdates;
 }
 
@@ -344,12 +302,13 @@ export async function setObject<C extends FirestoreObjectType>(
   object: C,
   converter: FirebaseFirestore.FirestoreDataConverter<C>,
   businessId: string,
+  merge: boolean = false,
 ) {
   const id = object.Id;
   const result = object.collectionRef(businessId).doc(id).withConverter(converter);
 
   const batchedUpdates = await firestoreApp
-    .runTransaction(async (t) => setT(object, converter, businessId, t));
+    .runTransaction(async (t) => setT(object, converter, businessId, t, merge));
 
   // Batch update
 
@@ -372,14 +331,6 @@ async function deleteT<C extends FirestoreObjectType>(
 ) {
   const id = object.Id;
 
-  /**
-   * Make applicable updates for relationships
-   * depending on the type of the object
-   */
-  /** Attribute */
-  // TODO
-  // if (object instanceof Attribute) {
-  // }
   /** Category */
   if (object instanceof Category) {
     const snapshot = await Catalog.docRef(businessId)
@@ -388,41 +339,6 @@ async function deleteT<C extends FirestoreObjectType>(
     if (catalog) {
       delete catalog.categories[id];
       t.set(snapshot.ref, catalog);
-    }
-  }
-
-  /** CustomizationSet */
-  if (object instanceof CustomizationSet) {
-    /** Delete Product relationships */
-    // Read/find query from firestore
-    const productConverter = Product.firestoreConverter;
-    const fieldPath = `customizations.${id}.name`;
-    const query = Product.collectionRef(businessId)
-      .where(fieldPath, '>=', '')
-      .withConverter(productConverter);
-    const querySnapshots = await t.get(query);
-
-    const catalogSnapshot = await Catalog.docRef(businessId)
-      .withConverter(Catalog.firestoreConverter).get();
-
-    // Update the related objects that were successfully queried
-    querySnapshots.docs.forEach((snapshot) => {
-      const product = snapshot.data();
-      if (product.customizations[id]) {
-        delete product.customizations[id];
-      }
-      if (product.customizationsSetting[id]) {
-        delete product.customizationsSetting[id];
-      }
-      t.set(snapshot.ref, product);
-    });
-
-    const catalog = catalogSnapshot.data();
-    if (catalog) {
-      if (catalog.customizationSets[id]) {
-        delete catalog.customizationSets[id];
-        t.set(catalogSnapshot.ref, catalog);
-      }
     }
   }
 
@@ -510,22 +426,6 @@ async function deleteT<C extends FirestoreObjectType>(
       .where('productDisplayOrder', 'array-contains', id)
       .withConverter(Category.firestoreConverter);
     const categoryQuerySnapshots = await t.get(categoryQuery);
-    // Attributes (to delete)
-    const attributeIds = Object.keys(object.attributes);
-    const attributeDocRefs = attributeIds.map((attributeId) => Attribute.collectionRef(businessId)
-      .withConverter(Attribute.firestoreConverter).doc(attributeId));
-    if (attributeDocRefs.length > 0) {
-      const attributeSnapshots = await t.getAll(...attributeDocRefs);
-
-      // For each attribute snapshot
-      attributeSnapshots.forEach((snapshot) => {
-        const attribute = snapshot.data() as Attribute;
-        if (attribute) {
-          deleteT(attribute, businessId, t);
-        }
-      });
-    }
-
     // End reads
 
     // Setup writes second

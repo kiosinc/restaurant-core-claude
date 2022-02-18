@@ -5,8 +5,6 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import * as Config from '../../firestore-core/config';
 import ProductMeta from './ProductMeta';
-import CustomizationSetMeta from './v1/CustomizationSetMeta';
-import AttributeMeta from './v1/AttributeMeta';
 import Catalog from '../roots/Catalog';
 import OptionSetMeta from './OptionSetMeta';
 import {
@@ -27,15 +25,11 @@ export class Product extends FirestoreObject<string> {
   imageUrls: URL[];
 
   // Product data
-  attributes: { [Id: string]: AttributeMeta }; // TODO Delete
-
-  customizations: { [Id: string]: CustomizationSetMeta }; // TODO Delete
-
-  customizationsSetting: { [Id: string]: ProductCustomizationSetting }; // TODO Delete
 
   optionSets: { [p: string]: OptionSetMeta };
 
-  optionSetsSelection: { [Id: string]: ProductCustomizationSetting }; // TODO: this should be at the optionset level not product
+  optionSetsSelection: { [Id: string]: ProductOptionSetSetting };
+  // TODO: this should be at the optionset level not product
 
   locationInventory: { [p: string]: InventoryCount };
 
@@ -49,11 +43,8 @@ export class Product extends FirestoreObject<string> {
     caption: string,
     description: string,
     imageUrls: URL[],
-    attributes: { [p: string]: AttributeMeta },
-    customizations: { [p: string]: CustomizationSetMeta },
-    customizationsSetting: { [p: string]: ProductCustomizationSetting },
     optionSets: { [p: string]: OptionSetMeta },
-    optionSetsSelection: { [Id: string]: ProductCustomizationSetting },
+    optionSetsSelection: { [Id: string]: ProductOptionSetSetting },
     locationInventory: { [p: string]: InventoryCount },
     isActive: boolean,
     linkedObjects: { [p: string]: LinkedObject },
@@ -67,9 +58,6 @@ export class Product extends FirestoreObject<string> {
     this.caption = caption;
     this.description = description;
     this.imageUrls = imageUrls;
-    this.attributes = attributes;
-    this.customizations = customizations;
-    this.customizationsSetting = customizationsSetting;
     this.optionSets = optionSets;
     this.optionSetsSelection = optionSetsSelection;
     this.locationInventory = locationInventory;
@@ -106,9 +94,6 @@ export class Product extends FirestoreObject<string> {
         caption: product.caption,
         description: product.description,
         imageUrls: JSON.parse(JSON.stringify(product.imageUrls)),
-        attributes: JSON.parse(JSON.stringify(product.attributes)),
-        customizations: JSON.parse(JSON.stringify(product.customizations)),
-        customizationsSetting: JSON.parse(JSON.stringify(product.customizationsSetting)),
         optionSets: JSON.parse(JSON.stringify(product.optionSets ?? {})),
         optionSetsSelection: JSON.parse(JSON.stringify(product.optionSetsSelection)),
         locationInventory:
@@ -127,9 +112,6 @@ export class Product extends FirestoreObject<string> {
         data.caption,
         data.description,
         data.imageUrls,
-        data.attributes,
-        data.customizations,
-        data.customizationsSetting,
         data.optionSets ?? {},
         data.optionSetsSelection ?? {},
         LocationInventoryFromFirestore(data.locationInventory),
@@ -144,7 +126,7 @@ export class Product extends FirestoreObject<string> {
   };
 }
 
-export interface ProductCustomizationSetting {
+export interface ProductOptionSetSetting {
   minSelection: number
   maxSelection: number
   preSelected: string[]
