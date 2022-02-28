@@ -7,12 +7,8 @@ export * as LinkedObjectSync from './firestore-core/core/LinkedObjectUtilities';
 
 export * from './firestore-core/config';
 
-export * from './restaurant/catalog/v1/Attribute';
-export { default as AttributeMeta } from './restaurant/catalog/v1/AttributeMeta';
 export { default as Category } from './restaurant/catalog/Category';
 export { default as CategoryMeta } from './restaurant/catalog/CategoryMeta';
-export * from './restaurant/catalog/v1/CustomizationSet';
-export { default as CustomizationSetMeta } from './restaurant/catalog/v1/CustomizationSetMeta';
 export * from './restaurant/catalog/Product';
 export { default as OptionSet, OptionSetSelection } from './restaurant/catalog/OptionSet';
 export { default as OptionSetMeta } from './restaurant/catalog/OptionSetMeta';

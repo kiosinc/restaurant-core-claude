@@ -1,8 +1,6 @@
 /** LinkedObject type */
 
-import { Attribute } from '../../restaurant/catalog/v1/Attribute';
 import Category from '../../restaurant/catalog/Category';
-import { CustomizationSet } from '../../restaurant/catalog/v1/CustomizationSet';
 import { Product } from '../../restaurant/catalog/Product';
 import TaxRate from '../../restaurant/catalog/TaxRate';
 import { Discount } from '../../restaurant/catalog/Discount';
@@ -11,9 +9,7 @@ import OptionSet from '../../restaurant/catalog/OptionSet';
 import Option from '../../restaurant/catalog/Option';
 
 /** Objects that are linked/related to objects on an external system */
-type LinkedObjectType = Attribute
-| Category
-| CustomizationSet
+type LinkedObjectType = Category
 | Product
 | TaxRate
 | Discount

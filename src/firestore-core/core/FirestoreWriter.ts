@@ -138,7 +138,7 @@ export async function setT<C extends FirestoreObjectType>(
    * business is created
    * */
   if (object instanceof Business) {
-    const newCatalog = new Catalog({}, {}, {}, {}, {}, {}, {}, {});
+    const newCatalog = new Catalog({}, {}, {}, {}, {}, {});
     const newConnectedAccounts = new ConnectedAccounts({});
     const newSurface = new Surfaces({}, {});
     const newOnboarding = new Onboarding('', {}, {});
