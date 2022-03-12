@@ -7,15 +7,19 @@ const servicesKey = Config.Paths.CollectionNames.services;
 export default class Services extends FirestoreObject<string> {
   kioskFeeRate: number;
 
+  experiments: { [key: string]: boolean };
+
   constructor(
-    kioskFeeRate: number = 0,
+    kioskFeeRate: number | null,
+    experiments: { string: boolean } | null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
     Id?: string,
   ) {
     super(created, updated, isDeleted, Id ?? servicesKey);
-    this.kioskFeeRate = kioskFeeRate;
+    this.kioskFeeRate = kioskFeeRate ?? 1.5;
+    this.experiments = experiments ?? {};
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -43,6 +47,7 @@ export default class Services extends FirestoreObject<string> {
     toFirestore(services: Services): FirebaseFirestore.DocumentData {
       return {
         kioskFeeRate: services.kioskFeeRate,
+        experiments: services.experiments,
         created: services.created.toISOString(),
         updated: services.updated.toISOString(),
         isDeleted: services.isDeleted,
@@ -53,6 +58,7 @@ export default class Services extends FirestoreObject<string> {
 
       return new Services(
         data.kioskFeeRate,
+        data.experiments ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

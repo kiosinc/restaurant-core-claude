@@ -12,7 +12,7 @@ export default class Surfaces extends FirestoreObject<string> {
   menuGroups: { [Id: string]: MenuGroupMeta };
 
   constructor(
-    menus: { [p: string]: MenuGroupMeta },
+    menus: { [p: string]: MenuMeta },
     menuGroups: { [Id: string]: MenuGroupMeta },
 
     created?: Date,

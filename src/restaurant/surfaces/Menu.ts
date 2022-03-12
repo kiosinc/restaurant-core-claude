@@ -7,20 +7,26 @@ import MenuMeta from './MenuMeta';
 export default class Menu extends FirestoreObject<string> {
   name: string;
 
-  displayName?: string;
+  displayName: string | null;
 
   groups: { [Id: string]: MenuGroupMeta };
 
   groupDisplayOrder: string[];
 
-  isProductAvailable: { [p: string]: boolean }; // TODO: delete
+  coverImageGsl: string | null;
+
+  logoImageGsl: string | null;
+
+  gratuityRates: number[];
 
   constructor(
     name: string,
+    displayName: string | null,
     groups: { [p: string]: MenuGroupMeta },
     groupDisplayOrder: string[],
-    isProductAvailable: { [p: string]: boolean },
-    displayName?: string,
+    coverImageGsl: string | null,
+    logoImageGsl: string | null,
+    gratuityRates: number[] | null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -29,11 +35,12 @@ export default class Menu extends FirestoreObject<string> {
     super(created, updated, isDeleted, Id);
 
     this.name = name;
+    this.displayName = displayName;
     this.groups = groups;
     this.groupDisplayOrder = groupDisplayOrder;
-
-    this.isProductAvailable = isProductAvailable;
-    this.displayName = displayName;
+    this.coverImageGsl = coverImageGsl;
+    this.logoImageGsl = logoImageGsl;
+    this.gratuityRates = gratuityRates ?? [];
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -67,7 +74,9 @@ export default class Menu extends FirestoreObject<string> {
         displayName: menu.displayName,
         groups: JSON.parse(JSON.stringify(menu.groups)),
         groupDisplayOrder: JSON.parse(JSON.stringify(menu.groupDisplayOrder)),
-        isProductAvailable: JSON.parse(JSON.stringify(menu.isProductAvailable)),
+        coverImageGsl: menu.coverImageGsl,
+        logoImageGsl: menu.logoImageGsl,
+        gratuityRates: JSON.parse(JSON.stringify(menu.gratuityRates)),
         created: menu.created.toISOString(),
         updated: menu.updated.toISOString(),
         isDeleted: menu.isDeleted,
@@ -78,10 +87,12 @@ export default class Menu extends FirestoreObject<string> {
 
       return new Menu(
         data.name,
+        data.displayName,
         data.groups,
         data.groupDisplayOrder,
-        data.isProductAvailable,
-        data.displayName,
+        data.coverImageGsl ?? null,
+        data.logoImageGsl ?? null,
+        data.gratuityRates ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

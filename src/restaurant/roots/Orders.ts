@@ -3,6 +3,7 @@ import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 
 const ordersKey = Config.Paths.CollectionNames.orders;
+const defaultGratuityRate = [10, 15, 20];
 
 export default class Orders extends FirestoreObject<string> {
   isSMSStateUpdate: boolean;
@@ -11,10 +12,13 @@ export default class Orders extends FirestoreObject<string> {
 
   isStateAutoNewToInProgress: boolean;
 
+  gratuityRates: number[];
+
   constructor(
     isSMSStateUpdate: boolean,
     isLoyaltyAccrue: boolean,
     isStateAutoNewToInProgress: boolean,
+    gratuityRates: number[] | null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -25,6 +29,7 @@ export default class Orders extends FirestoreObject<string> {
     this.isSMSStateUpdate = isSMSStateUpdate;
     this.isLoyaltyAccrue = isLoyaltyAccrue;
     this.isStateAutoNewToInProgress = isStateAutoNewToInProgress;
+    this.gratuityRates = gratuityRates ?? defaultGratuityRate;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -53,6 +58,8 @@ export default class Orders extends FirestoreObject<string> {
       return {
         isSMSStateUpdate: orders.isSMSStateUpdate,
         isLoyaltyAccrue: orders.isLoyaltyAccrue,
+        isStateAutoNewToInProgress: orders.isStateAutoNewToInProgress,
+        gratuityRates: JSON.parse(JSON.stringify(orders.gratuityRates)),
         created: orders.created.toISOString(),
         updated: orders.updated.toISOString(),
         isDeleted: orders.isDeleted,
@@ -65,6 +72,7 @@ export default class Orders extends FirestoreObject<string> {
         data.isSMSStateUpdate,
         data.isLoyaltyAccrue ?? true,
         data.isStateAutoNewToInProgress ?? false,
+        data.gratuityRates ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
