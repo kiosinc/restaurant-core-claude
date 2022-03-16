@@ -2,6 +2,7 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 import Token from '../connected-accounts/Token';
+import { firestoreApp } from '../../firestore-core/firebaseApp';
 
 const servicesKey = Config.Paths.CollectionNames.onboarding;
 
@@ -34,6 +35,30 @@ const defaultOnboardingStatus: { [stage in OnboardingStage]: OnboardingStageStat
   [OnboardingStage.previewKiosk]: OnboardingStageStatus.pending,
   [OnboardingStage.kioskPurchase]: OnboardingStageStatus.pending,
 };
+
+async function repairOnboardingStatus(businessId: string, onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus } | null) {
+  const onboardingStatusUpdate: { [stage in OnboardingStage]?: OnboardingStageStatus } = {};
+
+  onboardingStatusUpdate[OnboardingStage.categorySync] = onboardingStatus?.categorySync ?? OnboardingStageStatus.complete;
+  onboardingStatusUpdate[OnboardingStage.scheduleMeeting] = onboardingStatus?.scheduleMeeting ?? OnboardingStageStatus.complete;
+  onboardingStatusUpdate[OnboardingStage.configMenu] = onboardingStatus?.configMenu ?? OnboardingStageStatus.complete;
+  onboardingStatusUpdate[OnboardingStage.shippingInfo] = onboardingStatus?.shippingInfo ?? OnboardingStageStatus.complete;
+  onboardingStatusUpdate[OnboardingStage.kioskCheckout] = onboardingStatus?.kioskCheckout ?? OnboardingStageStatus.complete;
+  onboardingStatusUpdate[OnboardingStage.previewKiosk] = onboardingStatus?.previewKiosk ?? OnboardingStageStatus.complete;
+  onboardingStatusUpdate[OnboardingStage.kioskPurchase] = onboardingStatus?.kioskPurchase ?? OnboardingStageStatus.complete;
+
+  onboardingStatusUpdate[OnboardingStage.createBusiness] = OnboardingStageStatus.complete;
+  // Check for square token
+  const squareTokenSnap = await Token.collectionRef(businessId)
+    .doc(Config.Constants.Provider.square).get();
+  const squareIntegrationStatus = squareTokenSnap.exists
+    ? OnboardingStageStatus.complete
+    : OnboardingStageStatus.pending;
+
+  onboardingStatusUpdate[OnboardingStage.squareIntegration] = squareIntegrationStatus;
+
+  return onboardingStatusUpdate;
+}
 
 export class Onboarding extends FirestoreObject<string> {
   stripeCustomerId: string;
@@ -104,7 +129,7 @@ export class Onboarding extends FirestoreObject<string> {
       return new Onboarding(
         data.stripeCustomerId,
         data.menuCategories,
-        data.onboardingStatus,
+        data.onboardingStatus ?? null,
         data.onboardingOrderId === null ? undefined : data.onboardingOrderId,
         new Date(data.created),
         new Date(data.updated),
@@ -119,49 +144,18 @@ export class Onboarding extends FirestoreObject<string> {
       .withConverter(Onboarding.firestoreConverter);
     const onboardingSnap = await onboardingRef.get();
 
-    console.log(`${businessId} Onboarding document exists`);
     if (onboardingSnap.exists) {
+      // console.log(`${businessId} Onboarding document exists`);
       const onboarding = onboardingSnap.data() as Onboarding;
-      const { onboardingStatus } = onboarding;
+      const onboardingStatus = await repairOnboardingStatus(businessId, onboarding.onboardingStatus ?? null);
 
-      console.log(`${businessId} Onboarding stage status already exists ${!Object.is(onboardingStatus, undefined)}`);
-      const onboardingStatusUpdate: { [stage in OnboardingStage]?: OnboardingStageStatus } = defaultOnboardingStatus;
-
-      onboardingStatusUpdate[OnboardingStage.createBusiness] = onboardingStatus?.createBusiness ?? OnboardingStageStatus.complete;
-      onboardingStatusUpdate[OnboardingStage.squareIntegration] = onboardingStatus?.squareIntegration ?? OnboardingStageStatus.complete;
-      onboardingStatusUpdate[OnboardingStage.categorySync] = onboardingStatus?.categorySync ?? OnboardingStageStatus.complete;
-      onboardingStatusUpdate[OnboardingStage.scheduleMeeting] = onboardingStatus?.scheduleMeeting ?? OnboardingStageStatus.complete;
-      onboardingStatusUpdate[OnboardingStage.configMenu] = onboardingStatus?.configMenu ?? OnboardingStageStatus.complete;
-      onboardingStatusUpdate[OnboardingStage.shippingInfo] = onboardingStatus?.shippingInfo ?? OnboardingStageStatus.complete;
-      onboardingStatusUpdate[OnboardingStage.kioskCheckout] = onboardingStatus?.kioskCheckout ?? OnboardingStageStatus.complete;
-      onboardingStatusUpdate[OnboardingStage.previewKiosk] = onboardingStatus?.previewKiosk ?? OnboardingStageStatus.complete;
-      onboardingStatusUpdate[OnboardingStage.kioskPurchase] = onboardingStatus?.kioskPurchase ?? OnboardingStageStatus.complete;
-
-      if (!onboardingStatus?.createBusiness) {
-        onboardingStatusUpdate[OnboardingStage.createBusiness] = OnboardingStageStatus.complete;
-        console.log(
-          `${businessId} update createBusiness ${JSON.stringify(onboardingStatusUpdate[OnboardingStage.createBusiness])}`,
-        );
-      }
-
-      if (!onboardingStatus?.squareIntegration) {
-        // Check for square token
-        const squareTokenSnap = await Token.collectionRef(businessId)
-          .doc(Config.Constants.Provider.square).get();
-        const squareIntegrationStatus = squareTokenSnap.exists
-          ? OnboardingStageStatus.complete
-          : OnboardingStageStatus.pending;
-
-        onboardingStatusUpdate[OnboardingStage.squareIntegration] = squareIntegrationStatus;
-        console.log(
-          `${businessId} update squareIntegration ${JSON.stringify(squareIntegrationStatus)}`,
-        );
-      }
-
-      console.log(`${businessId} Update onboardingStatus ${JSON.stringify(onboardingStatusUpdate)}`);
-      await onboardingRef.update('onboardingStatus', onboardingStatusUpdate);
+      // console.log(`${businessId} Update onboardingStatus ${JSON.stringify(onboardingStatus)}`);
+      await onboardingRef.update('onboardingStatus', onboardingStatus);
     } else {
-      throw new Error(`${businessId} Onboarding document does not exist`);
+      // console.log(`${businessId} Onboarding document does not exist`);
+      const newOnboarding = new Onboarding('', {}, null);
+      newOnboarding.onboardingStatus = await repairOnboardingStatus(businessId, newOnboarding.onboardingStatus);
+      await onboardingRef.set(newOnboarding);
     }
   }
 }
