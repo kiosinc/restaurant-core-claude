@@ -124,7 +124,7 @@ export class Onboarding extends FirestoreObject<string> {
       const onboarding = onboardingSnap.data() as Onboarding;
       const { onboardingStatus } = onboarding;
 
-      console.log(`${businessId} Status exists ${Object.is(onboardingStatus, undefined)}- fill in holes`);
+      console.log(`${businessId} Onboarding stage status already exists ${!Object.is(onboardingStatus, undefined)}`);
       const onboardingStatusUpdate: { [stage in OnboardingStage]?: OnboardingStageStatus } = defaultOnboardingStatus;
 
       onboardingStatusUpdate[OnboardingStage.createBusiness] = onboardingStatus?.createBusiness ?? OnboardingStageStatus.complete;
@@ -158,7 +158,7 @@ export class Onboarding extends FirestoreObject<string> {
         );
       }
 
-      console.log(`${businessId} Update onboardingStatus ${onboardingStatusUpdate}`);
+      console.log(`${businessId} Update onboardingStatus ${JSON.stringify(onboardingStatusUpdate)}`);
       await onboardingRef.update('onboardingStatus', onboardingStatusUpdate);
     } else {
       throw new Error(`${businessId} Onboarding document does not exist`);
