@@ -2,7 +2,6 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 import Token from '../connected-accounts/Token';
-import { firestoreApp } from '../../firestore-core/firebaseApp';
 
 const servicesKey = Config.Paths.CollectionNames.onboarding;
 
@@ -16,6 +15,7 @@ export const enum OnboardingStage {
   kioskPurchase = 'kioskPurchase',
   kioskCheckout = 'kioskCheckout',
   previewKiosk = 'previewKiosk',
+  onboardingComplete = 'onboardingComplete',
 }
 
 export const enum OnboardingStageStatus {
@@ -34,6 +34,7 @@ const defaultOnboardingStatus: { [stage in OnboardingStage]: OnboardingStageStat
   [OnboardingStage.kioskCheckout]: OnboardingStageStatus.pending,
   [OnboardingStage.previewKiosk]: OnboardingStageStatus.pending,
   [OnboardingStage.kioskPurchase]: OnboardingStageStatus.pending,
+  [OnboardingStage.onboardingComplete]: OnboardingStageStatus.pending,
 };
 
 async function repairOnboardingStatus(businessId: string, onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus } | null) {
@@ -46,6 +47,7 @@ async function repairOnboardingStatus(businessId: string, onboardingStatus: { [s
   onboardingStatusUpdate[OnboardingStage.kioskCheckout] = onboardingStatus?.kioskCheckout ?? OnboardingStageStatus.complete;
   onboardingStatusUpdate[OnboardingStage.previewKiosk] = onboardingStatus?.previewKiosk ?? OnboardingStageStatus.complete;
   onboardingStatusUpdate[OnboardingStage.kioskPurchase] = onboardingStatus?.kioskPurchase ?? OnboardingStageStatus.complete;
+  onboardingStatusUpdate[OnboardingStage.onboardingComplete] = onboardingStatus?.onboardingComplete ?? OnboardingStageStatus.complete;
 
   onboardingStatusUpdate[OnboardingStage.createBusiness] = OnboardingStageStatus.complete;
   // Check for square token
