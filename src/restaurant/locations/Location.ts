@@ -18,12 +18,15 @@ export default class Location extends FirestoreObject<string> {
 
   isPrimary: boolean;
 
+  dailyOrderCounter: number;
+
   constructor(
     name: string,
     isActive: boolean,
     linkedObjects: { [Id: string]: LinkedObject },
     address: Address,
     isPrimary?: boolean,
+    dailyOrderCounter?: number,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -36,6 +39,7 @@ export default class Location extends FirestoreObject<string> {
     this.linkedObjects = linkedObjects;
     this.address = address;
     this.isPrimary = isPrimary ?? false;
+    this.dailyOrderCounter = dailyOrderCounter ?? 0;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -70,6 +74,7 @@ export default class Location extends FirestoreObject<string> {
         linkedObjects: JSON.parse(JSON.stringify(location.linkedObjects)),
         address: Address.firestoreConverter.toFirestore(location.address),
         isPrimary: location.isPrimary,
+        dailyOrderCounter: location.dailyOrderCounter,
         created: location.created.toISOString(),
         updated: location.updated.toISOString(),
         isDeleted: location.isDeleted,
@@ -84,6 +89,7 @@ export default class Location extends FirestoreObject<string> {
         data.linkedObjects,
         data.address,
         data.isPrimary,
+        data.dailyOrderCounter ?? 0,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
@@ -91,4 +97,6 @@ export default class Location extends FirestoreObject<string> {
       );
     },
   };
+
+  static dailyOrderCounterFieldName = 'dailyOrderCounter';
 }

@@ -34,7 +34,7 @@ export default class Orders extends FirestoreObject<string> {
 
   // eslint-disable-next-line class-methods-use-this
   collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Business.publicCollectionRef(businessId);
+    return Business.privateCollectionRef(businessId);
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -50,7 +50,7 @@ export default class Orders extends FirestoreObject<string> {
   // STATICS
 
   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-    return Business.publicCollectionRef(businessId).doc(ordersKey);
+    return Business.privateCollectionRef(businessId).doc(ordersKey);
   }
 
   static firestoreConverter = {

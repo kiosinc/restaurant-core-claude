@@ -17,6 +17,8 @@ export { default as OptionMeta } from './restaurant/catalog/OptionMeta';
 export { default as ProductMeta } from './restaurant/catalog/ProductMeta';
 export { default as TaxRate } from './restaurant/catalog/TaxRate';
 export { default as TaxRateMeta } from './restaurant/catalog/TaxRateMeta';
+export * from './restaurant/catalog/ServiceCharge';
+export { default as ServiceChargeMeta } from './restaurant/catalog/ServiceChargeMeta';
 export { default as Event } from './restaurant/connected-accounts/Event';
 export { default as EventNotification } from './restaurant/connected-accounts/EventNotification';
 export { default as Token } from './restaurant/connected-accounts/Token';
@@ -31,7 +33,6 @@ export { default as Menu } from './restaurant/surfaces/Menu';
 export { default as MenuGroup } from './restaurant/surfaces/MenuGroup';
 export { default as MenuGroupMeta } from './restaurant/surfaces/MenuGroupMeta';
 export { default as MenuMeta } from './restaurant/surfaces/MenuMeta';
-export { default as Services } from './restaurant/roots/Surfaces';
 export * from './restaurant/catalog/Discount';
 export { default as DiscountMeta } from './restaurant/catalog/DiscountMeta';
 export { default as Orders } from './restaurant/roots/Orders';
@@ -44,7 +45,4 @@ export { default as LocationMeta } from './restaurant/locations/LocationMeta';
 export { InventoryCount, InventoryCountState } from './restaurant/catalog/InventoryCount';
 export { Onboarding, OnboardingStage, OnboardingStageStatus } from './restaurant/roots/Onboarding';
 export { OnboardingOrder, InvoiceStatus } from './restaurant/onboarding/OnboardingOrder';
-export {
-  SelectedValue, OptionSetSelected, OrderItem,
-} from './restaurant/misc/OrderItem';
-export { default as OrderLineItem } from './restaurant/misc/OrderLineItem';
+export * as OrderV2 from './restaurant/orders/OrderV2';

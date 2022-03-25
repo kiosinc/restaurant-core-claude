@@ -2,6 +2,7 @@
 export namespace Constants {
   export const enum Provider {
     square = 'square',
+    system = 'system',
   }
 
   export const enum Role {
@@ -38,10 +39,9 @@ export namespace Paths {
     catalog = 'catalog',
     categories = 'categories',
     products = 'products',
-    attributes = 'attributes',
-    customizationSets = 'customizationSets',
     discounts = 'discounts',
     taxRates = 'taxRates',
+    serviceCharges = 'serviceCharges',
 
     optionSets = 'optionSets',
     options = 'options',

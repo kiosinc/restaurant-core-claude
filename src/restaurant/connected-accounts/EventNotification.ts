@@ -1,6 +1,7 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import ConnectedAccounts from '../roots/ConnectedAccounts';
 import * as Config from '../../firestore-core/config';
+import { firestoreApp } from '../../firestore-core/firebaseApp';
 
 export default class EventNotification extends FirestoreObject<string> {
   readonly businessId: string;
@@ -74,6 +75,34 @@ export default class EventNotification extends FirestoreObject<string> {
         .map((doc) => doc.data() as EventNotification));
   }
 
+  static isNew(
+    businessId: string,
+    eventId: string,
+    provider: Config.Constants.Provider,
+    type: string,
+  ) {
+    return firestoreApp.runTransaction(async (t) => {
+      const query = EventNotification.findQuery(businessId, provider, eventId);
+      const result = await t.get(query);
+      if (result.empty) {
+        // Log new event
+        const newNotification = new EventNotification(
+          businessId,
+          eventId,
+          provider,
+          type,
+        );
+
+        const id = newNotification.Id;
+        const notificationRef = newNotification.collectionRef(businessId)
+          .doc(id).withConverter(EventNotification.firestoreConverter);
+
+        t.set(notificationRef, newNotification);
+        return notificationRef;
+      }
+      return undefined;
+    });
+  }
   // STATICS
 
   static firestoreConverter = {

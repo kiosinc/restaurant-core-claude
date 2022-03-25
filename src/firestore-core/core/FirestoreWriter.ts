@@ -480,3 +480,11 @@ export function updateObject<C extends FirestoreObjectType>(
   const ref = object.collectionRef(businessId).doc(object.Id);
   return ref.update(data);
 }
+
+export function toReplaceUndefined(object: any) {
+  return JSON.parse(JSON.stringify(object, (key, value) => (value === undefined ? null : value)));
+}
+
+export function fromReplaceNull(object: any) {
+  return JSON.parse(JSON.stringify(object, (key, value) => (value === null ? undefined : value)));
+}
