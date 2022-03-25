@@ -4,8 +4,9 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import * as Config from '../../firestore-core/config';
-import Orders from '../roots/Orders';
+// import Orders from '../roots/Orders';
 import { firestoreApp } from '../../firestore-core/firebaseApp';
+import { Business } from '../roots/Business';
 
 export const enum OrderState {
   // Orders that are open
@@ -133,9 +134,9 @@ export class Order extends FirestoreObject<string> {
    * Order class CollectionReference for given business
    */
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Orders.docRef(businessId).collection(
-      Config.Paths.CollectionNames.orders,
-    );
+    return Business.publicCollectionRef(businessId)
+      .doc(Config.Paths.CollectionNames.orders)
+      .collection(Config.Paths.CollectionNames.orders);
   }
 
   /**

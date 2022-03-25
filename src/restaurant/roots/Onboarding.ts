@@ -37,7 +37,10 @@ const defaultOnboardingStatus: { [stage in OnboardingStage]: OnboardingStageStat
   [OnboardingStage.onboardingComplete]: OnboardingStageStatus.pending,
 };
 
-async function repairOnboardingStatus(businessId: string, onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus } | null) {
+async function repairOnboardingStatus(
+  businessId: string,
+  onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus } | null,
+) {
   const onboardingStatusUpdate: { [stage in OnboardingStage]?: OnboardingStageStatus } = {};
 
   onboardingStatusUpdate[OnboardingStage.categorySync] = onboardingStatus?.categorySync ?? OnboardingStageStatus.complete;
@@ -65,15 +68,12 @@ async function repairOnboardingStatus(businessId: string, onboardingStatus: { [s
 export class Onboarding extends FirestoreObject<string> {
   stripeCustomerId: string;
 
-  menuCategories: { [Id: string]: number };
-
   onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus };
 
   onboardingOrderId?: string;
 
   constructor(
     stripeCustomerId: string,
-    menuCategories: { [Id: string]: number },
     onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus } | null,
     onboardingOrderId?: string,
     created?: Date,
@@ -83,7 +83,6 @@ export class Onboarding extends FirestoreObject<string> {
   ) {
     super(created, updated, isDeleted, Id ?? servicesKey);
     this.stripeCustomerId = stripeCustomerId;
-    this.menuCategories = menuCategories;
     if (onboardingStatus === null) {
       this.onboardingStatus = defaultOnboardingStatus;
     } else {
@@ -117,7 +116,6 @@ export class Onboarding extends FirestoreObject<string> {
     toFirestore(onboarding: Onboarding): FirebaseFirestore.DocumentData {
       return {
         stripeCustomerId: onboarding.stripeCustomerId,
-        menuCategories: onboarding.menuCategories,
         onboardingStatus: onboarding.onboardingStatus,
         onboardingOrderId: onboarding.onboardingOrderId ?? null,
         created: onboarding.created.toISOString(),
@@ -130,7 +128,6 @@ export class Onboarding extends FirestoreObject<string> {
 
       return new Onboarding(
         data.stripeCustomerId,
-        data.menuCategories,
         data.onboardingStatus ?? null,
         data.onboardingOrderId === null ? undefined : data.onboardingOrderId,
         new Date(data.created),
@@ -149,14 +146,20 @@ export class Onboarding extends FirestoreObject<string> {
     if (onboardingSnap.exists) {
       // console.log(`${businessId} Onboarding document exists`);
       const onboarding = onboardingSnap.data() as Onboarding;
-      const onboardingStatus = await repairOnboardingStatus(businessId, onboarding.onboardingStatus ?? null);
+      const onboardingStatus = await repairOnboardingStatus(
+        businessId,
+        onboarding.onboardingStatus ?? null,
+      );
 
       // console.log(`${businessId} Update onboardingStatus ${JSON.stringify(onboardingStatus)}`);
       await onboardingRef.update('onboardingStatus', onboardingStatus);
     } else {
       // console.log(`${businessId} Onboarding document does not exist`);
-      const newOnboarding = new Onboarding('', {}, null);
-      newOnboarding.onboardingStatus = await repairOnboardingStatus(businessId, newOnboarding.onboardingStatus);
+      const newOnboarding = new Onboarding('', null);
+      newOnboarding.onboardingStatus = await repairOnboardingStatus(
+        businessId,
+        newOnboarding.onboardingStatus,
+      );
       await onboardingRef.set(newOnboarding);
     }
   }
