@@ -111,6 +111,10 @@ export class Order extends FirestoreObject<string> {
     this.locationId = locationId;
   }
 
+  docRef(businessId: string): FirebaseFirestore.DocumentReference {
+    return this.collectionRef(businessId).doc(this.Id).withConverter(Order.firestoreConverter);
+  }
+
   // FirestoreAdapter
 
   // eslint-disable-next-line class-methods-use-this

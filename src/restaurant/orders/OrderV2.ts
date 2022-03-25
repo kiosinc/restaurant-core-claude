@@ -5,7 +5,7 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import * as Config from '../../firestore-core/config';
 import Orders from '../roots/Orders';
-import { db } from '../../firestore-core';
+// import { db } from '../../firestore-core';
 import { Constants } from '../../firestore-core/config';
 
 const VERSION = '2';
@@ -113,10 +113,10 @@ export const enum PaymentState {
   failed = 'failed',
 }
 
-function findQuery(businessId: string, orderId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-use-before-define
-  return Order.collectionRef(businessId).doc(orderId).withConverter(Order.firestoreConverter);
-}
+// function findQuery(businessId: string, orderId: string) {
+//   // eslint-disable-next-line @typescript-eslint/no-use-before-define
+//   return Order.collectionRef(businessId).doc(orderId).withConverter(Order.firestoreConverter);
+// }
 
 /**
  * Order class extends FirestoreObject
@@ -216,6 +216,9 @@ export class Order extends FirestoreObject<string> {
     this.linkedObjects = linkedObjects;
   }
 
+  docRef(businessId: string): FirebaseFirestore.DocumentReference {
+    return this.collectionRef(businessId).doc(this.Id).withConverter(Order.firestoreConverter);
+  }
   // FirestoreAdapter
 
   // eslint-disable-next-line class-methods-use-this
@@ -310,46 +313,46 @@ export class Order extends FirestoreObject<string> {
     },
   };
 
-  static async lock(
-    businessId: string,
-    orderId: string,
-  ): Promise<boolean> {
-    const result = await db.firestoreApp.runTransaction(async (t) => {
-      const ref = findQuery(businessId, orderId);
-      const doc = await t.get(ref);
-      const order = doc.data() as Order;
-      if (!order) {
-        return false;
-      }
-      if (!order.isAvailable) {
-        return false;
-      }
-      const data = {
-        isAvailable: false,
-      };
-      await t.update(ref, data);
-      return true;
-    });
-
-    return result;
-  }
-
-  static async release(
-    businessId: string,
-    orderId: string,
-  ) {
-    await db.firestoreApp.runTransaction(async (t) => {
-      const ref = findQuery(businessId, orderId);
-      const doc = await t.get(ref);
-      const order = doc.data() as Order;
-      if (order) {
-        if (!order.isAvailable) {
-          const data = {
-            isAvailable: true,
-          };
-          await t.update(ref, data);
-        }
-      }
-    });
-  }
+  // static async lock(
+  //   businessId: string,
+  //   orderId: string,
+  // ): Promise<boolean> {
+  //   const result = await db.firestoreApp.runTransaction(async (t) => {
+  //     const ref = findQuery(businessId, orderId);
+  //     const doc = await t.get(ref);
+  //     const order = doc.data() as Order;
+  //     if (!order) {
+  //       return false;
+  //     }
+  //     if (!order.isAvailable) {
+  //       return false;
+  //     }
+  //     const data = {
+  //       isAvailable: false,
+  //     };
+  //     await t.update(ref, data);
+  //     return true;
+  //   });
+  //
+  //   return result;
+  // }
+  //
+  // static async release(
+  //   businessId: string,
+  //   orderId: string,
+  // ) {
+  //   await db.firestoreApp.runTransaction(async (t) => {
+  //     const ref = findQuery(businessId, orderId);
+  //     const doc = await t.get(ref);
+  //     const order = doc.data() as Order;
+  //     if (order) {
+  //       if (!order.isAvailable) {
+  //         const data = {
+  //           isAvailable: true,
+  //         };
+  //         await t.update(ref, data);
+  //       }
+  //     }
+  //   });
+  // }
 }
