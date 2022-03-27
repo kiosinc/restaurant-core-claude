@@ -3,7 +3,7 @@
  * Helps write and delete FirestoreObjectTypes to the db
  */
 
-import { firestoreApp, FieldValue } from '../firebaseApp';
+import { firestore } from '../firebaseApp';
 import Category from '../../restaurant/catalog/Category';
 import { Product } from '../../restaurant/catalog/Product';
 import MenuGroup from '../../restaurant/surfaces/MenuGroup';
@@ -123,7 +123,7 @@ export async function setT<C extends FirestoreObjectType>(
 
   Object.keys(metaLinks).forEach((key) => {
     const value = metaLinks[key] as string;
-    const docRef = firestoreApp.doc(key);
+    const docRef = firestore.getFirestore().doc(key);
 
     const fields = {
       [value]: metadata,
@@ -196,7 +196,7 @@ async function deleteQueryBatch(query: FirebaseFirestore.Query,
   }
 
   // Delete documents in a batch
-  const batch = firestoreApp.batch();
+  const batch = firestore.getFirestore().batch();
   snapshot.docs.forEach((doc) => {
     batch.delete(doc.ref);
   });
@@ -232,7 +232,7 @@ async function updateQueryBatch(query: FirebaseFirestore.Query,
   }
 
   // Update documents in a batch
-  const batch = firestoreApp.batch();
+  const batch = firestore.getFirestore().batch();
   snapshot.docs.forEach((doc) => {
     batch.update(doc.ref, data);
   });
@@ -273,7 +273,7 @@ async function updateBatchInfo(updates: BatchUpdateInfo[],
   }
 
   // Update documents in a batch
-  const batch = firestoreApp.batch();
+  const batch = firestore.getFirestore().batch();
   updatesThisTick.forEach((info) => {
     batch.update(info.ref, info.field, info.data);
   });
@@ -306,7 +306,7 @@ export async function setObject<C extends FirestoreObjectType>(
   const id = object.Id;
   const result = object.collectionRef(businessId).doc(id).withConverter(converter);
 
-  const batchedUpdates = await firestoreApp
+  const batchedUpdates = await firestore.getFirestore()
     .runTransaction(async (t) => setT(object, converter, businessId, t, merge));
 
   // Batch update
@@ -430,14 +430,14 @@ async function deleteT<C extends FirestoreObjectType>(
     // Setup writes second
     // Remove from each menu group
     menuGroupQuerySnapshots.docs.forEach((snapshot) => {
-      t.update(snapshot.ref, `products.${id}`, FieldValue.delete());
-      t.update(snapshot.ref, 'productDisplayOrder', FieldValue.arrayRemove(id));
+      t.update(snapshot.ref, `products.${id}`, firestore.FieldValue.delete());
+      t.update(snapshot.ref, 'productDisplayOrder', firestore.FieldValue.arrayRemove(id));
     });
 
     // Remove from each category group
     categoryQuerySnapshots.docs.forEach((snapshot) => {
-      t.update(snapshot.ref, `products.${id}`, FieldValue.delete());
-      t.update(snapshot.ref, 'productDisplayOrder', FieldValue.arrayRemove(id));
+      t.update(snapshot.ref, `products.${id}`, firestore.FieldValue.delete());
+      t.update(snapshot.ref, 'productDisplayOrder', firestore.FieldValue.arrayRemove(id));
     });
 
     // TODO delete related option sets and options?
@@ -449,9 +449,9 @@ async function deleteT<C extends FirestoreObjectType>(
   const metaLinks = object.metaLinks(businessId);
   Object.keys(metaLinks).forEach((key) => {
     const value = metaLinks[key] as string;
-    const docRef = firestoreApp.doc(key);
+    const docRef = firestore.getFirestore().doc(key);
 
-    const fields = { [value]: FieldValue.delete() };
+    const fields = { [value]: firestore.FieldValue.delete() };
     t.update(docRef, fields);
   });
 }
@@ -464,7 +464,7 @@ export function deleteObject<C extends FirestoreObjectType>(
   object: C,
   businessId: string,
 ) {
-  return firestoreApp
+  return firestore.getFirestore()
     .runTransaction(async (t) => deleteT(object, businessId, t));
 }
 

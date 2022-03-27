@@ -1,7 +1,7 @@
 /**
  * FirestoreObject base class for objects that live on firestore
  */
-import { firestoreApp } from '../firebaseApp';
+import { firestore } from '../firebaseApp';
 
 /**
  * FirestoreObject base class for objects that live on firestore
@@ -58,6 +58,6 @@ export default abstract class FirestoreObject<C extends string | void> {
    * Auto generate an unique ID using Firebase generation
    */
   static autoId(): string {
-    return firestoreApp.collection('default').doc().id;
+    return firestore.getFirestore().collection('default').doc().id;
   }
 }

@@ -1,10 +1,10 @@
 # Default ignored files
 /shelf/
 /workspace.xml
-
-/node_modules
-/lib
-/config
-!.idea
+.idea
 .DS_Store
-/build
+
+node_modules
+lib
+build
+config

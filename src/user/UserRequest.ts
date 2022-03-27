@@ -4,7 +4,7 @@
  */
 import { Request } from 'express';
 import './User+Request';
-import { authApp } from '../firestore-core/firebaseApp';
+import { auth } from '../firestore-core/firebaseApp';
 
 /**
  * Authenticates a request and injects resulting User
@@ -17,7 +17,7 @@ export default async function authenticateRequest(req: Request) {
     const bearer = bearerHeader.split(' ');
     const bearerToken = bearer[1];
 
-    const decodedIdToken = await authApp.verifyIdToken(bearerToken);
+    const decodedIdToken = await auth.getAuth().verifyIdToken(bearerToken);
 
     req.user = {
       claims: decodedIdToken.claims,

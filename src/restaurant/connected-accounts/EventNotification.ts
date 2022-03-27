@@ -1,7 +1,7 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import ConnectedAccounts from '../roots/ConnectedAccounts';
 import * as Config from '../../firestore-core/config';
-import { firestoreApp } from '../../firestore-core/firebaseApp';
+import { firestore } from '../../firestore-core/firebaseApp';
 
 export default class EventNotification extends FirestoreObject<string> {
   readonly businessId: string;
@@ -81,7 +81,7 @@ export default class EventNotification extends FirestoreObject<string> {
     provider: Config.Constants.Provider,
     type: string,
   ) {
-    return firestoreApp.runTransaction(async (t) => {
+    return firestore.getFirestore().runTransaction(async (t) => {
       const query = EventNotification.findQuery(businessId, provider, eventId);
       const result = await t.get(query);
       if (result.empty) {

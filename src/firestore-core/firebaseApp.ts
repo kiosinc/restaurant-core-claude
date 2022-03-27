@@ -1,7 +1,9 @@
 // Google Auth
 import * as admin from 'firebase-admin';
 
-export const authApp = admin.auth();
-export const firestoreApp = admin.firestore();
-export const { FieldValue } = admin.firestore;
-export const firebaseApp = admin.database();
+export * as firestore from 'firebase-admin/firestore';
+export * as auth from 'firebase-admin/auth';
+export * as firebaseApp from 'firebase-admin/app';
+
+export const firebaseAdmin = admin;
+export const firebase = admin.database();

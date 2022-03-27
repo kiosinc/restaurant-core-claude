@@ -1,7 +1,7 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import Vars from '../roots/Vars';
 import * as Config from '../../firestore-core/config';
-import { firestoreApp } from '../../firestore-core/firebaseApp';
+import { firestore } from '../../firestore-core/firebaseApp';
 
 function findQuery(businessId: string, type: string) {
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
@@ -49,7 +49,7 @@ export default class Semaphore extends FirestoreObject<string> {
     businessId: string,
     type: string,
   ): Promise<boolean> {
-    const result = await firestoreApp.runTransaction(async (t) => {
+    const result = await firestore.getFirestore().runTransaction(async (t) => {
       const ref = findQuery(businessId, type);
       const doc = await t.get(ref);
       const sema = doc.data() as Semaphore;
@@ -74,7 +74,7 @@ export default class Semaphore extends FirestoreObject<string> {
     businessId: string,
     type: string,
   ) {
-    await firestoreApp.runTransaction(async (t) => {
+    await firestore.getFirestore().runTransaction(async (t) => {
       const ref = findQuery(businessId, type);
       const doc = await t.get(ref);
       const sema = doc.data() as Semaphore;

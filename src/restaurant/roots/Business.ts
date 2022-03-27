@@ -1,6 +1,6 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import * as Config from '../../firestore-core/config';
-import { firestoreApp } from '../../firestore-core/firebaseApp';
+import { firestore } from '../../firestore-core/firebaseApp';
 import BusinessProfile from '../misc/BusinessProfile';
 
 export enum BusinessType {
@@ -59,7 +59,7 @@ export class Business extends FirestoreObject<void> {
   }
 
   static collectionRef(): FirebaseFirestore.CollectionReference {
-    return firestoreApp.collection(Config.Paths.CollectionNames.businesses);
+    return firestore.getFirestore().collection(Config.Paths.CollectionNames.businesses);
   }
 
   static firestoreConverter = {

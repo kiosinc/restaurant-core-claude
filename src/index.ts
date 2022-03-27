@@ -1,5 +1,6 @@
 export * as Core from './firestore-core';
 export * as User from './user';
+export * as db from './firestore-core/firebaseApp';
 
 export { default as LinkedObject } from './firestore-core/core/LinkedObject';
 export { default as LinkedObjectType } from './firestore-core/core/LinkedObjectType';

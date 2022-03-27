@@ -1,6 +1,6 @@
 {
   "name": "@kiosinc/restaurant-core",
-  "version": "0.1.83",
+  "version": "0.1.86",
   "description": "",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -21,25 +21,25 @@
     "url": "https://github.com/kiosinc/core/issues"
   },
   "homepage": "https://github.com/kiosinc/core#readme",
-  "dependencies": {
-    "typescript": "^4.2.3",
-    "http-errors": "~1.6.3",
-    "express": "~4.16.1",
-    "firebase-admin": "^9.5.0",
-    "uuid": "^8.3.2"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@types/express": "^4.17.11",
-    "@types/http-errors": "^1.8.0",
-    "@typescript-eslint/eslint-plugin": "^4.17.0",
-    "@typescript-eslint/parser": "^4.17.0",
-    "eslint": "^7.21.0",
+    "typescript": "^4.6.3",
+    "@types/express": "^4.17.13",
+    "@types/http-errors": "^1.8.2",
+    "@typescript-eslint/eslint-plugin": "^4.33.0",
+    "@typescript-eslint/parser": "^4.33.0",
+    "eslint": "^7.32.0",
     "eslint-config-airbnb-typescript": "^12.3.1",
-    "eslint-plugin-import": "^2.22.1",
-    "eslint-plugin-jsx-a11y": "^6.4.1",
-    "eslint-plugin-react": "^7.22.0",
-    "eslint-plugin-react-hooks": "^4.2.0",
-    "prettier": "^2.2.1"
+    "eslint-plugin-import": "^2.25.4",
+    "eslint-plugin-jsx-a11y": "^6.5.1",
+    "eslint-plugin-react": "^7.29.4",
+    "eslint-plugin-react-hooks": "^4.3.0",
+    "prettier": "^2.6.1",
+    "express": "~4.16.1",
+    "firebase-admin": "^10.0.2",
+    "@firebase/app-compat": "0.1.7",
+    "http-errors": "~1.6.3",
+    "uuid": "^8.3.2"
   },
   "files": [
     "lib/**/*"

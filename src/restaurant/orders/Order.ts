@@ -4,8 +4,7 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import * as Config from '../../firestore-core/config';
-// import Orders from '../roots/Orders';
-import { firestoreApp } from '../../firestore-core/firebaseApp';
+import { firestore } from '../../firestore-core/firebaseApp';
 import { Business } from '../roots/Business';
 
 export const enum OrderState {
@@ -200,7 +199,7 @@ export class Order extends FirestoreObject<string> {
     businessId: string,
     orderId: string,
   ): Promise<boolean> {
-    const result = await firestoreApp.runTransaction(async (t) => {
+    const result = await firestore.getFirestore().runTransaction(async (t) => {
       const ref = findQuery(businessId, orderId);
       const doc = await t.get(ref);
       const order = doc.data() as Order;
@@ -224,7 +223,7 @@ export class Order extends FirestoreObject<string> {
     businessId: string,
     orderId: string,
   ) {
-    await firestoreApp.runTransaction(async (t) => {
+    await firestore.getFirestore().runTransaction(async (t) => {
       const ref = findQuery(businessId, orderId);
       const doc = await t.get(ref);
       const order = doc.data() as Order;
