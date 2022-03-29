@@ -156,6 +156,15 @@ export class Onboarding extends FirestoreObject<string> {
     } else {
       // console.log(`${businessId} Onboarding document does not exist`);
       const newOnboarding = new Onboarding('', null);
+      newOnboarding.onboardingStatus[OnboardingStage.categorySync] = OnboardingStageStatus.complete;
+      newOnboarding.onboardingStatus[OnboardingStage.scheduleMeeting] = OnboardingStageStatus.complete;
+      newOnboarding.onboardingStatus[OnboardingStage.configMenu] = OnboardingStageStatus.complete;
+      newOnboarding.onboardingStatus[OnboardingStage.shippingInfo] = OnboardingStageStatus.complete;
+      newOnboarding.onboardingStatus[OnboardingStage.kioskCheckout] = OnboardingStageStatus.complete;
+      newOnboarding.onboardingStatus[OnboardingStage.previewKiosk] = OnboardingStageStatus.complete;
+      newOnboarding.onboardingStatus[OnboardingStage.kioskPurchase] = OnboardingStageStatus.complete;
+      newOnboarding.onboardingStatus[OnboardingStage.onboardingComplete] = OnboardingStageStatus.complete;
+
       newOnboarding.onboardingStatus = await repairOnboardingStatus(
         businessId,
         newOnboarding.onboardingStatus,
