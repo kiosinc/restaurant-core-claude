@@ -66,16 +66,19 @@ async function repairOnboardingStatus(
 }
 
 export class Onboarding extends FirestoreObject<string> {
-  stripeCustomerId: string;
+  stripeCustomerId: string | null;
 
   onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus };
 
-  onboardingOrderId?: string;
+  onboardingOrderId: string | null;
+
+  menuCategories: string[] | null;
 
   constructor(
-    stripeCustomerId: string,
+    stripeCustomerId: string | null,
     onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus } | null,
-    onboardingOrderId?: string,
+    onboardingOrderId: string | null,
+    menuCategories: string[] | null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -89,6 +92,7 @@ export class Onboarding extends FirestoreObject<string> {
       this.onboardingStatus = onboardingStatus;
     }
     this.onboardingOrderId = onboardingOrderId;
+    this.menuCategories = menuCategories;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -127,9 +131,10 @@ export class Onboarding extends FirestoreObject<string> {
       const data = snapshot.data();
 
       return new Onboarding(
-        data.stripeCustomerId,
+        data.stripeCustomerId ?? null, // ?? null for backwards compat
         data.onboardingStatus ?? null,
-        data.onboardingOrderId === null ? undefined : data.onboardingOrderId,
+        data.onboardingOrderId ?? null,
+        data.menuCategories ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
@@ -155,7 +160,7 @@ export class Onboarding extends FirestoreObject<string> {
       await onboardingRef.update('onboardingStatus', onboardingStatus);
     } else {
       // console.log(`${businessId} Onboarding document does not exist`);
-      const newOnboarding = new Onboarding('', null);
+      const newOnboarding = new Onboarding(null, null, null, null);
       newOnboarding.onboardingStatus = await repairOnboardingStatus(
         businessId,
         null,

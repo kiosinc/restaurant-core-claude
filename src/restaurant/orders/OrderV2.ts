@@ -312,47 +312,4 @@ export class Order extends FirestoreObject<string> {
       );
     },
   };
-
-  // static async lock(
-  //   businessId: string,
-  //   orderId: string,
-  // ): Promise<boolean> {
-  //   const result = await db.firestoreApp.runTransaction(async (t) => {
-  //     const ref = findQuery(businessId, orderId);
-  //     const doc = await t.get(ref);
-  //     const order = doc.data() as Order;
-  //     if (!order) {
-  //       return false;
-  //     }
-  //     if (!order.isAvailable) {
-  //       return false;
-  //     }
-  //     const data = {
-  //       isAvailable: false,
-  //     };
-  //     await t.update(ref, data);
-  //     return true;
-  //   });
-  //
-  //   return result;
-  // }
-  //
-  // static async release(
-  //   businessId: string,
-  //   orderId: string,
-  // ) {
-  //   await db.firestoreApp.runTransaction(async (t) => {
-  //     const ref = findQuery(businessId, orderId);
-  //     const doc = await t.get(ref);
-  //     const order = doc.data() as Order;
-  //     if (order) {
-  //       if (!order.isAvailable) {
-  //         const data = {
-  //           isAvailable: true,
-  //         };
-  //         await t.update(ref, data);
-  //       }
-  //     }
-  //   });
-  // }
 }
