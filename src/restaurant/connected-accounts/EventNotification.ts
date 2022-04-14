@@ -3,7 +3,12 @@ import ConnectedAccounts from '../roots/ConnectedAccounts';
 import * as Config from '../../firestore-core/config';
 import { firestore } from '../../firestore-core/firebaseApp';
 
-export default class EventNotification extends FirestoreObject<string> {
+export interface EventNotificationResult {
+  notification: EventNotification,
+  isNew: boolean
+}
+
+export class EventNotification extends FirestoreObject<string> {
   readonly businessId: string;
 
   readonly eventId: string;
@@ -12,11 +17,14 @@ export default class EventNotification extends FirestoreObject<string> {
 
   readonly type: string;
 
+  meta: { [p: string]: any } | null;
+
   constructor(
     businessId: string,
     eventId: string,
     provider: string,
     type: string,
+    meta: { [p: string]: any } | null = null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -27,6 +35,7 @@ export default class EventNotification extends FirestoreObject<string> {
     this.eventId = eventId;
     this.provider = provider;
     this.type = type;
+    this.meta = meta;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -75,6 +84,52 @@ export default class EventNotification extends FirestoreObject<string> {
         .map((doc) => doc.data() as EventNotification));
   }
 
+  // If a notification is new, create it and return it
+  // Otherwise return the existing
+  static getSet(
+    businessId: string,
+    eventId: string,
+    provider: Config.Constants.Provider,
+    type: string,
+    meta: { [p: string]: any } | null = null,
+  ) {
+    return firestore.getFirestore().runTransaction(async (t) => {
+      const query = EventNotification.findQuery(businessId, provider, eventId);
+      const result = await t.get(query);
+      // If a notification is new, create it and return it
+      if (result.empty) {
+        // Log new event
+        const notification = new EventNotification(
+          businessId,
+          eventId,
+          provider,
+          type,
+          meta,
+        );
+
+        const id = notification.Id;
+        const notificationRef = notification.collectionRef(businessId)
+          .doc(id).withConverter(EventNotification.firestoreConverter);
+
+        t.set(notificationRef, notification);
+        return {
+          notification,
+          isNew: true,
+        } as EventNotificationResult;
+      }
+      // Otherwise return existing
+      const notifications = result.docs.map((s) => s.data() as EventNotification);
+      if (notifications.length > 1) {
+        console.log(`${businessId} event ${eventId} has ${notifications.length} duplicates`);
+      }
+
+      return {
+        notification: notifications.pop(),
+        isNew: false,
+      } as EventNotificationResult;
+    });
+  }
+
   static isNew(
     businessId: string,
     eventId: string,
@@ -112,6 +167,7 @@ export default class EventNotification extends FirestoreObject<string> {
         eventId: notification.eventId,
         provider: notification.provider,
         type: notification.type,
+        meta: notification.meta,
         created: notification.created.toISOString(),
         updated: notification.updated.toISOString(),
         isDeleted: notification.isDeleted,
@@ -125,6 +181,7 @@ export default class EventNotification extends FirestoreObject<string> {
         data.eventId,
         data.provider,
         data.type,
+        data.meta ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
