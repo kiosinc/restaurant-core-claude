@@ -1,7 +1,11 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
+import Menu from '../surfaces/Menu';
+import MenuGroup from '../surfaces/MenuGroup';
+import MenuGroupMeta from '../surfaces/MenuGroupMeta';
 import Token from '../connected-accounts/Token';
+import Category from '../catalog/Category';
 
 const servicesKey = Config.Paths.CollectionNames.onboarding;
 
@@ -11,6 +15,8 @@ export const enum OnboardingStage {
   categorySync = 'categorySync',
   scheduleMeeting = 'scheduleMeeting',
   configMenu = 'configMenu',
+  menuCreate = 'menuCreate',
+  onboardingSync = 'onboardingSync',
   shippingInfo = 'shippingInfo',
   kioskPurchase = 'kioskPurchase',
   kioskCheckout = 'kioskCheckout',
@@ -30,6 +36,8 @@ const defaultOnboardingStatus: { [stage in OnboardingStage]: OnboardingStageStat
   [OnboardingStage.categorySync]: OnboardingStageStatus.pending,
   [OnboardingStage.scheduleMeeting]: OnboardingStageStatus.pending,
   [OnboardingStage.configMenu]: OnboardingStageStatus.pending,
+  [OnboardingStage.menuCreate]: OnboardingStageStatus.pending,
+  [OnboardingStage.onboardingSync]: OnboardingStageStatus.pending,
   [OnboardingStage.shippingInfo]: OnboardingStageStatus.pending,
   [OnboardingStage.kioskCheckout]: OnboardingStageStatus.pending,
   [OnboardingStage.previewKiosk]: OnboardingStageStatus.pending,
@@ -46,6 +54,8 @@ async function repairOnboardingStatus(
   onboardingStatusUpdate[OnboardingStage.categorySync] = onboardingStatus?.categorySync ?? OnboardingStageStatus.complete;
   onboardingStatusUpdate[OnboardingStage.scheduleMeeting] = onboardingStatus?.scheduleMeeting ?? OnboardingStageStatus.complete;
   onboardingStatusUpdate[OnboardingStage.configMenu] = onboardingStatus?.configMenu ?? OnboardingStageStatus.complete;
+  onboardingStatusUpdate[OnboardingStage.menuCreate] = onboardingStatus?.menuCreate ?? OnboardingStageStatus.complete;
+  onboardingStatusUpdate[OnboardingStage.onboardingSync] = onboardingStatus?.onboardingSync ?? OnboardingStageStatus.complete;
   onboardingStatusUpdate[OnboardingStage.shippingInfo] = onboardingStatus?.shippingInfo ?? OnboardingStageStatus.complete;
   onboardingStatusUpdate[OnboardingStage.kioskCheckout] = onboardingStatus?.kioskCheckout ?? OnboardingStageStatus.complete;
   onboardingStatusUpdate[OnboardingStage.previewKiosk] = onboardingStatus?.previewKiosk ?? OnboardingStageStatus.complete;
@@ -63,6 +73,58 @@ async function repairOnboardingStatus(
   onboardingStatusUpdate[OnboardingStage.squareIntegration] = squareIntegrationStatus;
 
   return onboardingStatusUpdate;
+}
+
+async function createOnboardingMenu(businessId: string, categoryIds: string[]) {
+  // Get the categories from the DB
+  const categoryPromises = categoryIds.map((id) => Category.collectionRef(businessId).doc(id)
+    .withConverter(Category.firestoreConverter).get()
+    .then((t) => t.data() as Category));
+  // Get
+
+  const categories = await Promise.all(categoryPromises);
+  // Create new menu groups / copy categories to menu groups
+  // New menu groups
+
+  const newMenuGroups: MenuGroup[] = [];
+  // Menu group display order
+  const groupDisplayOrder: string[] = [];
+  // Menu group meta
+  const groups: { [Id: string]: MenuGroupMeta } = {};
+  categories.forEach((category) => {
+    if (category) {
+      const menuGroup = new MenuGroup(
+        category.name,
+        category.products,
+        category.productDisplayOrder,
+        category.name,
+        '',
+        '',
+      );
+      // Add menu group to be created
+      newMenuGroups.push(menuGroup);
+      // Save menu group info for menu creation
+      groupDisplayOrder.push(menuGroup.Id);
+      groups[menuGroup.Id] = menuGroup.metadata();
+    } else {
+      console.error(`Business: ${businessId} has no categories to migrate`);
+    }
+  });
+
+  // Setup menu
+  const name = `Onboarding Menu ${new Date().toDateString()}`;
+  const menu = new Menu(name, name, groups, groupDisplayOrder, null, null, null);
+  // Save new menu groups to DB
+  const menuGroupSet = newMenuGroups.map((mg) => MenuGroup.collectionRef(businessId)
+    .withConverter(MenuGroup.firestoreConverter).doc(mg.Id).set(mg));
+  await Promise.all(menuGroupSet);
+
+  // Save down menu to db
+  await Menu.collectionRef(businessId).withConverter(Menu.firestoreConverter)
+    .doc(menu.Id).set(menu);
+  console.log(`${businessId} onboarding menu ${menu.Id} created`);
+
+  return menu.Id;
 }
 
 export class Onboarding extends FirestoreObject<string> {
@@ -166,6 +228,41 @@ export class Onboarding extends FirestoreObject<string> {
         null,
       );
       await onboardingRef.set(newOnboarding);
+    }
+  }
+
+  // Create onboarding menu if the menuConfig stage is complete
+  static async createMenu(businessId: string) {
+    const onboardingRef = Onboarding.docRef(businessId)
+      .withConverter(Onboarding.firestoreConverter);
+    const onboarding = await onboardingRef.get()
+      .then((t) => t.data() as Onboarding);
+    if (!onboarding) {
+      throw new Error(`${businessId} onboarding document not found to create onboarding menu`);
+    }
+
+    if (onboarding.onboardingStatus.onboardingSync !== OnboardingStageStatus.complete) {
+      console.log(`${businessId} onboarding sync not completed-- canceling menu create`);
+      return null;
+    }
+    if (onboarding.onboardingStatus.configMenu !== OnboardingStageStatus.complete) {
+      console.log(`${businessId} onboarding menu config not completed-- canceling menu create`);
+      return null;
+    }
+    if (onboarding.onboardingStatus.menuCreate === OnboardingStageStatus.complete) {
+      console.log(`${businessId} onboarding menu already created-- canceling this menu create`);
+      return null;
+    }
+    const update = {
+      [`onboardingStatus.${OnboardingStage.menuCreate}`]: OnboardingStageStatus.complete,
+    };
+    await onboardingRef.update(update);
+    const categoryIds = onboarding.menuCategories;
+    try {
+      const menuId = await createOnboardingMenu(businessId, categoryIds ?? []);
+      return menuId;
+    } catch (e) {
+      throw new Error(`${businessId} onboarding menu create error: ${e}`);
     }
   }
 }
