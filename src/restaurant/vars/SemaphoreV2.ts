@@ -36,9 +36,9 @@ export default class Semaphore {
   }
 
   static ref(businessId: string, type: string) {
-    const ref = `/businesses/${businessId}/private/vars/semaphores/${type}`;
+    const path = `/businesses/${businessId}/private/vars/semaphores/${type}`;
 
-    return db.ref(ref);
+    return db.ref(path);
   }
 
   static async lock(
@@ -57,6 +57,7 @@ export default class Semaphore {
 
       // Lock semaphore
       sema.isAvailable = false;
+      sema.updated = new Date();
       return Semaphore.firebaseConverter.toFirebase(sema);
     }, (error, success, data) => {
       if (error) {
@@ -80,12 +81,9 @@ export default class Semaphore {
       const sema = data !== null ? Semaphore.firebaseConverter.fromData(data, type)
         : new Semaphore(type, true);
 
-      if (sema.isAvailable) {
-        return undefined;
-      }
-
-      // Lock semaphore
+      // Release semaphore
       sema.isAvailable = true;
+      sema.updated = new Date();
       return Semaphore.firebaseConverter.toFirebase(sema);
     }, (error, success, data) => {
       if (error) {
@@ -103,8 +101,8 @@ export default class Semaphore {
     toFirebase(semaphore: Semaphore): any {
       return {
         isAvailable: semaphore.isAvailable,
-        created: new Date().toISOString(),
-        updated: new Date().toISOString(),
+        created: semaphore.created.toISOString(),
+        updated: semaphore.updated.toISOString(),
         isDeleted: semaphore.isDeleted,
       };
     },

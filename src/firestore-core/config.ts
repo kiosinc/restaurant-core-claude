@@ -11,11 +11,8 @@ export namespace Constants {
   }
 
   export const enum Semaphore {
-    catalogUpdate = 'catalog.update',
-    locationUpdate = 'location.update',
-    inventoryUpdate = 'inventory.update',
-    orderUpdate = 'order.update',
-    paymentUpdate = 'payment.update',
+    catalogUpdate = 'catalogUpdate',
+    locationUpdate = 'locationUpdate',
   }
 }
 
