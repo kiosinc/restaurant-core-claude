@@ -15,8 +15,6 @@ import Surfaces from '../../restaurant/roots/Surfaces';
 import Services from '../../restaurant/roots/Services';
 import Orders from '../../restaurant/roots/Orders';
 import Vars from '../../restaurant/roots/Vars';
-import Semaphore from '../../restaurant/vars/Semaphore';
-import { Constants } from '../config';
 import Locations from '../../restaurant/roots/Locations';
 import OptionSet from '../../restaurant/catalog/OptionSet';
 import Option from '../../restaurant/catalog/Option';
@@ -162,21 +160,6 @@ export async function setT<C extends FirestoreObjectType>(
     await setT(newServices, Services.firestoreConverter, id, t);
     await setT(newVar, Vars.firestoreConverter, id, t);
     await setT(newLocations, Locations.firestoreConverter, id, t);
-
-    const catalogUpdateSemaphore = new Semaphore(Constants.Semaphore.catalogUpdate, true);
-    await setT(catalogUpdateSemaphore, Semaphore.firestoreConverter, id, t);
-    const locationUpdateSemaphore = new Semaphore(Constants.Semaphore.locationUpdate, true);
-    await setT(locationUpdateSemaphore, Semaphore.firestoreConverter, id, t);
-
-    // Not used anymore
-    const inventoryUpdateSemaphore = new Semaphore(Constants.Semaphore.inventoryUpdate, true);
-    await setT(inventoryUpdateSemaphore, Semaphore.firestoreConverter, id, t);
-    // Not used anymore
-    const orderUpdateSemaphore = new Semaphore(Constants.Semaphore.orderUpdate, true);
-    await setT(orderUpdateSemaphore, Semaphore.firestoreConverter, id, t);
-    // Not used anymore
-    const paymentUpdateSemaphore = new Semaphore(Constants.Semaphore.paymentUpdate, true);
-    await setT(paymentUpdateSemaphore, Semaphore.firestoreConverter, id, t);
   }
 
   return batchedUpdates;
