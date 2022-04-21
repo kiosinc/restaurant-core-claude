@@ -6,6 +6,7 @@ import MenuGroup from '../surfaces/MenuGroup';
 import MenuGroupMeta from '../surfaces/MenuGroupMeta';
 import Token from '../connected-accounts/Token';
 import Category from '../catalog/Category';
+import Surfaces from './Surfaces';
 
 const servicesKey = Config.Paths.CollectionNames.onboarding;
 
@@ -123,6 +124,11 @@ async function createOnboardingMenu(businessId: string, categoryIds: string[]) {
   await Menu.collectionRef(businessId).withConverter(Menu.firestoreConverter)
     .doc(menu.Id).set(menu);
   console.log(`${businessId} onboarding menu ${menu.Id} created`);
+
+  // TODO-- Delete meta insertion
+  const field = `menus.${menu.Id}`;
+  const menuGroupMetaData = newMenuGroups.flatMap((group) => [`menuGroups.${group.Id}`, group.metadata()]);
+  await Surfaces.docRef(businessId).update(field, menu.metadata(), ...menuGroupMetaData);
 
   return menu.Id;
 }

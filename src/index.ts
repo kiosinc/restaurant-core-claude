@@ -43,7 +43,9 @@ export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';
 export { default as Locations } from './restaurant/roots/Locations';
 export { default as Location } from './restaurant/locations/Location';
 export { default as LocationMeta } from './restaurant/locations/LocationMeta';
-export { InventoryCount, InventoryCountState } from './restaurant/catalog/InventoryCount';
+export {
+  InventoryCount, InventoryCountState, LocationInventoryFromFirestore, LocationInventoryToFirestore,
+} from './restaurant/catalog/InventoryCount';
 export { Onboarding, OnboardingStage, OnboardingStageStatus } from './restaurant/roots/Onboarding';
 export { OnboardingOrder, InvoiceStatus } from './restaurant/onboarding/OnboardingOrder';
 export * as OrderV2 from './restaurant/orders/OrderV2';
