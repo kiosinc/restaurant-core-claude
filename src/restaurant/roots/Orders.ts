@@ -14,11 +14,20 @@ export default class Orders extends FirestoreObject<string> {
 
   gratuityRates: number[];
 
+  isSquareDiscountCodeAPI: boolean;
+
+  isSquareAutoApplyDiscounts: boolean;
+
+  isSquareAutoApplyTaxes: boolean;
+
   constructor(
     isSMSStateUpdate: boolean,
     isLoyaltyAccrue: boolean,
     isStateAutoNewToInProgress: boolean,
     gratuityRates: number[] | null,
+    isSquareDiscountCodeAPI: boolean | null,
+    isSquareAutoApplyDiscounts: boolean | null,
+    isSquareAutoApplyTaxes: boolean | null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -30,6 +39,9 @@ export default class Orders extends FirestoreObject<string> {
     this.isLoyaltyAccrue = isLoyaltyAccrue;
     this.isStateAutoNewToInProgress = isStateAutoNewToInProgress;
     this.gratuityRates = gratuityRates ?? defaultGratuityRate;
+    this.isSquareDiscountCodeAPI = isSquareDiscountCodeAPI ?? false;
+    this.isSquareAutoApplyDiscounts = isSquareAutoApplyDiscounts ?? false;
+    this.isSquareAutoApplyTaxes = isSquareAutoApplyTaxes ?? false;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -60,6 +72,9 @@ export default class Orders extends FirestoreObject<string> {
         isLoyaltyAccrue: orders.isLoyaltyAccrue,
         isStateAutoNewToInProgress: orders.isStateAutoNewToInProgress,
         gratuityRates: JSON.parse(JSON.stringify(orders.gratuityRates)),
+        isSquareDiscountCodeAPI: orders.isSquareDiscountCodeAPI,
+        isSquareAutoApplyDiscounts: orders.isSquareAutoApplyDiscounts,
+        isSquareAutoApplyTaxes: orders.isSquareAutoApplyTaxes,
         created: orders.created.toISOString(),
         updated: orders.updated.toISOString(),
         isDeleted: orders.isDeleted,
@@ -73,6 +88,9 @@ export default class Orders extends FirestoreObject<string> {
         data.isLoyaltyAccrue ?? true,
         data.isStateAutoNewToInProgress ?? false,
         data.gratuityRates ?? null,
+        data.isSquareDiscountCodeAPI ?? null,
+        data.isSquareAutoApplyDiscounts ?? null,
+        data.isSquareAutoApplyTaxes ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
