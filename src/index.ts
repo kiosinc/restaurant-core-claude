@@ -49,3 +49,4 @@ export {
 export { Onboarding, OnboardingStage, OnboardingStageStatus } from './restaurant/roots/Onboarding';
 export { OnboardingOrder, InvoiceStatus } from './restaurant/onboarding/OnboardingOrder';
 export * as OrderV2 from './restaurant/orders/OrderV2';
+export * as OrderV3 from './restaurant/orders/OrderV3';

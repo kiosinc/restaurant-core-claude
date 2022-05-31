@@ -200,11 +200,13 @@ export async function deleteQuery(query: FirebaseFirestore.Query, batchSize: num
   });
 }
 
-async function updateQueryBatch(query: FirebaseFirestore.Query,
+async function updateQueryBatch(
+  query: FirebaseFirestore.Query,
   data: FirebaseFirestore.UpdateData,
   resolve: (value: number) => void,
   reject: (reason?: any) => void,
-  count: number = 0) {
+  count: number = 0,
+) {
   const snapshot = await query.get();
 
   const batchSize = snapshot.size;
@@ -269,6 +271,11 @@ async function updateBatchInfo(updates: BatchUpdateInfo[],
   });
 }
 
+/**
+ * Usage: await updateBatch(batchedUpdates, limit);
+ * @param updates: BatchUpdateInfo
+ * @param batchSize: number
+ */
 export async function updateBatch(updates: BatchUpdateInfo[], batchSize: number) {
   return new Promise<number>((resolve, reject) => {
     updateBatchInfo(updates, batchSize, resolve, reject).catch(reject);
