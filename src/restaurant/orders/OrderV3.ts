@@ -5,7 +5,6 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import * as Config from '../../firestore-core/config';
 import Orders from '../roots/Orders';
-// import { db } from '../../firestore-core';
 import { Constants } from '../../firestore-core/config';
 
 const VERSION = '3';
@@ -49,14 +48,6 @@ export interface OptionSetSelected {
   ordinal: number, // Zero based ordinal of the option set
 }
 
-// export function OptionSetSelectedPrice(optionSetsSelected: OptionSetSelected[]) {
-//   const prices = optionSetsSelected.flatMap((optionSet) => optionSet
-//     .selectedValues
-//     .flatMap((value) => value.price));
-//
-//   return prices.reduce((prev, curr) => prev + curr, 0);
-// }
-
 export interface OrderItem {
   readonly productId: string,
   readonly productName: string,
@@ -65,18 +56,18 @@ export interface OrderItem {
 }
 
 export interface OrderPriceAdjustmentMeta {
-  readonly id: string,
-  readonly name: string,
-  readonly value: number, // Applied monetary amount or value fo the adjustment
+  id: string,
+  name: string,
+  value: number, // Applied monetary amount or value fo the adjustment
 }
 
 export interface OrderLineItem {
-  readonly item: OrderItem,
-  readonly quantity: number,
-  readonly taxes: OrderPriceAdjustmentMeta[],
-  readonly discounts: OrderPriceAdjustmentMeta[],
-  readonly surcharges: OrderPriceAdjustmentMeta[],
-  readonly note: string | null,
+  item: OrderItem,
+  quantity: number,
+  taxes: OrderPriceAdjustmentMeta[],
+  discounts: OrderPriceAdjustmentMeta[],
+  surcharges: OrderPriceAdjustmentMeta[],
+  note: string | null,
 }
 
 export interface OrderFulfillmentContact {
@@ -88,15 +79,15 @@ export interface OrderFulfillmentContact {
 export interface OrderFulfillment {
   type: OrderType,
   typeMetaData: OrderTypeMeta | null, // { table: string }
-  scheduledTime: Date; // null for ASAP
+  scheduledTime: Date | null; // null for ASAP
   contact: OrderFulfillmentContact | null;
-  readonly displayId: string | null;
+  displayId: string | null;
 }
 
 export interface OrderPayment {
   paymentState: PaymentState;
   paymentTimestamp: Date;
-  receiptUrl: string;
+  receiptUrl: string | null;
 }
 
 export const enum PaymentState {

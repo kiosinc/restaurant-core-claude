@@ -120,7 +120,7 @@ export class Discount extends FirestoreObject<string> {
         data.name as string,
         data.description as string,
         data.couponCode as string,
-        data.discountType as DiscountType,
+        data.type as DiscountType,
         data.value as number,
         data.isActive as boolean,
         data.linkedObjects,

@@ -16,6 +16,7 @@ export default class Orders extends FirestoreObject<string> {
 
   isSquareDiscountCodeAPI: boolean;
 
+  // If Discounts are auto applied then manual catalog discounts are not eligible
   isSquareAutoApplyDiscounts: boolean;
 
   isSquareAutoApplyTaxes: boolean;

@@ -4,7 +4,7 @@ import Catalog from '../roots/Catalog';
 import * as Config from '../../firestore-core/config';
 import ServiceChargeMeta from './ServiceChargeMeta';
 
-export enum ServiceChargeType {
+export const enum ServiceChargeType {
   percentage = 'percentage',
   number = 'number',
 }
