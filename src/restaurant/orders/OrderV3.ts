@@ -62,6 +62,7 @@ export interface OrderPriceAdjustmentMeta {
 }
 
 export interface OrderLineItem {
+  readonly Id: string,
   item: OrderItem,
   quantity: number,
   taxes: OrderPriceAdjustmentMeta[],
