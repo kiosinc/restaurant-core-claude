@@ -37,7 +37,6 @@ export { default as MenuMeta } from './restaurant/surfaces/MenuMeta';
 export * from './restaurant/catalog/Discount';
 export { default as DiscountMeta } from './restaurant/catalog/DiscountMeta';
 export { default as Orders } from './restaurant/roots/Orders';
-export * from './restaurant/orders/Order';
 export { default as Vars } from './restaurant/roots/Vars';
 export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';
 export { default as Locations } from './restaurant/roots/Locations';
@@ -48,5 +47,4 @@ export {
 } from './restaurant/catalog/InventoryCount';
 export { Onboarding, OnboardingStage, OnboardingStageStatus } from './restaurant/roots/Onboarding';
 export { OnboardingOrder, InvoiceStatus } from './restaurant/onboarding/OnboardingOrder';
-export * as OrderV2 from './restaurant/orders/OrderV2';
 export * as OrderV3 from './restaurant/orders/OrderV3';

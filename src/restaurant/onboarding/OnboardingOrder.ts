@@ -1,7 +1,6 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import Address from '../misc/Address';
-import { OrderState } from '../orders/Order';
-import { OrderLineItem } from '../orders/OrderV2';
+import { OrderState, OrderLineItem } from '../orders/OrderV3';
 import { Onboarding } from '../roots/Onboarding';
 import * as Config from '../../firestore-core/config';
 

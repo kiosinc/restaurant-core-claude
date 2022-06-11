@@ -114,7 +114,7 @@ async function createOnboardingMenu(businessId: string, categoryIds: string[]) {
 
   // Setup menu
   const name = `Onboarding Menu ${new Date().toDateString()}`;
-  const menu = new Menu(name, name, groups, groupDisplayOrder, null, null, null);
+  const menu = new Menu(name, name, groups, groupDisplayOrder, null, null, null, null);
   // Save new menu groups to DB
   const menuGroupSet = newMenuGroups.map((mg) => MenuGroup.collectionRef(businessId)
     .withConverter(MenuGroup.firestoreConverter).doc(mg.Id).set(mg));
