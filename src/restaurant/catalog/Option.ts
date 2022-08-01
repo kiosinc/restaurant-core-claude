@@ -15,6 +15,8 @@ export default class Option extends FirestoreObject<string> {
   // The additional cost of the attribute as an integer in the smallest currency unit.
   price: number;
 
+  sku: string | null;
+
   locationPrices: { [locationId: string]: number };
 
   locationInventory: { [p: string]: InventoryCount };
@@ -26,6 +28,7 @@ export default class Option extends FirestoreObject<string> {
   constructor(
     name: string,
     price: number,
+    sku: string | null,
     locationPrices: { [locationId: string]: number },
     locationInventory: { [locationId: string]: InventoryCount },
     isActive: boolean,
@@ -39,6 +42,7 @@ export default class Option extends FirestoreObject<string> {
 
     this.name = name;
     this.price = price;
+    this.sku = sku;
     this.locationPrices = locationPrices;
     this.locationInventory = locationInventory;
     this.isActive = isActive;
@@ -82,6 +86,7 @@ export default class Option extends FirestoreObject<string> {
       return {
         name: option.name,
         price: option.price,
+        sku: option.sku,
         locationPrices: JSON.parse(JSON.stringify(option.locationPrices)),
         locationInventory:
           JSON.parse(JSON.stringify(LocationInventoryToFirestore(option.locationInventory))),
@@ -97,6 +102,7 @@ export default class Option extends FirestoreObject<string> {
       return new Option(
         data.name,
         data.price,
+        data.sku ?? null,
         data.locationPrices,
         LocationInventoryFromFirestore(data.locationInventory),
         data.isActive,

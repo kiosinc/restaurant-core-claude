@@ -1,6 +1,6 @@
 {
   "name": "@kiosinc/restaurant-core",
-  "version": "0.1.104",
+  "version": "0.1.105",
   "description": "",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
