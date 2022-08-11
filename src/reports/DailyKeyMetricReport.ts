@@ -1,5 +1,4 @@
-import { getDatabase } from 'firebase-admin/lib/database';
-
+import { getDatabase } from 'firebase-admin/database';
 import { createHttpTask } from '../utils/GoogleCloudTask';
 import { ReportTaskEvent } from './ReportTaskEvent';
 
