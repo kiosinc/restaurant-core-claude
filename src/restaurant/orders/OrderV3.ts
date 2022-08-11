@@ -138,6 +138,8 @@ export class Order extends FirestoreObject<string> {
 
   totalSurchargeAmount: number;
 
+  totalTipAmount: number;
+
   customerId: string | null;
 
   fulfillment: OrderFulfillment;
@@ -175,6 +177,7 @@ export class Order extends FirestoreObject<string> {
     totalDiscountAmount: number,
     totalTaxAmount: number,
     totalSurchargeAmount: number,
+    totalTipAmount: number,
     customerId: string | null,
     fulfillment: OrderFulfillment,
     lineItems: OrderLineItem[],
@@ -209,6 +212,7 @@ export class Order extends FirestoreObject<string> {
     this.totalDiscountAmount = totalDiscountAmount;
     this.totalTaxAmount = totalTaxAmount;
     this.totalSurchargeAmount = totalSurchargeAmount;
+    this.totalTipAmount = totalTipAmount;
     this.customerId = customerId;
     this.fulfillment = fulfillment;
     this.lineItems = lineItems;
@@ -270,6 +274,7 @@ export class Order extends FirestoreObject<string> {
         totalDiscountAmount: order.totalDiscountAmount,
         totalTaxAmount: order.totalTaxAmount,
         totalSurchargeAmount: order.totalSurchargeAmount,
+        totalTipAmount: order.totalTipAmount ?? 0,
         customerId: order.customerId,
         fulfillment: JSON.parse(JSON.stringify(order.fulfillment)),
         lineItems: JSON.parse(JSON.stringify(order.lineItems)),
@@ -303,6 +308,7 @@ export class Order extends FirestoreObject<string> {
         data.totalDiscountAmount,
         data.totalTaxAmount,
         data.totalSurchargeAmount,
+        data.totalTipAmount ?? 0,
         data.customerId,
         data.fulfillment,
         data.lineItems,
