@@ -87,7 +87,7 @@ export class DailyKeyMetricReport {
   static async consumeUpdateDailyKeyMetricReportTask(data: UpdateDailyKeyMetricReportTaskData) {
     await db.ref(data.dbRefPath).transaction((value) => {
       let update: DailyKeyMetricReport;
-      if (!value || !value.exists()) {
+      if (!value) {
         update = new DailyKeyMetricReport();
       } else {
         update = new DailyKeyMetricReport(
@@ -109,7 +109,8 @@ export class DailyKeyMetricReport {
       });
 
       update.updated = new Date();
-      return update;
+
+      return JSON.parse(JSON.stringify(update));
     });
   }
 }
