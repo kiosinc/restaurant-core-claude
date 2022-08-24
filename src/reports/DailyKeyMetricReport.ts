@@ -1,8 +1,8 @@
-import { getDatabase } from 'firebase-admin/database';
+import { Database } from 'firebase-admin/database';
+import { database } from 'firebase-admin';
 import { createHttpTask } from '../utils/GoogleCloudTask';
 import { ReportTaskEvent } from './ReportTaskEvent';
-
-const db = getDatabase();
+import ServerValue = database.ServerValue;
 
 export interface DailyKeyMetrics {
   orderCount: number
@@ -12,8 +12,9 @@ export interface DailyKeyMetrics {
   totalCashAmount: number
   totalTipAmount: number
   totalDiscountAmount: number
-  totalFeeAmount: number
   totalRefundAmount: number
+  totalAppFeeAmount: number
+  totalProcessingFeeAmount: number
 }
 
 const REPORT_KEY_METRIC_QUEUE = 'report-key-metric-update';
@@ -21,6 +22,8 @@ const UPDATE_DAILY_METRIC_TASK_TYPE = 'updateDailyKeyMetricReportTask';
 const UPDATE_DAILY_METRIC_TASK_PATH = '/tasks/orders/updateDailyKeyMetrics';
 
 export class DailyKeyMetricReport {
+  locationName: string;
+
   created: Date;
 
   updated: Date;
@@ -28,12 +31,13 @@ export class DailyKeyMetricReport {
   keyMetrics: { [source: string]: DailyKeyMetrics };
 
   constructor(
+    locationName: string,
     keyMetrics?: { [source: string]: DailyKeyMetrics },
     updated?: Date,
     created?: Date,
   ) {
+    this.locationName = locationName;
     this.keyMetrics = keyMetrics ?? {};
-
     const now = new Date();
     this.created = created ?? now;
     this.updated = updated ?? now;
@@ -46,7 +50,7 @@ export class DailyKeyMetricReport {
     const month = dateSplit[1];
     const day = dateSplit[2];
 
-    const path = `/businesses/${businessId}/private/reports/dailyKeyMetrics/${year}/${month}/${day}/${locationId}`;
+    const path = `/businesses/${businessId}/reports/dailyKeyMetrics/${year}/${month}/${day}/${locationId}`;
 
     return path;
   }
@@ -60,8 +64,9 @@ export class DailyKeyMetricReport {
       totalCashAmount: 0,
       totalTipAmount: 0,
       totalDiscountAmount: 0,
-      totalFeeAmount: 0,
       totalRefundAmount: 0,
+      totalAppFeeAmount: 0,
+      totalProcessingFeeAmount: 0,
     };
   }
 
@@ -84,32 +89,37 @@ export class DailyKeyMetricReport {
       event.payload());
   }
 
-  static async consumeUpdateDailyKeyMetricReportTask(data: UpdateDailyKeyMetricReportTaskData) {
-    await db.ref(data.dbRefPath).transaction((value) => {
-      let update: DailyKeyMetricReport;
+  static async consumeUpdateDailyKeyMetricReportTask(db: Database,
+    data: UpdateDailyKeyMetricReportTaskData) {
+    return db.ref(data.dbRefPath).transaction((value) => {
+      let update: any;
+
+      // No value at node, provide default values
       if (!value) {
-        update = new DailyKeyMetricReport();
+        update = new DailyKeyMetricReport(data.locationName);
       } else {
         update = new DailyKeyMetricReport(
+          value.locationName,
           value.keyMetrics,
           value.created,
           value.updated,
         );
       }
 
+      // console.log(`Using base update ${JSON.stringify(update)}`)
+      // Check if new source needs data seeding
       const { source } = data;
       if (!update.keyMetrics[source]) {
         update.keyMetrics[source] = DailyKeyMetricReport.newDailyKeyMetrics();
       }
 
-      // Update data
+      // Update and increment data
       Object.keys(data.keyMetrics).forEach((key) => {
         const typedKey = key as keyof DailyKeyMetrics;
         update.keyMetrics[source][typedKey] += data.keyMetrics[typedKey];
       });
 
       update.updated = new Date();
-
       return JSON.parse(JSON.stringify(update));
     });
   }
@@ -118,5 +128,6 @@ export class DailyKeyMetricReport {
 export interface UpdateDailyKeyMetricReportTaskData {
   dbRefPath: string,
   source: string,
-  keyMetrics: any
+  keyMetrics: any,
+  locationName: string
 }

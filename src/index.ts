@@ -21,7 +21,7 @@ export { default as TaxRateMeta } from './restaurant/catalog/TaxRateMeta';
 export * from './restaurant/catalog/ServiceCharge';
 export { default as ServiceChargeMeta } from './restaurant/catalog/ServiceChargeMeta';
 export { default as Event } from './restaurant/connected-accounts/Event';
-export { EventNotification, EventNotificationResult } from './restaurant/connected-accounts/EventNotification';
+export { default as EventNotification } from './restaurant/connected-accounts/EventNotification';
 export { default as Token } from './restaurant/connected-accounts/Token';
 export { default as Address } from './restaurant/misc/Address';
 export { default as BusinessProfile } from './restaurant/misc/BusinessProfile';

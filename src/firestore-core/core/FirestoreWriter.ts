@@ -3,6 +3,7 @@
  * Helps write and delete FirestoreObjectTypes to the db
  */
 
+import { Query } from 'firebase-admin/database';
 import { firestore } from '../firebaseApp';
 import Category from '../../restaurant/catalog/Category';
 import { Product } from '../../restaurant/catalog/Product';
@@ -268,6 +269,43 @@ async function updateBatchInfo(updates: BatchUpdateInfo[],
   // exploding the stack.
   process.nextTick(() => {
     updateBatchInfo(updates, batchSize, resolve, reject, count + thisBatchSize).catch(reject);
+  });
+}
+
+async function deleteFirebaseQueryBatch(query: Query,
+  resolve: (value: number) => void,
+  reject: (reason?: any) => void,
+  count: number = 0) {
+  query.once('value', async (snapshot) => {
+    const batchSize = snapshot.numChildren();
+    if (batchSize === 0) {
+      // When there are no documents left, we are done
+      resolve(count);
+      return;
+    }
+
+    const update: any = {};
+    snapshot.forEach((data) => {
+      if (data.key) {
+        update[data.key] = null;
+      }
+    });
+    await query.ref.update(update);
+
+    // Recurse on the next process tick, to avoid
+    // exploding the stack.
+    process.nextTick(() => {
+      deleteFirebaseQueryBatch(query, resolve, reject, count + batchSize)
+        .catch(reject);
+    });
+  });
+}
+
+export async function deleteFirebaseQuery(query: Query, batchSize: number) {
+  const limitedQuery = query.limitToFirst(batchSize);
+
+  return new Promise<number>((resolve, reject) => {
+    deleteFirebaseQueryBatch(limitedQuery, resolve, reject).catch(reject);
   });
 }
 
