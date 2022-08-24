@@ -21,6 +21,17 @@ const REPORT_KEY_METRIC_QUEUE = 'report-key-metric-update';
 const UPDATE_DAILY_METRIC_TASK_TYPE = 'updateDailyKeyMetricReportTask';
 const UPDATE_DAILY_METRIC_TASK_PATH = '/tasks/orders/updateDailyKeyMetrics';
 
+function clean(str: string) {
+  return str
+    .replace('.', '_')
+    .replace('#', 'HASH_')
+    .replace('$', 'MONEY_')
+    .replace('/', 'SLASH_')
+    .replace('[', '_')
+    .replace(']', '_')
+    .replace('\n', '');
+}
+
 export class DailyKeyMetricReport {
   locationName: string;
 
@@ -94,9 +105,10 @@ export class DailyKeyMetricReport {
     return db.ref(data.dbRefPath).transaction((value) => {
       let update: any;
 
+      const locationName = clean(data.locationName);
       // No value at node, provide default values
       if (!value) {
-        update = new DailyKeyMetricReport(data.locationName);
+        update = new DailyKeyMetricReport(locationName);
       } else {
         update = new DailyKeyMetricReport(
           value.locationName,
@@ -108,7 +120,7 @@ export class DailyKeyMetricReport {
 
       // console.log(`Using base update ${JSON.stringify(update)}`)
       // Check if new source needs data seeding
-      const { source } = data;
+      const source = clean(data.source);
       if (!update.keyMetrics[source]) {
         update.keyMetrics[source] = DailyKeyMetricReport.newDailyKeyMetrics();
       }
