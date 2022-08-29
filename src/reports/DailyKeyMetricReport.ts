@@ -120,7 +120,10 @@ export class DailyKeyMetricReport {
 
       // console.log(`Using base update ${JSON.stringify(update)}`)
       // Check if new source needs data seeding
-      const source = clean(data.source);
+      let source = clean(data.source);
+      if (source.length <= 0) {
+        source = 'notSupplied';
+      }
       if (!update.keyMetrics[source]) {
         update.keyMetrics[source] = DailyKeyMetricReport.newDailyKeyMetrics();
       }
