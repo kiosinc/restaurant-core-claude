@@ -29,7 +29,6 @@ export namespace Paths {
 
     connectedAccounts = 'connectedAccounts',
     tokens = 'tokens',
-    eventNotifications = 'eventNotifications',
     events = 'events',
     vars = 'vars',
 

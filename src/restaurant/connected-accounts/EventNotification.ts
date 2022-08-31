@@ -35,7 +35,7 @@ export default class EventNotification {
   }
 
   refPath() {
-    const notificationPath = `businesses/${this.businessId}/private/notifications/${this.Id}`;
+    const notificationPath = `/private/notifications/${this.businessId}_${this.Id}`;
     const notificationRef = firebase.ref(notificationPath);
     return notificationRef;
   }

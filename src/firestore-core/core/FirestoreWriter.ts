@@ -3,7 +3,7 @@
  * Helps write and delete FirestoreObjectTypes to the db
  */
 
-import { Query } from 'firebase-admin/database';
+import { Query, Reference } from 'firebase-admin/database';
 import { firestore } from '../firebaseApp';
 import Category from '../../restaurant/catalog/Category';
 import { Product } from '../../restaurant/catalog/Product';
@@ -272,40 +272,64 @@ async function updateBatchInfo(updates: BatchUpdateInfo[],
   });
 }
 
-async function deleteFirebaseQueryBatch(query: Query,
+/**
+ * Delete the children with specified keys at FIR RT location
+ * */
+async function batchDeleteFirebaseRefKeys(
+  ref: Reference,
+  keys: string[],
+  batchSize: number,
   resolve: (value: number) => void,
   reject: (reason?: any) => void,
-  count: number = 0) {
-  query.once('value', async (snapshot) => {
-    const batchSize = snapshot.numChildren();
-    if (batchSize === 0) {
-      // When there are no documents left, we are done
-      resolve(count);
-      return;
-    }
+  count = 0,
+) {
+  const keysThisTick = keys.splice(0, Math.min(keys.length, batchSize));
+  const thisBatchSize = keysThisTick.length;
 
-    const update: any = {};
-    snapshot.forEach((data) => {
-      if (data.key) {
-        update[data.key] = null;
-      }
-    });
-    await query.ref.update(update);
+  if (thisBatchSize === 0) {
+    // When there are no updates left, we are done
+    resolve(count);
+    return;
+  }
 
-    // Recurse on the next process tick, to avoid
-    // exploding the stack.
-    process.nextTick(() => {
-      deleteFirebaseQueryBatch(query, resolve, reject, count + batchSize)
-        .catch(reject);
-    });
+  const updates = keysThisTick.reduce((accum, curr) => ({ ...accum, [curr]: null }), {});
+
+  // Delete
+  await ref.update(updates);
+  console.log(`Firebase batch delete current count ${count + thisBatchSize}`);
+
+  // Recurse on the next process tick, to avoid
+  // exploding the stack.
+  process.nextTick(() => {
+    batchDeleteFirebaseRefKeys(ref,
+      keys,
+      batchSize,
+      resolve,
+      reject,
+      count + thisBatchSize)
+      .catch(reject);
   });
 }
 
 export async function deleteFirebaseQuery(query: Query, batchSize: number) {
-  const limitedQuery = query.limitToFirst(batchSize);
+  const snapshot = await query.once('value');
+
+  if (!snapshot.val()) {
+    return 0;
+  }
+
+  const keys: string[] = [];
+  snapshot.forEach((child) => {
+    if (child.key) {
+      keys.push(child.key);
+    }
+  });
+
+  const used = process.memoryUsage().heapUsed / 1024 / 1024;
+  console.log(`${query.ref} batch delete uses approximately ${Math.round(used * 100) / 100} MB; pruning ${keys.length} children`);
 
   return new Promise<number>((resolve, reject) => {
-    deleteFirebaseQueryBatch(limitedQuery, resolve, reject).catch(reject);
+    batchDeleteFirebaseRefKeys(query.ref, keys, batchSize, resolve, reject).catch(reject);
   });
 }
 
