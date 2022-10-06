@@ -46,7 +46,7 @@ export default class Orders extends FirestoreObject<string> {
     this.isSquareDiscountCodeAPI = isSquareDiscountCodeAPI ?? false;
     this.isSquareAutoApplyDiscounts = isSquareAutoApplyDiscounts ?? false;
     this.isSquareAutoApplyTaxes = isSquareAutoApplyTaxes ?? true;
-    this.isKioskSessionIdleTimerOn = isKioskSessionIdleTimerOn ?? false;
+    this.isKioskSessionIdleTimerOn = isKioskSessionIdleTimerOn ?? true;
   }
 
   // eslint-disable-next-line class-methods-use-this
