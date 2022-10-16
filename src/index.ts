@@ -37,7 +37,6 @@ export { default as MenuMeta } from './restaurant/surfaces/MenuMeta';
 export * from './restaurant/catalog/Discount';
 export { default as DiscountMeta } from './restaurant/catalog/DiscountMeta';
 export { default as Orders } from './restaurant/roots/Orders';
-export { default as Vars } from './restaurant/roots/Vars';
 export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';
 export { default as Locations } from './restaurant/roots/Locations';
 export { default as Location } from './restaurant/locations/Location';

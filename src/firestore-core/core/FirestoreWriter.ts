@@ -15,7 +15,6 @@ import ConnectedAccounts from '../../restaurant/roots/ConnectedAccounts';
 import Surfaces from '../../restaurant/roots/Surfaces';
 import Services from '../../restaurant/roots/Services';
 import Orders from '../../restaurant/roots/Orders';
-import Vars from '../../restaurant/roots/Vars';
 import Locations from '../../restaurant/roots/Locations';
 import OptionSet from '../../restaurant/catalog/OptionSet';
 import Option from '../../restaurant/catalog/Option';
@@ -143,7 +142,6 @@ export async function setT<C extends FirestoreObjectType>(
     const newOnboarding = new Onboarding(null, null, null, null);
     const newOrders = new Orders(true, false, false, null, null, null, null, null);
     const newServices = new Services(null, null);
-    const newVar = new Vars();
     const newLocations = new Locations({});
 
     // TODO security is disabled
@@ -159,7 +157,6 @@ export async function setT<C extends FirestoreObjectType>(
     await setT(newOnboarding, Onboarding.firestoreConverter, id, t);
     await setT(newOrders, Orders.firestoreConverter, id, t);
     await setT(newServices, Services.firestoreConverter, id, t);
-    await setT(newVar, Vars.firestoreConverter, id, t);
     await setT(newLocations, Locations.firestoreConverter, id, t);
   }
 
