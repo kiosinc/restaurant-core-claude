@@ -154,6 +154,10 @@ export class Order extends FirestoreObject<string> {
 
   state: OrderState;
 
+  referralCode: string | null;
+
+  source: string | null;
+
   note: string | null;
 
   payment: OrderPayment | null;
@@ -188,6 +192,8 @@ export class Order extends FirestoreObject<string> {
     payment: OrderPayment | null,
     linkedObjects: { [Id: string]: LinkedObject } | null,
     state: OrderState | null,
+    referralCode: string | null,
+    source: string | null,
     version?: string,
     isAvailable?: boolean,
     created?: Date,
@@ -220,6 +226,8 @@ export class Order extends FirestoreObject<string> {
     this.discounts = discounts;
     this.surcharges = surcharges;
     this.note = note;
+    this.referralCode = referralCode;
+    this.source = source;
     this.payment = payment;
     this.linkedObjects = linkedObjects;
   }
@@ -285,6 +293,8 @@ export class Order extends FirestoreObject<string> {
         payment: JSON.parse(JSON.stringify(order.payment)),
         linkedObjects: JSON.parse(JSON.stringify(order.linkedObjects)),
         state: order.state,
+        referralCode: order.referralCode,
+        source: order.source,
         version: order.version,
         isAvailable: order.isAvailable,
         created: order.created.toISOString(),
@@ -319,6 +329,8 @@ export class Order extends FirestoreObject<string> {
         data.payment,
         data.linkedObjects,
         data.state,
+        data.referralCode ?? null,
+        data.source ?? null,
         data.version,
         data.isAvailable,
         new Date(data.created),
