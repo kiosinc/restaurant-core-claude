@@ -34,6 +34,8 @@ export { default as Menu } from './restaurant/surfaces/Menu';
 export { default as MenuGroup } from './restaurant/surfaces/MenuGroup';
 export { default as MenuGroupMeta } from './restaurant/surfaces/MenuGroupMeta';
 export { default as MenuMeta } from './restaurant/surfaces/MenuMeta';
+export { default as KioskConfiguration } from './restaurant/surfaces/KioskConfiguration';
+export * from './restaurant/surfaces/SurfaceConfiguration';
 export * from './restaurant/catalog/Discount';
 export { default as DiscountMeta } from './restaurant/catalog/DiscountMeta';
 export { default as Orders } from './restaurant/roots/Orders';

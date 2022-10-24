@@ -1,8 +1,6 @@
 import { Database } from 'firebase-admin/database';
-import { database } from 'firebase-admin';
 import { createHttpTask } from '../utils/GoogleCloudTask';
 import { ReportTaskEvent } from './ReportTaskEvent';
-import ServerValue = database.ServerValue;
 
 export interface DailyKeyMetrics {
   orderCount: number

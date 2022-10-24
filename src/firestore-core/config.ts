@@ -45,7 +45,8 @@ export namespace Paths {
     surfaces = 'surfaces',
     menus = 'menus',
     menuGroups = 'menuGroups',
-
+    kioskConfigurations = 'kioskConfigurations',
+    surfaceConfigurations = 'surfaceConfigurations',
     services = 'services',
     semaphores = 'semaphores',
 
