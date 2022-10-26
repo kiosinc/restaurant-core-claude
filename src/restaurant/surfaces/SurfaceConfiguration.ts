@@ -48,7 +48,7 @@ export interface CheckoutFlowConfiguration {
   toGoNoticeText: string | null;
 
   // Show customer order confirmation text
-  orderCompleteText: string | null;
+  orderConfirmationText: string | null;
 }
 
 export interface TipConfiguration {
