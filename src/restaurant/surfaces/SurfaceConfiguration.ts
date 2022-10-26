@@ -30,10 +30,9 @@ export interface CheckoutFlowConfiguration {
   dineInNoticeText: string | null;
 
   // Dine-in table tent + custom text
-  // TODO: isDineInCustomerTableNumberRequired
-  isDineInCustomerEnterTableNumber: boolean;
+  isDineInCustomerEnterIdEnabled: boolean;
 
-  dineInCustomerEnterTableNumberPrompt: string | null;
+  dineInCustomerEnterIdPrompt: string | null;
 
   // Dine-in ask for name yes/no + custom text
   isDineInCustomerNameRequired: boolean;
@@ -49,7 +48,7 @@ export interface CheckoutFlowConfiguration {
   toGoNoticeText: string | null;
 
   // Show customer order confirmation text
-  customerConfirmationText: string | null;
+  orderCompleteText: string | null;
 }
 
 export interface TipConfiguration {

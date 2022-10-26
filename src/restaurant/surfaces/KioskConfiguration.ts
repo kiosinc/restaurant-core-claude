@@ -2,6 +2,8 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import * as Config from '../../firestore-core/config';
 import Surfaces from '../roots/Surfaces';
 
+const kioskConfigurationVersion = '0.0';
+
 export default class KioskConfiguration extends FirestoreObject<string> {
   name: string;
 
@@ -9,10 +11,13 @@ export default class KioskConfiguration extends FirestoreObject<string> {
 
   surfaceConfigurationId: string | null;
 
+  version: string;
+
   constructor(
     name: string,
     unlockCode: string | null,
     surfaceConfigurationId: string | null,
+    version?: string,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -23,6 +28,7 @@ export default class KioskConfiguration extends FirestoreObject<string> {
     this.name = name;
     this.unlockCode = unlockCode;
     this.surfaceConfigurationId = surfaceConfigurationId;
+    this.version = version ?? kioskConfigurationVersion;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -53,6 +59,7 @@ export default class KioskConfiguration extends FirestoreObject<string> {
         name: kioskConfiguration.name,
         unlockCode: kioskConfiguration.unlockCode,
         surfaceConfigurationId: kioskConfiguration.surfaceConfigurationId,
+        version: kioskConfiguration.version,
         created: kioskConfiguration.created.toISOString(),
         updated: kioskConfiguration.updated.toISOString(),
         isDeleted: kioskConfiguration.isDeleted,
@@ -65,6 +72,7 @@ export default class KioskConfiguration extends FirestoreObject<string> {
         data.name,
         data.unlockCode,
         data.surfaceConfigurationId,
+        data.version,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

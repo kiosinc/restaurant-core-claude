@@ -56,9 +56,9 @@ export interface OrderItem {
 }
 
 export interface OrderPriceAdjustmentMeta {
-  id: string,
+  Id: string,
   name: string,
-  value: number, // Applied monetary amount or value fo the adjustment
+  value: number, // Applied monetary amount or value of the adjustment
 }
 
 export interface OrderLineItem {
