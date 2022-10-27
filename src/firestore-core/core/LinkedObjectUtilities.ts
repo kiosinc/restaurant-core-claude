@@ -13,20 +13,20 @@ export interface SyncResult<C> {
   isSyncActive: boolean;
 }
 
-/**
- * Returns a boolean if the product is synced
- */
-export function isSyncActive<C extends LinkedObjectType>(
-  object: C,
-  provider: Config.Constants.Provider,
-): boolean {
-  const linkedObjectProvider = object.linkedObjects[provider];
-  if (linkedObjectProvider) {
-    return linkedObjectProvider.isSyncActive;
-  }
-
-  return false;
-}
+// /**
+//  * Returns a boolean if the product is synced
+//  */
+// export function isSync<C extends LinkedObjectType>(
+//   object: C,
+//   provider: Config.Constants.Provider,
+// ): boolean {
+//   const linkedObjectProvider = object.linkedObjects[provider];
+//   if (linkedObjectProvider) {
+//     return linkedObjectProvider.isSync;
+//   }
+//
+//   return false;
+// }
 
 /**
  * If the object already exists check against sync and delete flags
@@ -43,16 +43,7 @@ export async function isStopSync<C extends LinkedObjectType>(
   // the object exists, apply sync or delete flag
   // otherwise return no result (undefined)
   if (firestoreObject) {
-    const isSync = isSyncActive(firestoreObject, provider);
-
-    // if no sync then exit
-    // else delete the existing referenced object
-    if (!isSync) {
-      return {
-        isSyncActive: false,
-        object: firestoreObject,
-      };
-    } if (isSourceMarkedDelete) {
+    if (isSourceMarkedDelete) {
       await Writer.deleteObject(firestoreObject, businessId);
       return {
         isSyncActive: false,

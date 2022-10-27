@@ -11,14 +11,13 @@ export default class LinkedObject {
   linkedObjectId: string;
 
   /** Is syncing active on this object */
-  isSyncActive: boolean;
+  // isSync: boolean;
 
   constructor(
     linkedObjectId: string,
-    isSyncActive: boolean,
+    // isSync: boolean,
   ) {
     this.linkedObjectId = linkedObjectId;
-    this.isSyncActive = isSyncActive;
   }
 
   /**
