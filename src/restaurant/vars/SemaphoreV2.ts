@@ -106,17 +106,6 @@ export default class Semaphore {
         isDeleted: semaphore.isDeleted,
       };
     },
-    fromFirestore(snapshot: database.DataSnapshot): Semaphore {
-      const data = snapshot.val();
-
-      return new Semaphore(
-        snapshot.key ?? '',
-        data.isAvailable,
-        new Date(data.created),
-        new Date(data.updated),
-        data.isDeleted,
-      );
-    },
     fromData(data: any, type: string): Semaphore {
       return new Semaphore(
         type,
