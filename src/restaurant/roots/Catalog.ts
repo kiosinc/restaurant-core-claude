@@ -2,11 +2,7 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
 import ProductMeta from '../catalog/ProductMeta';
-import TaxRateMeta from '../catalog/TaxRateMeta';
 import CategoryMeta from '../catalog/CategoryMeta';
-import DiscountMeta from '../catalog/DiscountMeta';
-import OptionSetMeta from '../catalog/OptionSetMeta';
-import OptionMeta from '../catalog/OptionMeta';
 
 const catalogKey = Config.Paths.CollectionNames.catalog;
 
@@ -15,21 +11,18 @@ export default class Catalog extends FirestoreObject<string> {
 
   products: { [Id: string]: ProductMeta };
 
-  taxRates: { [Id: string]: TaxRateMeta };
+  // TODO remove
+  taxRates: { [Id: string]: { } };
 
-  discounts: { [Id: string]: DiscountMeta };
+  discounts: { [Id: string]: { } };
 
-  optionSets: { [Id: string]: OptionSetMeta };
+  optionSets: { [Id: string]: { } };
 
-  options: { [Id: string]: OptionMeta };
+  options: { [Id: string]: { } };
 
   constructor(
     categories: { [p: string]: CategoryMeta },
     products: { [p: string]: ProductMeta },
-    taxRates: { [p: string]: TaxRateMeta },
-    discounts: { [p: string]: DiscountMeta },
-    optionSets: { [Id: string]: OptionSetMeta },
-    options: { [Id: string]: OptionMeta },
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -39,10 +32,10 @@ export default class Catalog extends FirestoreObject<string> {
 
     this.categories = categories;
     this.products = products;
-    this.taxRates = taxRates;
-    this.discounts = discounts;
-    this.optionSets = optionSets;
-    this.options = options;
+    this.taxRates = {};
+    this.discounts = {};
+    this.optionSets = {};
+    this.options = {};
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -71,10 +64,10 @@ export default class Catalog extends FirestoreObject<string> {
       return {
         categories: JSON.parse(JSON.stringify(catalog.categories)),
         products: JSON.parse(JSON.stringify(catalog.products)),
-        taxRates: JSON.parse(JSON.stringify(catalog.taxRates)),
-        discounts: JSON.parse(JSON.stringify(catalog.discounts)),
-        optionSets: JSON.parse(JSON.stringify(catalog.optionSets)),
-        options: JSON.parse(JSON.stringify(catalog.options)),
+        taxRates: {},
+        discounts: {},
+        optionSets: {},
+        options: {},
         created: catalog.created.toISOString(),
         updated: catalog.updated.toISOString(),
         isDeleted: catalog.isDeleted,
@@ -86,10 +79,6 @@ export default class Catalog extends FirestoreObject<string> {
       return new Catalog(
         data.categories,
         data.products,
-        data.taxRates,
-        data.discounts,
-        data.optionSets,
-        data.options,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

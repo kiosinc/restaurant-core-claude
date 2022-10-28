@@ -2,7 +2,6 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import Catalog from '../roots/Catalog';
 import * as Config from '../../firestore-core/config';
-import TaxRateMeta from './TaxRateMeta';
 
 export default class TaxRate extends FirestoreObject<string> {
   name: string;
@@ -39,17 +38,14 @@ export default class TaxRate extends FirestoreObject<string> {
     return TaxRate.collectionRef(businessId);
   }
 
-  metaLinks(businessId: string): { [p: string]: string } {
-    return {
-      [Catalog.docRef(businessId).path]: `${Config.Paths.CollectionNames.taxRates}.${this.Id}`,
-    };
+  // eslint-disable-next-line class-methods-use-this
+  metaLinks(): { [p: string]: string } {
+    return {};
   }
 
-  metadata(): TaxRateMeta {
-    return {
-      name: this.name,
-      rate: this.rate,
-    };
+  // eslint-disable-next-line class-methods-use-this
+  metadata(): {} {
+    return {};
   }
 
   // STATICS

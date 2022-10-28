@@ -5,7 +5,6 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import Catalog from '../roots/Catalog';
 import * as Config from '../../firestore-core/config';
-import DiscountMeta from './DiscountMeta';
 
 export const enum DiscountType {
   percentage = 'percentage',
@@ -71,7 +70,6 @@ export class Discount extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-
   metadata(): {} {
     return {};
   }

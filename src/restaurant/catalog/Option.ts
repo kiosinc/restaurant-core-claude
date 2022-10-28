@@ -2,12 +2,12 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import Catalog from '../roots/Catalog';
 import * as Config from '../../firestore-core/config';
-import OptionMeta from './OptionMeta';
 import {
   InventoryCount,
   LocationInventoryFromFirestore,
   LocationInventoryToFirestore,
 } from './InventoryCount';
+import OptionMeta from './OptionMeta';
 
 export default class Option extends FirestoreObject<string> {
   name: string;
@@ -59,9 +59,11 @@ export default class Option extends FirestoreObject<string> {
     return {};
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
-    return {};
+  metadata(): OptionMeta {
+    return {
+      name: this.name,
+      isActive: this.isActive,
+    };
   }
 
   // STATICS THAT SHOULD BE IMPLEMENTED BY ALL FIRESTORE OBJECTS

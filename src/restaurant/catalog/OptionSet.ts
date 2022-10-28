@@ -6,12 +6,12 @@ import LinkedObject from '../../firestore-core/core/LinkedObject';
 import Catalog from '../roots/Catalog';
 import * as Config from '../../firestore-core/config';
 import OptionMeta from './OptionMeta';
-import OptionSetMeta from './OptionSetMeta';
 import {
   InventoryCount,
   LocationInventoryFromFirestore,
   LocationInventoryToFirestore,
 } from './InventoryCount';
+import OptionSetMeta from './OptionSetMeta';
 
 export interface OptionSetSelection {
   minSelection: number
@@ -92,10 +92,12 @@ export default class OptionSet extends FirestoreObject<string> {
     return {};
   }
 
-  // eslint-disable-next-line class-methods-use-this
-
-  metadata(): {} {
-    return {};
+  metadata(): OptionSetMeta {
+    return {
+      name: this.name,
+      displayOrder: this.displayOrder,
+      displayTier: this.displayTier,
+    };
   }
 
   // STATICS THAT SHOULD BE IMPLEMENTED BY ALL FIRESTORE OBJECTS

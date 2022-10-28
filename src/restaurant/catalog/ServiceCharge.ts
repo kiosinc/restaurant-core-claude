@@ -2,7 +2,6 @@ import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import Catalog from '../roots/Catalog';
 import * as Config from '../../firestore-core/config';
-import ServiceChargeMeta from './ServiceChargeMeta';
 
 export const enum ServiceChargeType {
   percentage = 'percentage',
@@ -48,18 +47,14 @@ export class ServiceCharge extends FirestoreObject<string> {
     return ServiceCharge.collectionRef(businessId);
   }
 
-  metaLinks(businessId: string): { [p: string]: string } {
-    return {
-      [Catalog.docRef(businessId).path]: `${Config.Paths.CollectionNames.serviceCharges}.${this.Id}`,
-    };
+  // eslint-disable-next-line class-methods-use-this
+  metaLinks(): { [p: string]: string } {
+    return {};
   }
 
-  metadata(): ServiceChargeMeta {
-    return {
-      name: this.name,
-      value: this.value,
-      type: this.type,
-    };
+  // eslint-disable-next-line class-methods-use-this
+  metadata(): {} {
+    return {};
   }
 
   // STATICS
