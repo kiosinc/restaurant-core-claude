@@ -65,19 +65,15 @@ export class Discount extends FirestoreObject<string> {
     return Discount.collectionRef(businessId);
   }
 
-  metaLinks(businessId: string): { [p: string]: string } {
-    const field = `${Config.Paths.CollectionNames.discounts}.${this.Id}`;
-    return {
-      [Catalog.docRef(businessId).path]: field,
-    };
+  // eslint-disable-next-line class-methods-use-this
+  metaLinks(): { [p: string]: string } {
+    return {};
   }
 
-  metadata(): DiscountMeta {
-    return {
-      name: this.name,
-      isActive: this.isActive,
-      value: this.value,
-    };
+  // eslint-disable-next-line class-methods-use-this
+
+  metadata(): {} {
+    return {};
   }
 
   // STATICS THAT SHOULD BE IMPLEMENTED BY ALL FIRESTORE OBJECTS

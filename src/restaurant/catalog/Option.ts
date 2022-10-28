@@ -54,17 +54,14 @@ export default class Option extends FirestoreObject<string> {
     return Option.collectionRef(businessId);
   }
 
-  metaLinks(businessId: string): { [p: string]: string } {
-    return {
-      [Catalog.docRef(businessId).path]: `${Config.Paths.CollectionNames.options}.${this.Id}`,
-    };
+  // eslint-disable-next-line class-methods-use-this
+  metaLinks(): { [p: string]: string } {
+    return {};
   }
 
-  metadata(): OptionMeta {
-    return {
-      name: this.name,
-      isActive: this.isActive,
-    };
+  // eslint-disable-next-line class-methods-use-this
+  metadata(): {} {
+    return {};
   }
 
   // STATICS THAT SHOULD BE IMPLEMENTED BY ALL FIRESTORE OBJECTS
