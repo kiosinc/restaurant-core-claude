@@ -23,6 +23,8 @@ export default class Orders extends FirestoreObject<string> {
 
   isKioskSessionIdleTimerOn: boolean;
 
+  isFreeOrdersEnabled: boolean;
+
   constructor(
     isSMSStateUpdate: boolean,
     isLoyaltyAccrue: boolean,
@@ -32,6 +34,7 @@ export default class Orders extends FirestoreObject<string> {
     isSquareAutoApplyDiscounts: boolean | null,
     isSquareAutoApplyTaxes: boolean | null,
     isKioskSessionIdleTimerOn: boolean | null,
+    isFreeOrdersEnabled: boolean | null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -47,6 +50,7 @@ export default class Orders extends FirestoreObject<string> {
     this.isSquareAutoApplyDiscounts = isSquareAutoApplyDiscounts ?? false;
     this.isSquareAutoApplyTaxes = isSquareAutoApplyTaxes ?? true;
     this.isKioskSessionIdleTimerOn = isKioskSessionIdleTimerOn ?? true;
+    this.isFreeOrdersEnabled = isFreeOrdersEnabled ?? false;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -81,6 +85,7 @@ export default class Orders extends FirestoreObject<string> {
         isSquareAutoApplyDiscounts: orders.isSquareAutoApplyDiscounts,
         isSquareAutoApplyTaxes: orders.isSquareAutoApplyTaxes,
         isKioskSessionIdleTimerOn: orders.isKioskSessionIdleTimerOn,
+        isFreeOrdersEnabled: orders.isFreeOrdersEnabled,
         created: orders.created.toISOString(),
         updated: orders.updated.toISOString(),
         isDeleted: orders.isDeleted,
@@ -98,6 +103,7 @@ export default class Orders extends FirestoreObject<string> {
         data.isSquareAutoApplyDiscounts ?? null,
         data.isSquareAutoApplyTaxes ?? null,
         data.isKioskSessionIdleTimerOn ?? null,
+        data.isFreeOrdersEnabled ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
