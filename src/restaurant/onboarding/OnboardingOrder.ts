@@ -1,8 +1,9 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import Address from '../misc/Address';
-import { OrderState, OrderLineItem } from '../orders/OrderV3';
+import { OrderLineItem } from '../orders/OrderV3';
 import { Onboarding } from '../roots/Onboarding';
 import * as Config from '../../firestore-core/config';
+import { OrderState } from '../orders/OrderSymbols';
 
 // draft- The starting status for all invoices. You can still edit the invoice at
 // this point. You can finalize the invoice to open, or delete it if it’s a one-off.

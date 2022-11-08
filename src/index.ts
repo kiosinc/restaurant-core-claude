@@ -46,5 +46,6 @@ export {
 export { Onboarding, OnboardingStage, OnboardingStageStatus } from './restaurant/roots/Onboarding';
 export { OnboardingOrder, InvoiceStatus } from './restaurant/onboarding/OnboardingOrder';
 export * as OrderV3 from './restaurant/orders/OrderV3';
+export * as OrderSymbols from './restaurant/orders/OrderSymbols';
 export * as Utils from './utils';
 export * as Reports from './reports';

@@ -21,13 +21,13 @@ const UPDATE_DAILY_METRIC_TASK_PATH = '/tasks/orders/updateDailyKeyMetrics';
 
 function clean(str: string) {
   return str
-    .replace('.', '_')
-    .replace('#', 'HASH_')
-    .replace('$', 'MONEY_')
-    .replace('/', 'SLASH_')
-    .replace('[', '_')
-    .replace(']', '_')
-    .replace('\n', '');
+    .replace(/\./gi, '_')
+    .replace(/#/gi, 'HASH_')
+    .replace(/\$/gi, 'MONEY_')
+    .replace(/\//gi, 'SLASH_')
+    .replace(/\[/gi, '_')
+    .replace(/\]/gi, '_')
+    .replace(/\n/gi, '');
 }
 
 export class DailyKeyMetricReport {

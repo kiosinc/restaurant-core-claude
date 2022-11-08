@@ -1,6 +1,7 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import { Business } from './Business';
 import * as Config from '../../firestore-core/config';
+import { OrderType } from '../orders/OrderSymbols';
 
 const ordersKey = Config.Paths.CollectionNames.orders;
 const defaultGratuityRate = [10, 15, 20];
@@ -25,6 +26,8 @@ export default class Orders extends FirestoreObject<string> {
 
   isFreeOrdersEnabled: boolean;
 
+  ticketHeaderFormat: { [key in OrderType]: string } | null;
+
   constructor(
     isSMSStateUpdate: boolean,
     isLoyaltyAccrue: boolean,
@@ -35,6 +38,7 @@ export default class Orders extends FirestoreObject<string> {
     isSquareAutoApplyTaxes: boolean | null,
     isKioskSessionIdleTimerOn: boolean | null,
     isFreeOrdersEnabled: boolean | null,
+    ticketHeaderFormat: { [key in OrderType]: string } | null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -51,6 +55,7 @@ export default class Orders extends FirestoreObject<string> {
     this.isSquareAutoApplyTaxes = isSquareAutoApplyTaxes ?? true;
     this.isKioskSessionIdleTimerOn = isKioskSessionIdleTimerOn ?? true;
     this.isFreeOrdersEnabled = isFreeOrdersEnabled ?? false;
+    this.ticketHeaderFormat = ticketHeaderFormat;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -86,6 +91,7 @@ export default class Orders extends FirestoreObject<string> {
         isSquareAutoApplyTaxes: orders.isSquareAutoApplyTaxes,
         isKioskSessionIdleTimerOn: orders.isKioskSessionIdleTimerOn,
         isFreeOrdersEnabled: orders.isFreeOrdersEnabled,
+        ticketHeaderFormat: orders.ticketHeaderFormat,
         created: orders.created.toISOString(),
         updated: orders.updated.toISOString(),
         isDeleted: orders.isDeleted,
@@ -104,6 +110,7 @@ export default class Orders extends FirestoreObject<string> {
         data.isSquareAutoApplyTaxes ?? null,
         data.isKioskSessionIdleTimerOn ?? null,
         data.isFreeOrdersEnabled ?? null,
+        data.ticketHeaderFormat ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,

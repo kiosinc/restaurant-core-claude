@@ -4,35 +4,16 @@
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import LinkedObject from '../../firestore-core/core/LinkedObject';
 import * as Config from '../../firestore-core/config';
-import Orders from '../roots/Orders';
 import { Constants } from '../../firestore-core/config';
+import Orders from '../roots/Orders';
+import {
+  OrderState,
+  OrderType,
+  OrderTypeMeta,
+  PaymentState,
+} from './OrderSymbols';
 
 const VERSION = '3';
-
-export const enum OrderType {
-  none = 'none',
-  togo = 'togo',
-  dinein = 'dinein',
-}
-
-export interface OrderTypeMeta {
-  table?: string,
-}
-
-export const enum OrderState {
-  // Orders that are open
-  open = 'open',
-  // Orders awaiting action (new) that haven't been processed yet
-  new = 'new',
-  // Orders being prepared.
-  inProgress = 'inProgress',
-  // All orders ready for fulfillment
-  ready = 'ready',
-  // Orders that have been fulfilled
-  completed = 'completed',
-  // Orders that have been cancelled
-  cancelled = 'cancelled',
-}
 
 export interface SelectedValue {
   optionId: string,
@@ -90,25 +71,6 @@ export interface OrderPayment {
   paymentTimestamp: Date;
   receiptUrl: string | null;
 }
-
-export const enum PaymentState {
-  none = 'none',
-
-  approved = 'approved',
-
-  pending = 'pending',
-
-  completed = 'completed',
-
-  cancelled = 'cancelled',
-
-  failed = 'failed',
-}
-
-// function findQuery(businessId: string, orderId: string) {
-//   // eslint-disable-next-line @typescript-eslint/no-use-before-define
-//   return Order.collectionRef(businessId).doc(orderId).withConverter(Order.firestoreConverter);
-// }
 
 /**
  * Order class extends FirestoreObject
