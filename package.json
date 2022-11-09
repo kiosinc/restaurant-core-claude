@@ -22,10 +22,10 @@
   },
   "homepage": "https://github.com/kiosinc/core#readme",
   "dependencies": {
-    "firebase-admin": "^10.0.2",
-    "@firebase/app-compat": "0.1.7",
-    "@google-cloud/functions-framework": "^1.10.0",
-    "@google-cloud/tasks": "^2.6.0"
+    "firebase-admin": "^11.2.0",
+    "@firebase/app-compat": "^0.1.38",
+    "@google-cloud/functions-framework": "^3.1.2",
+    "@google-cloud/tasks": "^3.0.4"
   },
   "devDependencies": {
     "typescript": "^4.6.3",

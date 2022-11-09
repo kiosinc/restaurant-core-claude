@@ -200,7 +200,7 @@ export async function deleteQuery(query: FirebaseFirestore.Query, batchSize: num
 
 async function updateQueryBatch(
   query: FirebaseFirestore.Query,
-  data: FirebaseFirestore.UpdateData,
+  data: FirebaseFirestore.UpdateData<any>,
   resolve: (value: number) => void,
   reject: (reason?: any) => void,
   count: number = 0,
@@ -233,7 +233,7 @@ async function updateQueryBatch(
 }
 
 export function updateQuery(query: FirebaseFirestore.Query,
-  data: FirebaseFirestore.UpdateData,
+  data: FirebaseFirestore.UpdateData<any>,
   batchSize: number) {
   const limitedQuery = query.limit(batchSize);
 
