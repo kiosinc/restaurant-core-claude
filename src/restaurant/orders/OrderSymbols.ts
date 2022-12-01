@@ -1,7 +1,7 @@
 export const enum OrderType {
   none = 'none',
-  togo = 'togo',
-  dinein = 'dinein',
+  toGo = 'toGo',
+  dineIn = 'dineIn',
 }
 
 export interface OrderTypeMeta {
