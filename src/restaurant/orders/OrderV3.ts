@@ -126,6 +126,7 @@ export class Order extends FirestoreObject<string> {
 
   linkedObjects: { [Id: string]: LinkedObject } | null;
 
+  // TODO delete?
   isAvailable: boolean;
 
   /**
