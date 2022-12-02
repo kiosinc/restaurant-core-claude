@@ -1,4 +1,4 @@
-export const enum OrderType {
+export enum OrderType {
   none = 'none',
   toGo = 'toGo',
   dineIn = 'dineIn',
