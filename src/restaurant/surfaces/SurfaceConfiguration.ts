@@ -9,10 +9,10 @@ export interface CoverConfiguration {
 
 export interface CheckoutFlowConfiguration {
 
-  // Allow coupons
   isCouponsEnabled: boolean;
 
-  // Allow special request
+  isSquareGiftCardEnabled: boolean;
+
   isOrderNoteEnabled: boolean;
 
   checkoutCustomerNamePromptText: string | null;
@@ -49,6 +49,10 @@ export interface CheckoutFlowConfiguration {
 
   // Show customer order confirmation text
   orderConfirmationText: string | null;
+
+  isReferralCodeEnabled: boolean
+
+  referralCodePromptText: string
 }
 
 export interface TipConfiguration {
