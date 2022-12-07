@@ -52,7 +52,7 @@ export interface CheckoutFlowConfiguration {
 
   isReferralCodeEnabled: boolean
 
-  referralCodePromptText: string
+  referralCodePromptText: string | null
 }
 
 export interface TipConfiguration {
