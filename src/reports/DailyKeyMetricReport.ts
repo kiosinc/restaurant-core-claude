@@ -98,6 +98,7 @@ export class DailyKeyMetricReport {
       event.payload());
   }
 
+  // TODO move out of lib
   static async consumeUpdateDailyKeyMetricReportTask(db: Database,
     data: UpdateDailyKeyMetricReportTaskData) {
     return db.ref(data.dbRefPath).transaction((value) => {

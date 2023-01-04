@@ -54,7 +54,7 @@ export default class Orders extends FirestoreObject<string> {
     this.isSquareAutoApplyDiscounts = isSquareAutoApplyDiscounts ?? false;
     this.isSquareAutoApplyTaxes = isSquareAutoApplyTaxes ?? true;
     this.isKioskSessionIdleTimerOn = isKioskSessionIdleTimerOn ?? true;
-    this.isFreeOrdersEnabled = isFreeOrdersEnabled ?? false;
+    this.isFreeOrdersEnabled = isFreeOrdersEnabled ?? true;
     this.ticketHeaderFormat = ticketHeaderFormat;
   }
 
