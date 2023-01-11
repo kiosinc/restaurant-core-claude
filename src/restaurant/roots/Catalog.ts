@@ -11,15 +11,6 @@ export default class Catalog extends FirestoreObject<string> {
 
   products: { [Id: string]: ProductMeta };
 
-  // TODO remove
-  taxRates: { [Id: string]: { } };
-
-  discounts: { [Id: string]: { } };
-
-  optionSets: { [Id: string]: { } };
-
-  options: { [Id: string]: { } };
-
   constructor(
     categories: { [p: string]: CategoryMeta },
     products: { [p: string]: ProductMeta },
@@ -32,10 +23,6 @@ export default class Catalog extends FirestoreObject<string> {
 
     this.categories = categories;
     this.products = products;
-    this.taxRates = {};
-    this.discounts = {};
-    this.optionSets = {};
-    this.options = {};
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -64,10 +51,6 @@ export default class Catalog extends FirestoreObject<string> {
       return {
         categories: JSON.parse(JSON.stringify(catalog.categories)),
         products: JSON.parse(JSON.stringify(catalog.products)),
-        taxRates: {},
-        discounts: {},
-        optionSets: {},
-        options: {},
         created: catalog.created.toISOString(),
         updated: catalog.updated.toISOString(),
         isDeleted: catalog.isDeleted,
