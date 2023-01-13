@@ -4,6 +4,7 @@
 
 // const inventoryKey = Config.Paths.CollectionNames.locationInventory;
 
+// TODO change to camel case
 export const enum InventoryCountState {
   instock = 'instock',
   soldout = 'soldout',
@@ -69,63 +70,3 @@ export function LocationInventoryFromFirestore(data: any)
   }
   return {};
 }
-
-// export class LocationInventory extends FirestoreObject<string> {
-//   locationCounts: { [locationId: string]: { [Id: string]: InventoryCount } };
-//
-//   constructor(
-//     locationCount: { [Id: string]: { [Id: string]: InventoryCount } },
-//
-//     created?: Date,
-//     updated?: Date,
-//     isDeleted?: boolean,
-//     Id?: string,
-//   ) {
-//     super(created, updated, isDeleted, Id ?? inventoryKey);
-//
-//     this.locationCounts = locationCount;
-//   }
-//
-//   // eslint-disable-next-line class-methods-use-this
-//   collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-//     return Business.publicCollectionRef(businessId);
-//   }
-//
-//   // eslint-disable-next-line class-methods-use-this
-//   metaLinks(): { [p: string]: string } {
-//     return {};
-//   }
-//
-//   // eslint-disable-next-line class-methods-use-this
-//   metadata(): {} {
-//     return {};
-//   }
-//
-//   // STATICS
-//
-//   static docRef(businessId: string) : FirebaseFirestore.DocumentReference {
-//     return Business.publicCollectionRef(businessId).doc(inventoryKey);
-//   }
-//
-//   static firestoreConverter = {
-//     toFirestore(inventory: LocationInventory): FirebaseFirestore.DocumentData {
-//       return {
-//         locationCounts: JSON.parse(JSON.stringify(inventory.locationCounts)),
-//         created: inventory.created.toISOString(),
-//         updated: inventory.updated.toISOString(),
-//         isDeleted: inventory.isDeleted,
-//       };
-//     },
-//     fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): LocationInventory {
-//       const data = snapshot.data();
-//
-//       return new LocationInventory(
-//         data.locationCounts,
-//         new Date(data.created),
-//         new Date(data.updated),
-//         data.isDeleted,
-//         snapshot.id,
-//       );
-//     },
-//   };
-// }

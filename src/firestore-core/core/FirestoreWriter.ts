@@ -393,12 +393,6 @@ async function deleteT<C extends FirestoreObjectType>(
       }
       t.set(snapshot.ref, product);
     });
-
-    const catalog = catalogSnapshot.data();
-    if (catalog) {
-      delete catalog.optionSets[id];
-      t.set(catalogSnapshot.ref, catalog);
-    }
   }
 
   /** Option */
@@ -408,9 +402,6 @@ async function deleteT<C extends FirestoreObjectType>(
       .where(fieldPath, '>=', '')
       .withConverter(OptionSet.firestoreConverter);
     const querySnapshots = await t.get(query);
-
-    const catalogSnapshot = await Catalog.docRef(businessId)
-      .withConverter(Catalog.firestoreConverter).get();
 
     // Update the related objects that were successfully queried
     querySnapshots.docs.forEach((snapshot) => {
@@ -430,14 +421,6 @@ async function deleteT<C extends FirestoreObjectType>(
 
       t.set(snapshot.ref, optionSet);
     });
-
-    const catalog = catalogSnapshot.data();
-    if (catalog) {
-      if (catalog.options[id]) {
-        delete catalog.options[id];
-        t.set(catalogSnapshot.ref, catalog);
-      }
-    }
   }
 
   /** For products */
