@@ -17,6 +17,8 @@ export default class Menu extends FirestoreObject<string> {
 
   coverBackgroundImageGsl: string | null;
 
+  coverVideoGsl: string | null;
+
   logoImageGsl: string | null;
 
   gratuityRates: number[];
@@ -28,6 +30,7 @@ export default class Menu extends FirestoreObject<string> {
     groupDisplayOrder: string[],
     coverImageGsl: string | null,
     coverBackgroundImageGsl: string | null,
+    coverVideoGsl: string | null,
     logoImageGsl: string | null,
     gratuityRates: number[] | null,
     created?: Date,
@@ -43,6 +46,7 @@ export default class Menu extends FirestoreObject<string> {
     this.groupDisplayOrder = groupDisplayOrder;
     this.coverImageGsl = coverImageGsl;
     this.coverBackgroundImageGsl = coverBackgroundImageGsl;
+    this.coverVideoGsl = coverVideoGsl;
     this.logoImageGsl = logoImageGsl;
     this.gratuityRates = gratuityRates ?? [];
   }
@@ -80,6 +84,7 @@ export default class Menu extends FirestoreObject<string> {
         groupDisplayOrder: JSON.parse(JSON.stringify(menu.groupDisplayOrder)),
         coverImageGsl: menu.coverImageGsl,
         coverBackgroundImageGsl: menu.coverBackgroundImageGsl,
+        coverVideoGsl: menu.coverVideoGsl,
         logoImageGsl: menu.logoImageGsl,
         gratuityRates: JSON.parse(JSON.stringify(menu.gratuityRates)),
         created: menu.created.toISOString(),
@@ -97,6 +102,7 @@ export default class Menu extends FirestoreObject<string> {
         data.groupDisplayOrder,
         data.coverImageGsl ?? null,
         data.coverBackgroundImageGsl ?? null,
+        data.coverVideoGsl ?? null,
         data.logoImageGsl ?? null,
         data.gratuityRates ?? null,
         new Date(data.created),
