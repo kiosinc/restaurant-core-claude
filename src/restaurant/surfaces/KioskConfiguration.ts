@@ -49,7 +49,6 @@ export default class KioskConfiguration extends FirestoreObject<string> {
   // STATICS
 
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    // TODO
     return Surfaces.docRef(businessId).collection(Config.Paths.CollectionNames.kioskConfigurations);
   }
 

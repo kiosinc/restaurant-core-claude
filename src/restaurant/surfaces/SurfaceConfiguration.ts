@@ -120,7 +120,6 @@ export class SurfaceConfiguration extends FirestoreObject<string> {
   // STATICS
 
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    // TODO
     return Surfaces.docRef(businessId).collection(Config.Paths.CollectionNames
       .surfaceConfigurations);
   }

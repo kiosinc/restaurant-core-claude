@@ -1,4 +1,3 @@
-import { Database } from 'firebase-admin/database';
 import { createHttpTask } from '../utils/GoogleCloudTask';
 import { ReportTaskEvent } from './ReportTaskEvent';
 
@@ -18,17 +17,6 @@ export interface DailyKeyMetrics {
 const REPORT_KEY_METRIC_QUEUE = 'report-key-metric-update';
 const UPDATE_DAILY_METRIC_TASK_TYPE = 'updateDailyKeyMetricReportTask';
 const UPDATE_DAILY_METRIC_TASK_PATH = '/tasks/orders/updateDailyKeyMetrics';
-
-function clean(str: string) {
-  return str
-    .replace(/\./gi, '_')
-    .replace(/#/gi, 'HASH_')
-    .replace(/\$/gi, 'MONEY_')
-    .replace(/\//gi, 'SLASH_')
-    .replace(/\[/gi, '_')
-    .replace(/\]/gi, '_')
-    .replace(/\n/gi, '');
-}
 
 export class DailyKeyMetricReport {
   locationName: string;
@@ -97,50 +85,12 @@ export class DailyKeyMetricReport {
       targetUrl,
       event.payload());
   }
-
-  // TODO move out of lib
-  static async consumeUpdateDailyKeyMetricReportTask(db: Database,
-    data: UpdateDailyKeyMetricReportTaskData) {
-    return db.ref(data.dbRefPath).transaction((value) => {
-      let update: any;
-
-      const locationName = clean(data.locationName);
-      // No value at node, provide default values
-      if (!value) {
-        update = new DailyKeyMetricReport(locationName);
-      } else {
-        update = new DailyKeyMetricReport(
-          value.locationName,
-          value.keyMetrics,
-          value.created,
-          value.updated,
-        );
-      }
-
-      // console.log(`Using base update ${JSON.stringify(update)}`)
-      // Check if new source needs data seeding
-      let source = clean(data.source);
-      if (source.length <= 0) {
-        source = 'notSupplied';
-      }
-      if (!update.keyMetrics[source]) {
-        update.keyMetrics[source] = DailyKeyMetricReport.newDailyKeyMetrics();
-      }
-
-      // Update and increment data
-      Object.keys(data.keyMetrics).forEach((key) => {
-        const typedKey = key as keyof DailyKeyMetrics;
-        update.keyMetrics[source][typedKey] += data.keyMetrics[typedKey];
-      });
-
-      update.updated = new Date();
-      return JSON.parse(JSON.stringify(update));
-    });
-  }
 }
 
 export interface UpdateDailyKeyMetricReportTaskData {
-  dbRefPath: string,
+  businessId: string,
+  locationId: string,
+  date: string,
   source: string,
   keyMetrics: any,
   locationName: string

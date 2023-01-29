@@ -289,6 +289,7 @@ export class Order extends FirestoreObject<string> {
         data.discounts,
         data.surcharges,
         data.note,
+        // TODO transform payment dates
         data.payment,
         data.linkedObjects,
         data.state,
