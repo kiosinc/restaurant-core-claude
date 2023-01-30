@@ -18,7 +18,7 @@ const REPORT_KEY_METRIC_QUEUE = 'report-key-metric-update';
 const UPDATE_DAILY_METRIC_TASK_TYPE = 'updateDailyKeyMetricReportTask';
 const UPDATE_DAILY_METRIC_TASK_PATH = '/tasks/orders/updateDailyKeyMetrics';
 
-export class DailyKeyMetricReport {
+export class DailyKeyMetricReportV2 {
   businessId: string;
 
   locationId: string;
@@ -54,7 +54,7 @@ export class DailyKeyMetricReport {
 
   public static initFromDataSnapshot(snap: any) {
     const now = new Date();
-    const obj = new DailyKeyMetricReport(
+    const obj = new DailyKeyMetricReportV2(
       snap.businessId,
       snap.locationId,
       snap.locationName,
@@ -80,7 +80,8 @@ export class DailyKeyMetricReport {
   }
 
   static locationReportPath(locationId: string, date: Date) {
-    const path = `/dailyKeyMetrics/${locationId}${this.standardizedDate(date)}`;
+    const dateKey = this.standardizedDate(date).replace(/\//g, '');
+    const path = `/dailyKeyMetrics/${locationId}_${dateKey}`;
 
     return path;
   }
