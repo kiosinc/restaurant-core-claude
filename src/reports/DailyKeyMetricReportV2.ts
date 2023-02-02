@@ -23,8 +23,6 @@ export class DailyKeyMetricReportV2 {
 
   locationId: string;
 
-  locationName: string;
-
   dateIndex: string;
 
   created: Date;
@@ -36,7 +34,6 @@ export class DailyKeyMetricReportV2 {
   constructor(
     businessId: string,
     locationId: string,
-    locationName: string,
     dateIndex: string,
     keyMetrics?: { [source: string]: DailyKeyMetrics },
     created?: Date,
@@ -44,7 +41,6 @@ export class DailyKeyMetricReportV2 {
   ) {
     this.businessId = businessId;
     this.locationId = locationId;
-    this.locationName = locationName;
     this.dateIndex = dateIndex;
     this.keyMetrics = keyMetrics ?? {};
     const now = new Date();
@@ -57,7 +53,6 @@ export class DailyKeyMetricReportV2 {
     const obj = new DailyKeyMetricReportV2(
       snap.businessId,
       snap.locationId,
-      snap.locationName,
       snap.dateIndex,
       snap.keyMetrics,
       snap.created ? new Date(snap.created) : now,
@@ -136,5 +131,4 @@ export interface UpdateDailyKeyMetricReportTaskData {
   date: string,
   source: string,
   keyMetrics: any,
-  locationName: string
 }

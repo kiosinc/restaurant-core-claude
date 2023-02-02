@@ -1,14 +1,14 @@
 {
   "name": "@kiosinc/restaurant-core",
-  "version": "0.1.166",
+  "version": "0.1.170",
   "description": "",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc",
     "tsc": "tsc -p tsconfig.json",
-    "clean-lib": "rm -rf ./lib"
+    "clean-lib": "rm -rf ./lib",
+    "link": "rm -rf ./lib && tsc && npm link",
+    "pre-publish": "rm -rf ./lib && tsc"
   },
   "repository": {
     "type": "git",
