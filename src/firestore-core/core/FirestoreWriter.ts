@@ -269,6 +269,11 @@ async function updateBatchInfo(updates: BatchUpdateInfo[],
   });
 }
 
+// export async function deleteFirebaseQuery(query: Query, batchSize: number) {
+//   return new Promise<number>((resolve, reject) => {
+//     deleteFirebaseQueryBatch(query, batchSize, resolve).catch(reject);
+//   });
+// }
 export async function deleteFirebaseQuery(query: Query, batchSize: number, count = 0) {
   // Get paginated (batch size) snapshot of query
   const snapshot = await query.limitToFirst(batchSize).once('value');

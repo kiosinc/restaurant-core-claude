@@ -17,6 +17,8 @@ export default class Option extends FirestoreObject<string> {
 
   sku: string | null;
 
+  imageUrls: URL[];
+
   locationPrices: { [locationId: string]: number };
 
   locationInventory: { [p: string]: InventoryCount };
@@ -29,6 +31,7 @@ export default class Option extends FirestoreObject<string> {
     name: string,
     price: number,
     sku: string | null,
+    imageUrls: URL[],
     locationPrices: { [locationId: string]: number },
     locationInventory: { [locationId: string]: InventoryCount },
     isActive: boolean,
@@ -43,6 +46,7 @@ export default class Option extends FirestoreObject<string> {
     this.name = name;
     this.price = price;
     this.sku = sku;
+    this.imageUrls = imageUrls;
     this.locationPrices = locationPrices;
     this.locationInventory = locationInventory;
     this.isActive = isActive;
@@ -86,6 +90,7 @@ export default class Option extends FirestoreObject<string> {
         name: option.name,
         price: option.price,
         sku: option.sku,
+        imageUrls: JSON.parse(JSON.stringify(option.imageUrls)),
         locationPrices: JSON.parse(JSON.stringify(option.locationPrices)),
         locationInventory:
           JSON.parse(JSON.stringify(LocationInventoryToFirestore(option.locationInventory))),
@@ -102,6 +107,7 @@ export default class Option extends FirestoreObject<string> {
         data.name,
         data.price,
         data.sku ?? null,
+        data.imageUrls ?? [],
         data.locationPrices,
         LocationInventoryFromFirestore(data.locationInventory),
         data.isActive,
