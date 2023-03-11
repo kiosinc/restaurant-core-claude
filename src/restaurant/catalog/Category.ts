@@ -20,12 +20,15 @@ export default class Category extends FirestoreObject<string> {
 
   productDisplayOrder: string[];
 
+  imageUrls: URL[];
+
   linkedObjects: { [Id: string]: LinkedObject };
 
   constructor(
     name: string,
     products: { [p: string]: ProductMeta },
     productDisplayOrder: string[],
+    imageUrls: URL[],
     linkedObjects: { [p: string]: LinkedObject },
     created?: Date,
     updated?: Date,
@@ -37,6 +40,7 @@ export default class Category extends FirestoreObject<string> {
     this.name = name;
     this.products = products;
     this.productDisplayOrder = productDisplayOrder;
+    this.imageUrls = imageUrls;
 
     this.linkedObjects = linkedObjects;
   }
@@ -78,6 +82,7 @@ export default class Category extends FirestoreObject<string> {
         name: category.name,
         products: JSON.parse(JSON.stringify(category.products)),
         productDisplayOrder: JSON.parse(JSON.stringify(category.productDisplayOrder)),
+        imageUrls: JSON.parse(JSON.stringify(category.imageUrls)),
         linkedObjects: JSON.parse(JSON.stringify(category.linkedObjects)),
         created: category.created.toISOString(),
         updated: category.updated.toISOString(),
@@ -91,6 +96,7 @@ export default class Category extends FirestoreObject<string> {
         data.name,
         data.products,
         data.productDisplayOrder,
+        data.imageUrls ?? [],
         data.linkedObjects,
         new Date(data.created),
         new Date(data.updated),
