@@ -1,82 +1,12 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import * as Config from '../../firestore-core/config';
-import Surfaces from '../roots/Surfaces';
-import MenuGroupMeta from './MenuGroupMeta';
-import MenuMeta from './MenuMeta';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import Surfaces from '../roots/Surfaces'
+import MenuGroupMeta from './MenuGroupMeta'
+import MenuMeta from './MenuMeta'
+import * as Paths from '../../firestore-core/Paths'
 
 export default class Menu extends FirestoreObject<string> {
-  name: string;
-
-  displayName: string | null;
-
-  groups: { [Id: string]: MenuGroupMeta };
-
-  groupDisplayOrder: string[];
-
-  coverImageGsl: string | null;
-
-  coverBackgroundImageGsl: string | null;
-
-  coverVideoGsl: string | null;
-
-  logoImageGsl: string | null;
-
-  gratuityRates: number[];
-
-  constructor(
-    name: string,
-    displayName: string | null,
-    groups: { [p: string]: MenuGroupMeta },
-    groupDisplayOrder: string[],
-    coverImageGsl: string | null,
-    coverBackgroundImageGsl: string | null,
-    coverVideoGsl: string | null,
-    logoImageGsl: string | null,
-    gratuityRates: number[] | null,
-    created?: Date,
-    updated?: Date,
-    isDeleted?: boolean,
-    Id?: string,
-  ) {
-    super(created, updated, isDeleted, Id);
-
-    this.name = name;
-    this.displayName = displayName;
-    this.groups = groups;
-    this.groupDisplayOrder = groupDisplayOrder;
-    this.coverImageGsl = coverImageGsl;
-    this.coverBackgroundImageGsl = coverBackgroundImageGsl;
-    this.coverVideoGsl = coverVideoGsl;
-    this.logoImageGsl = logoImageGsl;
-    this.gratuityRates = gratuityRates ?? [];
-  }
-
-  // eslint-disable-next-line class-methods-use-this
-  collectionRef(businessId: string) {
-    return Menu.collectionRef(businessId);
-  }
-
-  metaLinks(businessId: string): { [p: string]: string } {
-    return {
-      [Surfaces.docRef(businessId).path]: `${Config.Paths.CollectionNames.menus}.${this.Id}`,
-    };
-  }
-
-  metadata(): MenuMeta {
-    return {
-      name: this.name,
-      displayName: this.displayName,
-    };
-  }
-
-  // STATICS
-
-  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Surfaces.docRef(businessId).collection(Config.Paths.CollectionNames.menus);
-  }
-
   static firestoreConverter = {
-    toFirestore(menu: Menu): FirebaseFirestore.DocumentData {
+    toFirestore (menu: Menu): FirebaseFirestore.DocumentData {
       return {
         name: menu.name,
         displayName: menu.displayName,
@@ -90,10 +20,10 @@ export default class Menu extends FirestoreObject<string> {
         created: menu.created.toISOString(),
         updated: menu.updated.toISOString(),
         isDeleted: menu.isDeleted,
-      };
+      }
     },
-    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): Menu {
-      const data = snapshot.data();
+    fromFirestore (snapshot: FirebaseFirestore.QueryDocumentSnapshot): Menu {
+      const data = snapshot.data()
 
       return new Menu(
         data.name,
@@ -109,7 +39,70 @@ export default class Menu extends FirestoreObject<string> {
         new Date(data.updated),
         data.isDeleted,
         snapshot.id,
-      );
+      )
     },
-  };
+  }
+  name: string
+  displayName: string | null
+  groups: { [Id: string]: MenuGroupMeta }
+  groupDisplayOrder: string[]
+  coverImageGsl: string | null
+  coverBackgroundImageGsl: string | null
+  coverVideoGsl: string | null
+  logoImageGsl: string | null
+  gratuityRates: number[]
+
+  constructor (
+    name: string,
+    displayName: string | null,
+    groups: { [p: string]: MenuGroupMeta },
+    groupDisplayOrder: string[],
+    coverImageGsl: string | null,
+    coverBackgroundImageGsl: string | null,
+    coverVideoGsl: string | null,
+    logoImageGsl: string | null,
+    gratuityRates: number[] | null,
+    created?: Date,
+    updated?: Date,
+    isDeleted?: boolean,
+    Id?: string,
+  ) {
+    super(created, updated, isDeleted, Id)
+
+    this.name = name
+    this.displayName = displayName
+    this.groups = groups
+    this.groupDisplayOrder = groupDisplayOrder
+    this.coverImageGsl = coverImageGsl
+    this.coverBackgroundImageGsl = coverBackgroundImageGsl
+    this.coverVideoGsl = coverVideoGsl
+    this.logoImageGsl = logoImageGsl
+    this.gratuityRates = gratuityRates ?? []
+  }
+
+  static collectionRef (businessId: string): FirebaseFirestore.CollectionReference {
+    return Surfaces.docRef(businessId).
+      collection(Paths.CollectionNames.menus)
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  collectionRef (businessId: string) {
+    return Menu.collectionRef(businessId)
+  }
+
+  // STATICS
+
+  metaLinks (businessId: string): { [p: string]: string } {
+    return {
+      [Surfaces.docRef(
+        businessId).path]: `${Paths.CollectionNames.menus}.${this.Id}`,
+    }
+  }
+
+  metadata (): MenuMeta {
+    return {
+      name: this.name,
+      displayName: this.displayName,
+    }
+  }
 }

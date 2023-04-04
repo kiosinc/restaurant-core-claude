@@ -1,14 +1,15 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import { Business } from './Business';
-import * as Config from '../../firestore-core/config';
-import Menu from '../surfaces/Menu';
-import MenuGroup from '../surfaces/MenuGroup';
-import MenuGroupMeta from '../surfaces/MenuGroupMeta';
-import Token from '../connected-accounts/Token';
-import Category from '../catalog/Category';
-import Surfaces from './Surfaces';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { Business } from './Business'
+import * as Constants from '../../firestore-core/Constants'
+import Menu from '../surfaces/Menu'
+import MenuGroup from '../surfaces/MenuGroup'
+import MenuGroupMeta from '../surfaces/MenuGroupMeta'
+import Token from '../connected-accounts/Token'
+import Category from '../catalog/Category'
+import Surfaces from './Surfaces'
+import * as Paths from '../../firestore-core/Paths'
 
-const servicesKey = Config.Paths.CollectionNames.onboarding;
+const servicesKey = Paths.CollectionNames.onboarding;
 
 export const enum OnboardingStage {
   createBusiness = 'createBusiness',
@@ -66,7 +67,7 @@ async function repairOnboardingStatus(
   onboardingStatusUpdate[OnboardingStage.createBusiness] = OnboardingStageStatus.complete;
   // Check for square token
   const squareTokenSnap = await Token.collectionRef(businessId)
-    .doc(Config.Constants.Provider.square).get();
+    .doc(Constants.Provider.square).get();
   const squareIntegrationStatus = squareTokenSnap.exists
     ? OnboardingStageStatus.complete
     : OnboardingStageStatus.pending;
@@ -174,7 +175,7 @@ export class Onboarding extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 

@@ -1,10 +1,10 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import { Business } from './Business';
-import * as Config from '../../firestore-core/config';
-import MenuGroupMeta from '../surfaces/MenuGroupMeta';
-import MenuMeta from '../surfaces/MenuMeta';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { Business } from './Business'
+import MenuGroupMeta from '../surfaces/MenuGroupMeta'
+import MenuMeta from '../surfaces/MenuMeta'
+import * as Paths from '../../firestore-core/Paths'
 
-const surfacesKey = Config.Paths.CollectionNames.surfaces;
+const surfacesKey = Paths.CollectionNames.surfaces;
 
 export default class Surfaces extends FirestoreObject<string> {
   menus: { [Id: string]: MenuMeta };
@@ -37,7 +37,7 @@ export default class Surfaces extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 

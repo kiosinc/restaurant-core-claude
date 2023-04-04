@@ -1,12 +1,12 @@
 /**
  * Category class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import LinkedObject from '../../firestore-core/core/LinkedObject';
-import ProductMeta from './ProductMeta';
-import CategoryMeta from './CategoryMeta';
-import Catalog from '../roots/Catalog';
-import * as Config from '../../firestore-core/config';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import LinkedObject from '../../firestore-core/core/LinkedObject'
+import ProductMeta from './ProductMeta'
+import CategoryMeta from './CategoryMeta'
+import Catalog from '../roots/Catalog'
+import * as Paths from '../../firestore-core/Paths'
 
 /**
  * Category class extends FirestoreObject
@@ -52,7 +52,7 @@ export default class Category extends FirestoreObject<string> {
 
   metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Catalog.docRef(businessId).path]: `${Config.Paths.CollectionNames.categories}.${this.Id}`,
+      [Catalog.docRef(businessId).path]: `${Paths.CollectionNames.categories}.${this.Id}`,
     };
   }
 
@@ -68,7 +68,7 @@ export default class Category extends FirestoreObject<string> {
    * Category class CollectionReference for given business
    */
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(Config.Paths.CollectionNames.categories);
+    return Catalog.docRef(businessId).collection(Paths.CollectionNames.categories);
   }
 
   /**

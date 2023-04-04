@@ -1,8 +1,8 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import * as Config from '../../firestore-core/config';
-import Surfaces from '../roots/Surfaces';
-import MenuGroupMeta from './MenuGroupMeta';
-import ProductMeta from '../catalog/ProductMeta';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import Surfaces from '../roots/Surfaces'
+import MenuGroupMeta from './MenuGroupMeta'
+import ProductMeta from '../catalog/ProductMeta'
+import * as Paths from '../../firestore-core/Paths'
 
 export default class MenuGroup extends FirestoreObject<string> {
   // The group's name, meant to be displayable to the customer.
@@ -50,7 +50,7 @@ export default class MenuGroup extends FirestoreObject<string> {
 
   metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Surfaces.docRef(businessId).path]: `${Config.Paths.CollectionNames.menuGroups}.${this.Id}`,
+      [Surfaces.docRef(businessId).path]: `${Paths.CollectionNames.menuGroups}.${this.Id}`,
     };
   }
 
@@ -64,7 +64,7 @@ export default class MenuGroup extends FirestoreObject<string> {
   // STATICS
 
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Surfaces.docRef(businessId).collection(Config.Paths.CollectionNames.menuGroups);
+    return Surfaces.docRef(businessId).collection(Paths.CollectionNames.menuGroups);
   }
 
   static firestoreConverter = {

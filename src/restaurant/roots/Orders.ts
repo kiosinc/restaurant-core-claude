@@ -1,9 +1,9 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import { Business } from './Business';
-import * as Config from '../../firestore-core/config';
-import { OrderType } from '../orders/OrderSymbols';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { Business } from './Business'
+import { OrderType } from '../orders/OrderSymbols'
+import * as Paths from '../../firestore-core/Paths'
 
-const ordersKey = Config.Paths.CollectionNames.orders;
+const ordersKey = Paths.CollectionNames.orders;
 const defaultGratuityRate = [10, 15, 20];
 
 export default class Orders extends FirestoreObject<string> {
@@ -69,7 +69,7 @@ export default class Orders extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 

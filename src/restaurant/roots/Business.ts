@@ -1,7 +1,8 @@
-import * as firestore from 'firebase-admin/firestore';
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import * as Config from '../../firestore-core/config';
-import BusinessProfile from '../misc/BusinessProfile';
+import * as firestore from 'firebase-admin/firestore'
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import * as Constants from '../../firestore-core/Constants'
+import BusinessProfile from '../misc/BusinessProfile'
+import * as Paths from '../../firestore-core/Paths'
 
 export enum BusinessType {
   restaurant = 'restaurant',
@@ -16,14 +17,14 @@ export class Business extends FirestoreObject<void> {
 
   businessProfile: BusinessProfile;
 
-  roles: { [uid: string]: Config.Constants.Role };
+  roles: { [uid: string]: Constants.Role };
 
   constructor(
     agent: string,
     createdBy: string,
     type: BusinessType,
     businessProfile: BusinessProfile,
-    roles: { [uid: string]: Config.Constants.Role },
+    roles: { [uid: string]: Constants.Role },
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -48,7 +49,7 @@ export class Business extends FirestoreObject<void> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 
@@ -59,7 +60,7 @@ export class Business extends FirestoreObject<void> {
   }
 
   static collectionRef(): FirebaseFirestore.CollectionReference {
-    return firestore.getFirestore().collection(Config.Paths.CollectionNames.businesses);
+    return firestore.getFirestore().collection(Paths.CollectionNames.businesses);
   }
 
   static firestoreConverter = {
@@ -96,16 +97,16 @@ export class Business extends FirestoreObject<void> {
 
   static publicCollectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Business.docRef(businessId)
-      .collection(Config.Paths.Environment.public);
+      .collection(Paths.Environment.public);
   }
 
   static privateCollectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Business.docRef(businessId)
-      .collection(Config.Paths.Environment.private);
+      .collection(Paths.Environment.private);
   }
 
   static sandboxCollectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Business.docRef(businessId)
-      .collection(Config.Paths.Environment.sandbox);
+      .collection(Paths.Environment.sandbox);
   }
 }

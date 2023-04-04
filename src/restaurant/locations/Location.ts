@@ -1,9 +1,9 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import * as Config from '../../firestore-core/config';
-import Locations from '../roots/Locations';
-import LocationMeta from './LocationMeta';
-import Address from '../misc/Address';
-import LinkedObject from '../../firestore-core/core/LinkedObject';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import Locations from '../roots/Locations'
+import LocationMeta from './LocationMeta'
+import Address from '../misc/Address'
+import LinkedObject from '../../firestore-core/core/LinkedObject'
+import * as Paths from '../../firestore-core/Paths'
 
 export default class Location extends FirestoreObject<string> {
   name: string;
@@ -49,7 +49,7 @@ export default class Location extends FirestoreObject<string> {
 
   metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Locations.docRef(businessId).path]: `${Config.Paths.CollectionNames.locations}.${this.Id}`,
+      [Locations.docRef(businessId).path]: `${Paths.CollectionNames.locations}.${this.Id}`,
     };
   }
 
@@ -63,7 +63,7 @@ export default class Location extends FirestoreObject<string> {
   // STATICS
 
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Locations.docRef(businessId).collection(Config.Paths.CollectionNames.locations);
+    return Locations.docRef(businessId).collection(Paths.CollectionNames.locations);
   }
 
   static firestoreConverter = {

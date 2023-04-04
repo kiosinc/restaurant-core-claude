@@ -1,6 +1,6 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import * as Config from '../../firestore-core/config';
-import Surfaces from '../roots/Surfaces';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import Surfaces from '../roots/Surfaces'
+import * as Paths from '../../firestore-core/Paths'
 
 const kioskConfigurationVersion = '0.0';
 
@@ -42,14 +42,14 @@ export default class KioskConfiguration extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 
   // STATICS
 
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Surfaces.docRef(businessId).collection(Config.Paths.CollectionNames.kioskConfigurations);
+    return Surfaces.docRef(businessId).collection(Paths.CollectionNames.kioskConfigurations);
   }
 
   static firestoreConverter = {

@@ -14,36 +14,31 @@
  * limitations under the License.
  */
 
-const uuid = require('uuid');
-const admin = require('firebase-admin');
+import { v4 as uuidv4 } from 'uuid'
+import * as admin from 'firebase-admin'
 
-const SHARD_COLLECTION_ID = '_counter_shards_';
+const SHARD_COLLECTION_ID = '_counter_shards_'
 
-function getShardId() {
-  return uuid.v4();
+function getShardId () {
+  return uuidv4()
 }
 
-async function schedule(func: any) {
+async function schedule (func: any) {
   return new Promise((resolve) => {
     setTimeout(async () => {
-      const result = func();
-      resolve(result);
-    }, 0);
-  });
+      const result = func()
+      resolve(result)
+    }, 0)
+  })
 }
 
 export default class Counter {
-  shards: any;
-
-  notifyPromise: any;
-
-  doc: FirebaseFirestore.DocumentReference;
-
-  field: string;
-
-  db: FirebaseFirestore.Firestore;
-
-  shardId: any;
+  shards: any
+  notifyPromise: any
+  doc: FirebaseFirestore.DocumentReference
+  field: string
+  db: FirebaseFirestore.Firestore
+  shardId: any
 
   /**
    * Constructs a sharded counter object that references to a field
@@ -52,21 +47,21 @@ export default class Counter {
    * @param doc A reference to a document with a counter field.
    * @param field A path to a counter field in the above document.
    */
-  constructor(doc: FirebaseFirestore.DocumentReference, field: string) {
-    this.shards = {};
-    this.notifyPromise = null;
-    this.doc = doc;
-    this.field = field;
-    this.db = doc.firestore;
-    this.shardId = getShardId();
+  constructor (doc: FirebaseFirestore.DocumentReference, field: string) {
+    this.shards = {}
+    this.notifyPromise = null
+    this.doc = doc
+    this.field = field
+    this.db = doc.firestore
+    this.shardId = getShardId()
 
-    const shardsRef = doc.collection(SHARD_COLLECTION_ID);
-    this.shards[doc.path] = 0;
-    this.shards[shardsRef.doc(this.shardId).path] = 0;
-    this.shards[shardsRef.doc(`\t${this.shardId.substr(0, 4)}`).path] = 0;
-    this.shards[shardsRef.doc(`\t\t${this.shardId.substr(0, 3)}`).path] = 0;
-    this.shards[shardsRef.doc(`\t\t\t${this.shardId.substr(0, 2)}`).path] = 0;
-    this.shards[shardsRef.doc(`\t\t\t\t${this.shardId.substr(0, 1)}`).path] = 0;
+    const shardsRef = doc.collection(SHARD_COLLECTION_ID)
+    this.shards[doc.path] = 0
+    this.shards[shardsRef.doc(this.shardId).path] = 0
+    this.shards[shardsRef.doc(`\t${this.shardId.substr(0, 4)}`).path] = 0
+    this.shards[shardsRef.doc(`\t\t${this.shardId.substr(0, 3)}`).path] = 0
+    this.shards[shardsRef.doc(`\t\t\t${this.shardId.substr(0, 2)}`).path] = 0
+    this.shards[shardsRef.doc(`\t\t\t\t${this.shardId.substr(0, 1)}`).path] = 0
   }
 
   /**
@@ -75,13 +70,13 @@ export default class Counter {
    * All local increments will be reflected in the counter even if the main
    * counter hasn't been updated yet.
    */
-  async get() {
+  async get () {
     const valuePromises = Object.keys(this.shards).map(async (path) => {
-      const shard = await this.db.doc(path).get();
-      return shard.get(this.field) || 0;
-    });
-    const values = await Promise.all(valuePromises);
-    return values.reduce((a, b) => a + b, 0);
+      const shard = await this.db.doc(path).get()
+      return shard.get(this.field) || 0
+    })
+    const values = await Promise.all(valuePromises)
+    return values.reduce((a, b) => a + b, 0)
   }
 
   /**
@@ -90,22 +85,21 @@ export default class Counter {
    * All local increments to this counter will be immediately visible in the
    * snapshot.
    */
-  onSnapshot(observable: any) {
+  onSnapshot (observable: any) {
     Object.keys(this.shards).forEach((path) => {
       this.db.doc(path).onSnapshot((snap: any) => {
-        this.shards[snap.ref.path] = snap.get(this.field) || 0;
-        if (this.notifyPromise !== null) return;
+        this.shards[snap.ref.path] = snap.get(this.field) || 0
+        if (this.notifyPromise !== null) return
         this.notifyPromise = schedule(() => {
-          // @ts-ignore
-          const sum = Object.values(this.shards).reduce((a, b) => a + b, 0);
+          const sum = Object.values(this.shards).reduce((a: any, b: any) => a + b, 0)
           observable({
             exists: true,
             data: () => sum,
-          });
-          this.notifyPromise = null;
-        });
-      });
-    });
+          })
+          this.notifyPromise = null
+        })
+      })
+    })
   }
 
   /**
@@ -116,11 +110,11 @@ export default class Counter {
    * counter.incrementBy(1);
    */
   incrementBy(val: number) {
-    const increment = admin.firestore.FieldValue.increment(val);
+    const increment: any = admin.firestore.FieldValue.increment(val);
     const update = this.field
       .split('.')
       .reverse()
-      .reduce((value: any, name: any) => ({ [name]: value }), increment);
+      .reduce((value, name) => ({ [name]: value }), increment);
     return this.doc
       .collection(SHARD_COLLECTION_ID)
       .doc(this.shardId)
@@ -137,7 +131,7 @@ export default class Counter {
    * shardRef.set({"counter1", firestore.FieldValue.Increment(1),
    *               "counter2", firestore.FieldValue.Increment(1));
    */
-  shard() {
-    return this.doc.collection(SHARD_COLLECTION_ID).doc(this.shardId);
+  shard () {
+    return this.doc.collection(SHARD_COLLECTION_ID).doc(this.shardId)
   }
 }

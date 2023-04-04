@@ -1,17 +1,17 @@
 /**
  * Product class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import LinkedObject from '../../firestore-core/core/LinkedObject';
-import * as Config from '../../firestore-core/config';
-import ProductMeta from './ProductMeta';
-import Catalog from '../roots/Catalog';
-import OptionSetMeta from './OptionSetMeta';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import LinkedObject from '../../firestore-core/core/LinkedObject'
+import ProductMeta from './ProductMeta'
+import Catalog from '../roots/Catalog'
+import OptionSetMeta from './OptionSetMeta'
 import {
   InventoryCount,
   LocationInventoryFromFirestore,
   LocationInventoryToFirestore,
-} from './InventoryCount';
+} from './InventoryCount'
+import * as Paths from '../../firestore-core/Paths'
 
 export class Product extends FirestoreObject<string> {
   // The product’s name, meant to be displayable to the customer.
@@ -72,7 +72,7 @@ export class Product extends FirestoreObject<string> {
 
   metaLinks(businessId: string): { [p: string]: string } {
     return {
-      [Catalog.docRef(businessId).path]: `${Config.Paths.CollectionNames.products}.${this.Id}`,
+      [Catalog.docRef(businessId).path]: `${Paths.CollectionNames.products}.${this.Id}`,
     };
   }
 
@@ -84,7 +84,7 @@ export class Product extends FirestoreObject<string> {
   }
 
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(Config.Paths.CollectionNames.products);
+    return Catalog.docRef(businessId).collection(Paths.CollectionNames.products);
   }
 
   static firestoreConverter = {

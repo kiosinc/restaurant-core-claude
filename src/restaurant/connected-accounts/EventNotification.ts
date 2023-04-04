@@ -1,10 +1,10 @@
 import * as firebase from 'firebase-admin/database';
-import * as Config from '../../firestore-core/config';
+import * as Constants from '../../firestore-core/Constants';
 
 export default class EventNotification {
   businessId: string;
 
-  provider: Config.Constants.Provider;
+  provider: Constants.Provider;
 
   type: string;
 
@@ -18,7 +18,7 @@ export default class EventNotification {
 
   constructor(
     businessId: string,
-    provider: Config.Constants.Provider,
+    provider: Constants.Provider,
     type: string,
     Id: string,
     meta?: { [p: string]: any } | null,

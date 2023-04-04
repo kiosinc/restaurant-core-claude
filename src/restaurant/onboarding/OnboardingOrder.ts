@@ -1,9 +1,9 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import Address from '../misc/Address';
-import { OrderLineItem } from '../orders/OrderV3';
-import { Onboarding } from '../roots/Onboarding';
-import * as Config from '../../firestore-core/config';
-import { OrderState } from '../orders/OrderSymbols';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import Address from '../misc/Address'
+import { OrderLineItem } from '../orders/OrderV3'
+import { Onboarding } from '../roots/Onboarding'
+import { OrderState } from '../orders/OrderSymbols'
+import * as Paths from '../../firestore-core/Paths'
 
 // draft- The starting status for all invoices. You can still edit the invoice at
 // this point. You can finalize the invoice to open, or delete it if it’s a one-off.
@@ -81,7 +81,7 @@ export class OnboardingOrder extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 
@@ -91,7 +91,7 @@ export class OnboardingOrder extends FirestoreObject<string> {
    * Order class CollectionReference for given business
    */
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Onboarding.docRef(businessId).collection(Config.Paths.CollectionNames.onboardingOrders);
+    return Onboarding.docRef(businessId).collection(Paths.CollectionNames.onboardingOrders);
   }
 
   /**

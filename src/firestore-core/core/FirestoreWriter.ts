@@ -49,7 +49,7 @@ export async function setT<C extends FirestoreObjectType>(
   converter: FirebaseFirestore.FirestoreDataConverter<C>,
   businessId: string,
   t: FirebaseFirestore.Transaction,
-  merge: boolean = false,
+  merge = false,
 ): Promise<BatchUpdateInfo[]> {
   const id = object.Id;
   const updatedObject = object;
@@ -166,7 +166,7 @@ export async function setT<C extends FirestoreObjectType>(
 async function deleteQueryBatch(query: FirebaseFirestore.Query,
   resolve: (value: number) => void,
   reject: (reason?: any) => void,
-  count: number = 0) {
+  count = 0) {
   const snapshot = await query.get();
 
   const batchSize = snapshot.size;
@@ -203,7 +203,7 @@ async function updateQueryBatch(
   data: FirebaseFirestore.UpdateData<any>,
   resolve: (value: number) => void,
   reject: (reason?: any) => void,
-  count: number = 0,
+  count = 0,
 ) {
   const snapshot = await query.get();
 
@@ -245,7 +245,7 @@ async function updateBatchInfo(updates: BatchUpdateInfo[],
   batchSize: number,
   resolve: (value: number) => void,
   reject: (reason?: any) => void,
-  count: number = 0) {
+  count = 0) {
   const updatesThisTick = updates.splice(0, Math.min(updates.length, batchSize));
   const thisBatchSize = updatesThisTick.length;
 
@@ -384,8 +384,8 @@ async function deleteT<C extends FirestoreObjectType>(
       .withConverter(productConverter);
     const querySnapshots = await t.get(query);
 
-    const catalogSnapshot = await Catalog.docRef(businessId)
-      .withConverter(Catalog.firestoreConverter).get();
+    // const catalogSnapshot = await Catalog.docRef(businessId)
+    //   .withConverter(Catalog.firestoreConverter).get();
 
     // Update the related objects that were successfully queried
     querySnapshots.docs.forEach((snapshot) => {

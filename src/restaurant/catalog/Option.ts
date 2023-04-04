@@ -1,13 +1,13 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import LinkedObject from '../../firestore-core/core/LinkedObject';
-import Catalog from '../roots/Catalog';
-import * as Config from '../../firestore-core/config';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import LinkedObject from '../../firestore-core/core/LinkedObject'
+import Catalog from '../roots/Catalog'
 import {
   InventoryCount,
   LocationInventoryFromFirestore,
   LocationInventoryToFirestore,
-} from './InventoryCount';
-import OptionMeta from './OptionMeta';
+} from './InventoryCount'
+import OptionMeta from './OptionMeta'
+import * as Paths from '../../firestore-core/Paths'
 
 export default class Option extends FirestoreObject<string> {
   name: string;
@@ -76,7 +76,7 @@ export default class Option extends FirestoreObject<string> {
    * CustomizationSet class CollectionReference for given business
    */
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(Config.Paths.CollectionNames.options);
+    return Catalog.docRef(businessId).collection(Paths.CollectionNames.options);
   }
 
   /**

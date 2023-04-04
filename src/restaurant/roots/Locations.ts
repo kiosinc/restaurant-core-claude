@@ -1,9 +1,9 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import { Business } from './Business';
-import * as Config from '../../firestore-core/config';
-import LocationMeta from '../locations/LocationMeta';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { Business } from './Business'
+import LocationMeta from '../locations/LocationMeta'
+import * as Paths from '../../firestore-core/Paths'
 
-const locationsKey = Config.Paths.CollectionNames.locations;
+const locationsKey = Paths.CollectionNames.locations;
 
 export default class Locations extends FirestoreObject<string> {
   locations: { [Id: string]: LocationMeta };
@@ -32,7 +32,7 @@ export default class Locations extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 

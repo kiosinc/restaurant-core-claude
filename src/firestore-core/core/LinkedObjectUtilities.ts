@@ -1,7 +1,7 @@
 /**
  * Sync Utility functions for LinkedObject
  */
-import * as Config from '../config';
+import * as Constants from '../Constants';
 import * as Writer from './FirestoreWriter';
 import LinkedObjectType from './LinkedObjectType';
 
@@ -36,7 +36,7 @@ export interface SyncResult<C> {
  */
 export async function isStopSync<C extends LinkedObjectType>(
   firestoreObject: C,
-  provider: Config.Constants.Provider,
+  provider: Constants.Provider,
   isSourceMarkedDelete: boolean,
   businessId: string,
 ): Promise<SyncResult<C> | void> {

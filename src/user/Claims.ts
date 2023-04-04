@@ -2,7 +2,7 @@
  * Claims module
  * Documents user claims
  */
-import { Constants } from '../firestore-core/config';
+import * as Constants from '../firestore-core/Constants';
 
 /** Claim body that contains the dictionary
  * of user roles for given businessId */

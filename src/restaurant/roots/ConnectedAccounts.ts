@@ -1,8 +1,8 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import { Business } from './Business';
-import * as Config from '../../firestore-core/config';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { Business } from './Business'
+import * as Paths from '../../firestore-core/Paths'
 
-const connectedAccountsKey = Config.Paths.CollectionNames.connectedAccounts;
+const connectedAccountsKey = Paths.CollectionNames.connectedAccounts;
 
 export default class ConnectedAccounts extends FirestoreObject<string> {
   tokens: { [provider: string] : { [key: string]: string } };
@@ -30,7 +30,7 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 

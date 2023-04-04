@@ -1,17 +1,17 @@
 /**
  * Order class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import LinkedObject from '../../firestore-core/core/LinkedObject';
-import * as Config from '../../firestore-core/config';
-import { Constants } from '../../firestore-core/config';
-import Orders from '../roots/Orders';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import LinkedObject from '../../firestore-core/core/LinkedObject'
+import * as Constants from '../../firestore-core/Constants'
+import Orders from '../roots/Orders'
 import {
   OrderState,
   OrderType,
   OrderTypeMeta,
   PaymentState,
-} from './OrderSymbols';
+} from './OrderSymbols'
+import * as Paths from '../../firestore-core/Paths'
 
 const VERSION = '3';
 
@@ -211,7 +211,7 @@ export class Order extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 
@@ -222,7 +222,7 @@ export class Order extends FirestoreObject<string> {
    */
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Orders.docRef(businessId).collection(
-      Config.Paths.CollectionNames.orders,
+      Paths.CollectionNames.orders,
     );
   }
 

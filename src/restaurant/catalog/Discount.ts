@@ -1,10 +1,10 @@
 /**
  * Discount class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import LinkedObject from '../../firestore-core/core/LinkedObject';
-import Catalog from '../roots/Catalog';
-import * as Config from '../../firestore-core/config';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import LinkedObject from '../../firestore-core/core/LinkedObject'
+import Catalog from '../roots/Catalog'
+import * as Paths from '../../firestore-core/Paths'
 
 export const enum DiscountType {
   percentage = 'percentage',
@@ -70,7 +70,7 @@ export class Discount extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 
@@ -81,7 +81,7 @@ export class Discount extends FirestoreObject<string> {
    */
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Catalog.docRef(businessId).collection(
-      Config.Paths.CollectionNames.discounts,
+      Paths.CollectionNames.discounts,
     );
   }
 

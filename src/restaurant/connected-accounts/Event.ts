@@ -1,6 +1,7 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import ConnectedAccounts from '../roots/ConnectedAccounts';
-import * as Config from '../../firestore-core/config';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import ConnectedAccounts from '../roots/ConnectedAccounts'
+import * as Constants from '../../firestore-core/Constants'
+import * as Paths from '../../firestore-core/Paths'
 
 export default class Event extends FirestoreObject<string> {
   readonly provider: string;
@@ -40,14 +41,14 @@ export default class Event extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 
   // STATICS
 
   static collectionRef(businessId: string) {
-    return ConnectedAccounts.docRef(businessId).collection(Config.Paths.CollectionNames.events);
+    return ConnectedAccounts.docRef(businessId).collection(Paths.CollectionNames.events);
   }
 
   static identifier(provider: string, type: string): string {
@@ -56,7 +57,7 @@ export default class Event extends FirestoreObject<string> {
 
   static find(
     businessId: string,
-    provider: Config.Constants.Provider,
+    provider: Constants.Provider,
     type: string,
   ) {
     const docId = Event.identifier(provider, type);

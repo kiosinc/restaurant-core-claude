@@ -1,10 +1,18 @@
 {
-    "extends": [
-        "airbnb-typescript/base"
-    ],
+    "root": true,
+    "parser": "@typescript-eslint/parser",
     "parserOptions": {
+        "ecmaVersion": 12,
+        "sourceType": "module",
         "project": "./tsconfig.json"
     },
+    "plugins": ["@typescript-eslint"],
+    "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
     "rules": {
+        "@typescript-eslint/no-unused-vars": "error"
+    },
+    "env": {
+        "node": true,
+        "es2020": true
     }
 }

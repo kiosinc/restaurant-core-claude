@@ -1,8 +1,8 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import { Business } from './Business';
-import * as Config from '../../firestore-core/config';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { Business } from './Business'
+import * as Paths from '../../firestore-core/Paths'
 
-const servicesKey = Config.Paths.CollectionNames.services;
+const servicesKey = Paths.CollectionNames.services;
 
 export default class Services extends FirestoreObject<string> {
   kioskFeeRate: number;
@@ -33,7 +33,7 @@ export default class Services extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 

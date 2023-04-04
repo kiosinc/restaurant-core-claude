@@ -1,7 +1,7 @@
 /**
  * FirestoreObject base class for objects that live on firestore
  */
-import * as firestore from 'firebase-admin/firestore';
+import * as firestore from 'firebase-admin/firestore'
 
 /**
  * FirestoreObject base class for objects that live on firestore
@@ -10,52 +10,49 @@ import * as firestore from 'firebase-admin/firestore';
  */
 export default abstract class FirestoreObject<C extends string | void> {
   // Firebase Document ID
-  readonly Id: string;
-
-  readonly created: Date;
-
-  updated: Date;
-
-  protected isDeleted: boolean;
-
-  /**
-   * CollectionReference to the database object for the given business
-   */
-  abstract collectionRef(businessId: C): FirebaseFirestore.CollectionReference;
-
-  /**
-   * The static paths where this database object's meta
-   * is written to, in the shape of {Path: string, Field: string}
-   */
-  abstract metaLinks(businessId: C): { [p: string]: string };
-
-  /**
-   * The metadata that is written to each meta link
-   */
-  abstract metadata(): any;
+  readonly Id: string
+  readonly created: Date
+  updated: Date
+  protected isDeleted: boolean
 
   /**
    * Create FirestoreObject
    * Intended to be called within a subclasses own constructor
    */
-  protected constructor(
+  protected constructor (
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
     Id?: string,
   ) {
-    const now = new Date();
+    const now = new Date()
 
-    this.created = created ?? now;
-    this.updated = updated ?? now;
-    this.Id = Id ?? FirestoreObject.autoId();
-    this.isDeleted = isDeleted ?? false;
+    this.created = created ?? now
+    this.updated = updated ?? now
+    this.Id = Id ?? FirestoreObject.autoId()
+    this.isDeleted = isDeleted ?? false
   }
 
   /**
    * Auto generate an unique ID using Firebase generation
    */
-  static autoId(): string {
-    return firestore.getFirestore().collection('default').doc().id;
+  static autoId (): string {
+    return firestore.getFirestore().collection('default').doc().id
   }
+
+  /**
+   * CollectionReference to the database object for the given business
+   */
+  abstract collectionRef (businessId: C): FirebaseFirestore.CollectionReference;
+
+  /**
+   * The static paths where this database object's meta
+   * is written to, in the shape of {Path: string, Field: string}
+   */
+  abstract metaLinks (businessId: C): { [p: string]: string };
+
+  /**
+   * The metadata that is written to each meta link
+   */
+  abstract metadata (): any;
 }

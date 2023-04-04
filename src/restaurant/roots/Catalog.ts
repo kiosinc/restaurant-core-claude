@@ -1,10 +1,10 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import { Business } from './Business';
-import * as Config from '../../firestore-core/config';
-import ProductMeta from '../catalog/ProductMeta';
-import CategoryMeta from '../catalog/CategoryMeta';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { Business } from './Business'
+import ProductMeta from '../catalog/ProductMeta'
+import CategoryMeta from '../catalog/CategoryMeta'
+import * as Paths from '../../firestore-core/Paths'
 
-const catalogKey = Config.Paths.CollectionNames.catalog;
+const catalogKey = Paths.CollectionNames.catalog;
 
 export default class Catalog extends FirestoreObject<string> {
   categories: { [Id: string]: CategoryMeta };
@@ -36,7 +36,7 @@ export default class Catalog extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 

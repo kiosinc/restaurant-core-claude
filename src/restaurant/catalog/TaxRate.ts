@@ -1,7 +1,7 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import LinkedObject from '../../firestore-core/core/LinkedObject';
-import Catalog from '../roots/Catalog';
-import * as Config from '../../firestore-core/config';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import LinkedObject from '../../firestore-core/core/LinkedObject'
+import Catalog from '../roots/Catalog'
+import * as Paths from '../../firestore-core/Paths'
 
 export default class TaxRate extends FirestoreObject<string> {
   name: string;
@@ -44,14 +44,14 @@ export default class TaxRate extends FirestoreObject<string> {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  metadata(): {} {
+  metadata(): Record<string, never> {
     return {};
   }
 
   // STATICS
 
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(Config.Paths.CollectionNames.taxRates);
+    return Catalog.docRef(businessId).collection(Paths.CollectionNames.taxRates);
   }
 
   static firestoreConverter = {

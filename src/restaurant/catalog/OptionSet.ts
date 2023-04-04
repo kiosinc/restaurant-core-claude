@@ -1,17 +1,17 @@
 /**
  * OptionSet class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-import LinkedObject from '../../firestore-core/core/LinkedObject';
-import Catalog from '../roots/Catalog';
-import * as Config from '../../firestore-core/config';
-import OptionMeta from './OptionMeta';
+import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import LinkedObject from '../../firestore-core/core/LinkedObject'
+import Catalog from '../roots/Catalog'
+import OptionMeta from './OptionMeta'
 import {
   InventoryCount,
   LocationInventoryFromFirestore,
   LocationInventoryToFirestore,
-} from './InventoryCount';
-import OptionSetMeta from './OptionSetMeta';
+} from './InventoryCount'
+import OptionSetMeta from './OptionSetMeta'
+import * as Paths from '../../firestore-core/Paths'
 
 export interface OptionSetSelection {
   minSelection: number
@@ -111,7 +111,7 @@ export default class OptionSet extends FirestoreObject<string> {
      * OptionSet class CollectionReference for given business
      */
   static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Catalog.docRef(businessId).collection(Config.Paths.CollectionNames.optionSets);
+    return Catalog.docRef(businessId).collection(Paths.CollectionNames.optionSets);
   }
 
   /**

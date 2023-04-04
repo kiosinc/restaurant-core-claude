@@ -5,7 +5,7 @@ export { default as LinkedObject } from './firestore-core/core/LinkedObject';
 export { default as LinkedObjectType } from './firestore-core/core/LinkedObjectType';
 export * as LinkedObjectSync from './firestore-core/core/LinkedObjectUtilities';
 
-export * from './firestore-core/config';
+export * from './firestore-core/Constants';
 
 export { default as Category } from './restaurant/catalog/Category';
 export { default as CategoryMeta } from './restaurant/catalog/CategoryMeta';
@@ -48,3 +48,4 @@ export * as OrderV3 from './restaurant/orders/OrderV3';
 export * as OrderSymbols from './restaurant/orders/OrderSymbols';
 export * as Utils from './utils';
 export * as Reports from './reports';
+export * as Paths from './firestore-core/Paths'

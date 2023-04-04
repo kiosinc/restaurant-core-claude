@@ -1,7 +1,7 @@
 /**
  * LinkedObject class
  */
-import * as Config from '../config';
+import * as Constants from '../Constants';
 
 /**
  * LinkedObject represents a direct relationship to another object
@@ -26,7 +26,7 @@ export default class LinkedObject {
    */
   static async find(
     linkedObjectId: string,
-    provider: Config.Constants.Provider,
+    provider: Constants.Provider,
     fromCollectionRef: FirebaseFirestore.CollectionReference,
     withConverter: FirebaseFirestore.FirestoreDataConverter<unknown>,
   ): Promise<unknown> {
@@ -51,7 +51,7 @@ export default class LinkedObject {
    */
   static findQuery(
     linkedObjectId: string,
-    provider: Config.Constants.Provider,
+    provider: Constants.Provider,
     fromCollectionRef: FirebaseFirestore.CollectionReference,
     withConverter: FirebaseFirestore.FirestoreDataConverter<unknown>,
   ): FirebaseFirestore.Query<unknown> {
