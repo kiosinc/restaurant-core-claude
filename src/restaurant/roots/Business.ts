@@ -1,6 +1,6 @@
+import * as firestore from 'firebase-admin/firestore';
 import FirestoreObject from '../../firestore-core/core/FirestoreObject';
 import * as Config from '../../firestore-core/config';
-import { firestore } from '../../firestore-core/firebaseApp';
 import BusinessProfile from '../misc/BusinessProfile';
 
 export enum BusinessType {

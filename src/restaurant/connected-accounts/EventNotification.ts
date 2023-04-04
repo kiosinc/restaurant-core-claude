@@ -1,6 +1,5 @@
-import { DataSnapshot } from 'firebase-admin/database';
+import * as firebase from 'firebase-admin/database';
 import * as Config from '../../firestore-core/config';
-import { firebase } from '../../firestore-core/firebaseApp';
 
 export default class EventNotification {
   businessId: string;
@@ -36,7 +35,7 @@ export default class EventNotification {
 
   refPath() {
     const notificationPath = `/private/notifications/${this.businessId}_${this.Id}`;
-    const notificationRef = firebase.ref(notificationPath);
+    const notificationRef = firebase.getDatabase().ref(notificationPath);
     return notificationRef;
   }
 
@@ -69,7 +68,7 @@ export default class EventNotification {
          * If the transaction completed and committed data to Firebase, the second argument will be true.
          * Regardless, the third argument will be a DataSnapshot containing the resulting data in this location.
          */
-        (error: Error | null, success: boolean, snapshot: DataSnapshot | null) => {
+        (error: Error | null, success: boolean, snapshot: firebase.DataSnapshot | null) => {
           if (error) {
             return reject(error);
           }

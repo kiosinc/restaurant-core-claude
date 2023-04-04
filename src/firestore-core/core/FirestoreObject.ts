@@ -1,7 +1,7 @@
 /**
  * FirestoreObject base class for objects that live on firestore
  */
-import { firestore } from '../firebaseApp';
+import * as firestore from 'firebase-admin/firestore';
 
 /**
  * FirestoreObject base class for objects that live on firestore
@@ -12,10 +12,8 @@ export default abstract class FirestoreObject<C extends string | void> {
   // Firebase Document ID
   readonly Id: string;
 
-  // TODO   make optional
   readonly created: Date;
 
-  // TODO   make optional
   updated: Date;
 
   protected isDeleted: boolean;

@@ -4,7 +4,7 @@
  */
 import { Request } from 'express';
 import './User+Request';
-import { auth } from '../firestore-core/firebaseApp';
+import * as auth from 'firebase-admin/auth';
 
 /**
  * Authenticates a request and injects resulting User

@@ -4,7 +4,7 @@
  */
 
 import { Query } from 'firebase-admin/database';
-import { firestore } from '../firebaseApp';
+import * as firestore from 'firebase-admin/firestore';
 import Category from '../../restaurant/catalog/Category';
 import { Product } from '../../restaurant/catalog/Product';
 import MenuGroup from '../../restaurant/surfaces/MenuGroup';
