@@ -1,7 +1,5 @@
-import { getDatabase } from 'firebase-admin/database';
-import { database } from 'firebase-admin';
+import * as firebase from 'firebase-admin/database';
 
-const db = getDatabase();
 
 export default class Semaphore {
   isAvailable: boolean;
@@ -38,7 +36,7 @@ export default class Semaphore {
   static ref(businessId: string, type: string) {
     const path = `/businesses/${businessId}/private/vars/semaphores/${type}`;
 
-    return db.ref(path);
+    return firebase.getDatabase().ref(path);
   }
 
   static async lock(

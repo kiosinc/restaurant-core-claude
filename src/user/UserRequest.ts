@@ -3,7 +3,7 @@
  * a User into the request
  */
 import { Request } from 'express';
-import './User+Request';
+// import './User+Request';
 import * as auth from 'firebase-admin/auth';
 
 /**

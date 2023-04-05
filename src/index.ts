@@ -1,11 +1,14 @@
 export * as Core from './firestore-core';
-export * as User from './user';
+
+export * as Authentication from './user/Authentication';
+export * as Claims from './user/Claims';
+export * as User from './user/User';
 
 export { default as LinkedObject } from './firestore-core/core/LinkedObject';
 export { default as LinkedObjectType } from './firestore-core/core/LinkedObjectType';
 export * as LinkedObjectSync from './firestore-core/core/LinkedObjectUtilities';
 
-export * from './firestore-core/Constants';
+export * as Constants from './firestore-core/Constants';
 
 export { default as Category } from './restaurant/catalog/Category';
 export { default as CategoryMeta } from './restaurant/catalog/CategoryMeta';
