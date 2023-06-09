@@ -1,4 +1,4 @@
 export * as GoogleCloudTask from './GoogleCloudTask';
-export { bigIntConverter } from './Utils';
+export { bigIntConverter } from './bigInt';
 export { Coordinates } from './geo'
 export { Period, BusinessHours } from './schedule'
