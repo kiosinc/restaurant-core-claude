@@ -1,4 +1,4 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import { Business } from './Business'
 import * as Constants from '../../firestore-core/Constants'
 import Menu from '../surfaces/Menu'
@@ -134,7 +134,7 @@ async function createOnboardingMenu(businessId: string, categoryIds: string[]) {
   return menu.Id;
 }
 
-export class Onboarding extends FirestoreObject<string> {
+export class Onboarding extends FirestoreObject {
   stripeCustomerId: string | null;
 
   onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus };
@@ -153,7 +153,7 @@ export class Onboarding extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? servicesKey);
+    super({ created, updated, isDeleted, Id: Id ?? servicesKey });
     this.stripeCustomerId = stripeCustomerId;
     if (onboardingStatus === null) {
       this.onboardingStatus = defaultOnboardingStatus;

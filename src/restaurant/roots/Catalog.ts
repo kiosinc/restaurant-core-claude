@@ -1,4 +1,4 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import { Business } from './Business'
 import ProductMeta from '../catalog/ProductMeta'
 import CategoryMeta from '../catalog/CategoryMeta'
@@ -6,7 +6,7 @@ import * as Paths from '../../firestore-core/Paths'
 
 const catalogKey = Paths.CollectionNames.catalog;
 
-export default class Catalog extends FirestoreObject<string> {
+export default class Catalog extends FirestoreObject {
   categories: { [Id: string]: CategoryMeta };
 
   products: { [Id: string]: ProductMeta };
@@ -19,7 +19,7 @@ export default class Catalog extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? catalogKey);
+    super( { created, updated, isDeleted, Id: Id ?? catalogKey });
 
     this.categories = categories;
     this.products = products;

@@ -1,10 +1,10 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import { Business } from './Business'
 import * as Paths from '../../firestore-core/Paths'
 
 const connectedAccountsKey = Paths.CollectionNames.connectedAccounts;
 
-export default class ConnectedAccounts extends FirestoreObject<string> {
+export default class ConnectedAccounts extends FirestoreObject {
   tokens: { [provider: string] : { [key: string]: string } };
 
   constructor(
@@ -14,7 +14,7 @@ export default class ConnectedAccounts extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? connectedAccountsKey);
+    super({ created, updated, isDeleted, Id: Id ?? connectedAccountsKey });
 
     this.tokens = tokens;
   }

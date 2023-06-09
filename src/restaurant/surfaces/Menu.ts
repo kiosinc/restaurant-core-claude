@@ -1,10 +1,10 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import Surfaces from '../roots/Surfaces'
 import MenuGroupMeta from './MenuGroupMeta'
 import MenuMeta from './MenuMeta'
 import * as Paths from '../../firestore-core/Paths'
 
-export default class Menu extends FirestoreObject<string> {
+export default class Menu extends FirestoreObject {
   static firestoreConverter = {
     toFirestore (menu: Menu): FirebaseFirestore.DocumentData {
       return {
@@ -67,7 +67,7 @@ export default class Menu extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id)
+    super({ created, updated, isDeleted, Id })
 
     this.name = name
     this.displayName = displayName

@@ -1,11 +1,11 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import { Business } from './Business'
 import LocationMeta from '../locations/LocationMeta'
 import * as Paths from '../../firestore-core/Paths'
 
 const locationsKey = Paths.CollectionNames.locations;
 
-export default class Locations extends FirestoreObject<string> {
+export default class Locations extends FirestoreObject {
   locations: { [Id: string]: LocationMeta };
 
   constructor(
@@ -16,7 +16,7 @@ export default class Locations extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? locationsKey);
+    super({created, updated, isDeleted, Id: Id ?? locationsKey});
 
     this.locations = locations;
   }

@@ -1,4 +1,4 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import { Business } from './Business'
 import { OrderType } from '../orders/OrderSymbols'
 import * as Paths from '../../firestore-core/Paths'
@@ -6,7 +6,7 @@ import * as Paths from '../../firestore-core/Paths'
 const ordersKey = Paths.CollectionNames.orders;
 const defaultGratuityRate = [10, 15, 20];
 
-export default class Orders extends FirestoreObject<string> {
+export default class Orders extends FirestoreObject {
   isSMSStateUpdate: boolean;
 
   isLoyaltyAccrue: boolean;
@@ -44,7 +44,7 @@ export default class Orders extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? ordersKey);
+    super({ created, updated, isDeleted, Id: Id ?? ordersKey });
 
     this.isSMSStateUpdate = isSMSStateUpdate;
     this.isLoyaltyAccrue = isLoyaltyAccrue;

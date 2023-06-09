@@ -1,10 +1,10 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import Surfaces from '../roots/Surfaces'
 import MenuGroupMeta from './MenuGroupMeta'
 import ProductMeta from '../catalog/ProductMeta'
 import * as Paths from '../../firestore-core/Paths'
 
-export default class MenuGroup extends FirestoreObject<string> {
+export default class MenuGroup extends FirestoreObject {
   // The group's name, meant to be displayable to the customer.
   name: string;
 
@@ -31,7 +31,7 @@ export default class MenuGroup extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
     this.name = name;
 
     this.products = products;

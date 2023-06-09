@@ -9,7 +9,7 @@ import Category from '../../restaurant/catalog/Category';
 import { Product } from '../../restaurant/catalog/Product';
 import MenuGroup from '../../restaurant/surfaces/MenuGroup';
 import { Business } from '../../restaurant/roots/Business';
-import FirestoreObjectType from './FirestoreObjectType';
+import { FirestoreObject } from './FirestoreObject';
 import Catalog from '../../restaurant/roots/Catalog';
 import ConnectedAccounts from '../../restaurant/roots/ConnectedAccounts';
 import Surfaces from '../../restaurant/roots/Surfaces';
@@ -44,7 +44,7 @@ function batchUpdateInfo(
  * Writes this object and it's metadata to the store,
  * and also updates relevant relationships
  */
-export async function setT<C extends FirestoreObjectType>(
+export async function setT<C extends FirestoreObject>(
   object: C,
   converter: FirebaseFirestore.FirestoreDataConverter<C>,
   businessId: string,
@@ -331,11 +331,11 @@ export async function updateBatch(updates: BatchUpdateInfo[], batchSize: number)
  * Writes this object and it's metadata to the store,
  * and also updates relevant relationships
  */
-export async function setObject<C extends FirestoreObjectType>(
+export async function setObject<C extends FirestoreObject>(
   object: C,
   converter: FirebaseFirestore.FirestoreDataConverter<C>,
   businessId: string,
-  merge: boolean = false,
+  merge = false,
 ) {
   const id = object.Id;
   const result = object.collectionRef(businessId).doc(id).withConverter(converter);
@@ -357,7 +357,7 @@ export async function setObject<C extends FirestoreObjectType>(
 /**
  * Delete a firestore object using recursive (if needed) batched transactions
  */
-async function deleteT<C extends FirestoreObjectType>(
+async function deleteT<C extends FirestoreObject>(
   object: C,
   businessId: string,
   t: FirebaseFirestore.Transaction,
@@ -477,7 +477,7 @@ async function deleteT<C extends FirestoreObjectType>(
  * Permanently deletes the object from firestore
  * including all metadata and related objects
  */
-export function deleteObject<C extends FirestoreObjectType>(
+export function deleteObject<C extends FirestoreObject>(
   object: C,
   businessId: string,
 ) {
@@ -489,7 +489,7 @@ export function deleteObject<C extends FirestoreObjectType>(
  * Updates the object on firestore
  * NOT including all metadata and related objects
  */
-export function updateObject<C extends FirestoreObjectType>(
+export function updateObject<C extends FirestoreObject>(
   object: C,
   data: {},
   businessId: string,

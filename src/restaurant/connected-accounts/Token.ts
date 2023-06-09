@@ -1,8 +1,8 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import ConnectedAccounts from '../roots/ConnectedAccounts'
 import * as Paths from '../../firestore-core/Paths'
 
-export default abstract class Token extends FirestoreObject<void> {
+export default abstract class Token extends FirestoreObject {
   createdBy: string;
 
   businessId: string;
@@ -19,7 +19,7 @@ export default abstract class Token extends FirestoreObject<void> {
     updated?: Date,
     isDeleted?: boolean,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
 
     this.createdBy = createdBy;
     this.businessId = businessId;

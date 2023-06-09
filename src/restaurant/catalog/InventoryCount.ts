@@ -1,8 +1,3 @@
-// import FirestoreObject from '../../firestore-core/core/FirestoreObject';
-// import { Business } from './Business';
-// import * as Config from '../../firestore-core/config';
-
-// const inventoryKey = Config.Paths.CollectionNames.locationInventory;
 
 // TODO change to camel case
 export const enum InventoryCountState {

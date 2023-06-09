@@ -1,10 +1,10 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import { Business } from './Business'
 import * as Paths from '../../firestore-core/Paths'
 
 const servicesKey = Paths.CollectionNames.services;
 
-export default class Services extends FirestoreObject<string> {
+export default class Services extends FirestoreObject {
   kioskFeeRate: number;
 
   experiments: { [key: string]: boolean };
@@ -17,7 +17,7 @@ export default class Services extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? servicesKey);
+    super({ created, updated, isDeleted, Id: Id ?? servicesKey });
     this.kioskFeeRate = kioskFeeRate ?? 1.5;
     this.experiments = experiments ?? {};
   }

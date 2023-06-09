@@ -1,4 +1,4 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import Catalog from '../roots/Catalog'
 import {
@@ -9,7 +9,7 @@ import {
 import OptionMeta from './OptionMeta'
 import * as Paths from '../../firestore-core/Paths'
 
-export default class Option extends FirestoreObject<string> {
+export default class Option extends FirestoreObject {
   name: string;
 
   // The additional cost of the attribute as an integer in the smallest currency unit.
@@ -41,7 +41,7 @@ export default class Option extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
 
     this.name = name;
     this.price = price;

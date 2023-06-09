@@ -1,7 +1,7 @@
 /**
  * Discount class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import Catalog from '../roots/Catalog'
 import * as Paths from '../../firestore-core/Paths'
@@ -16,7 +16,7 @@ export const enum DiscountType {
  * Discount class extends FirestoreObject
  * Discounts apply to products
  */
-export class Discount extends FirestoreObject<string> {
+export class Discount extends FirestoreObject {
   name: string;
 
   description: string;
@@ -47,7 +47,7 @@ export class Discount extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
     this.name = name;
     this.description = description;
     this.couponCode = couponCode;

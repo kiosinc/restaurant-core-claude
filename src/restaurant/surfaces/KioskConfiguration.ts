@@ -1,10 +1,10 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import Surfaces from '../roots/Surfaces'
 import * as Paths from '../../firestore-core/Paths'
 
 const kioskConfigurationVersion = '0.0';
 
-export default class KioskConfiguration extends FirestoreObject<string> {
+export default class KioskConfiguration extends FirestoreObject {
   name: string;
 
   unlockCode: string | null;
@@ -23,7 +23,7 @@ export default class KioskConfiguration extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({ created, updated, isDeleted, Id });
 
     this.name = name;
     this.unlockCode = unlockCode;

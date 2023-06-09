@@ -1,9 +1,9 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import Catalog from '../roots/Catalog'
 import * as Paths from '../../firestore-core/Paths'
 
-export default class TaxRate extends FirestoreObject<string> {
+export default class TaxRate extends FirestoreObject {
   name: string;
 
   rate: number;
@@ -25,7 +25,7 @@ export default class TaxRate extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
     this.name = name;
     this.rate = rate;
     this.isCalculatedSubTotalPhase = isCalculatedSubTotalPhase;

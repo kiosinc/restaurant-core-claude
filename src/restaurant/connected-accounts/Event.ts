@@ -1,9 +1,9 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import ConnectedAccounts from '../roots/ConnectedAccounts'
 import * as Constants from '../../firestore-core/Constants'
 import * as Paths from '../../firestore-core/Paths'
 
-export default class Event extends FirestoreObject<string> {
+export default class Event extends FirestoreObject {
   readonly provider: string;
 
   readonly type: string;
@@ -23,7 +23,7 @@ export default class Event extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? Event.identifier(provider, type));
+    super({ created, updated, isDeleted, Id: Id ?? Event.identifier(provider, type) });
     this.provider = provider;
     this.type = type;
     this.isSync = isSync;

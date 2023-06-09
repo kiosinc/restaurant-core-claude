@@ -1,4 +1,4 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import Address from '../misc/Address'
 import { OrderLineItem } from '../orders/OrderV3'
 import { Onboarding } from '../roots/Onboarding'
@@ -26,7 +26,7 @@ export const enum InvoiceStatus {
   uncollectible = 'uncollectible',
 }
 
-export class OnboardingOrder extends FirestoreObject<string> {
+export class OnboardingOrder extends FirestoreObject {
   invoiceId: string;
 
   invoiceStatus: InvoiceStatus;
@@ -57,7 +57,7 @@ export class OnboardingOrder extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
     this.invoiceId = invoiceId;
     this.invoiceStatus = invoiceStatus;
     this.shippingTrackingNumber = shippingTrackingNumber;

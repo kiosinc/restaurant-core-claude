@@ -1,4 +1,4 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import Catalog from '../roots/Catalog'
 import * as Paths from '../../firestore-core/Paths'
@@ -8,7 +8,7 @@ export const enum ServiceChargeType {
   number = 'number',
 }
 
-export class ServiceCharge extends FirestoreObject<string> {
+export class ServiceCharge extends FirestoreObject {
   name: string;
 
   value: number;
@@ -33,7 +33,7 @@ export class ServiceCharge extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
     this.name = name;
     this.value = value;
     this.type = type;

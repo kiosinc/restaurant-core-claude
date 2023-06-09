@@ -1,4 +1,4 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import { Business } from './Business'
 import MenuGroupMeta from '../surfaces/MenuGroupMeta'
 import MenuMeta from '../surfaces/MenuMeta'
@@ -6,7 +6,7 @@ import * as Paths from '../../firestore-core/Paths'
 
 const surfacesKey = Paths.CollectionNames.surfaces;
 
-export default class Surfaces extends FirestoreObject<string> {
+export default class Surfaces extends FirestoreObject {
   menus: { [Id: string]: MenuMeta };
 
   menuGroups: { [Id: string]: MenuGroupMeta };
@@ -20,7 +20,7 @@ export default class Surfaces extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id ?? surfacesKey);
+    super({ created, updated, isDeleted, Id: Id ?? surfacesKey });
 
     this.menus = menus;
     this.menuGroups = menuGroups;

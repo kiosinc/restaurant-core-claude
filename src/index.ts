@@ -1,3 +1,6 @@
+import { initializeApp } from 'firebase-admin/app'
+initializeApp()
+
 export * as Core from './firestore-core';
 
 export * as Authentication from './user/Authentication';
@@ -40,7 +43,7 @@ export * from './restaurant/catalog/Discount';
 export { default as Orders } from './restaurant/roots/Orders';
 export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';
 export { default as Locations } from './restaurant/roots/Locations';
-export { default as Location } from './restaurant/locations/Location';
+export { Location, LocationProps } from './restaurant/locations/Location';
 export { default as LocationMeta } from './restaurant/locations/LocationMeta';
 export {
   InventoryCount, InventoryCountState, LocationInventoryFromFirestore, LocationInventoryToFirestore,

@@ -1,7 +1,7 @@
 /**
  * OptionSet class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import Catalog from '../roots/Catalog'
 import OptionMeta from './OptionMeta'
@@ -23,7 +23,7 @@ export interface OptionSetSelection {
   // the override functionality- no if ubiquitous set selections apply
 }
 
-export default class OptionSet extends FirestoreObject<string> {
+export default class OptionSet extends FirestoreObject {
   name: string;
 
   options: { [Id: string]: OptionMeta };
@@ -69,7 +69,7 @@ export default class OptionSet extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
 
     this.name = name;
     this.options = options;

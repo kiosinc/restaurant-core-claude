@@ -1,4 +1,4 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import Surfaces from '../roots/Surfaces'
 import * as Paths from '../../firestore-core/Paths'
 
@@ -65,7 +65,7 @@ export interface TipConfiguration {
 
 const surfaceVersion = '0.0';
 
-export class SurfaceConfiguration extends FirestoreObject<string> {
+export class SurfaceConfiguration extends FirestoreObject {
   name: string;
 
   // Charge customers service fee
@@ -92,7 +92,7 @@ export class SurfaceConfiguration extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
 
     this.name = name;
     this.isChargeCustomerServiceFee = isChargeCustomerServiceFee;

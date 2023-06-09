@@ -1,7 +1,7 @@
 /**
  * Order class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import * as Constants from '../../firestore-core/Constants'
 import Orders from '../roots/Orders'
@@ -75,7 +75,7 @@ export interface OrderPayment {
 /**
  * Order class extends FirestoreObject
  */
-export class Order extends FirestoreObject<string> {
+export class Order extends FirestoreObject {
   readonly version: string;
 
   businessId: string;
@@ -164,7 +164,7 @@ export class Order extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
 
     this.posProvider = posProvider ?? Constants.Provider.system;
     this.state = state ?? OrderState.new;

@@ -1,7 +1,7 @@
 /**
  * Category class
  */
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import ProductMeta from './ProductMeta'
 import CategoryMeta from './CategoryMeta'
@@ -13,7 +13,7 @@ import * as Paths from '../../firestore-core/Paths'
  * Categories are exclusive groups (organizers) products.
  * A product can have a category, but it's not required.
  */
-export default class Category extends FirestoreObject<string> {
+export default class Category extends FirestoreObject {
   name: string;
 
   products: { [Id: string]: ProductMeta };
@@ -35,7 +35,7 @@ export default class Category extends FirestoreObject<string> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
 
     this.name = name;
     this.products = products;

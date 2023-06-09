@@ -1,50 +1,100 @@
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject, FirestoreObjectProps } from '../../firestore-core'
 import Locations from '../roots/Locations'
-import LocationMeta from './LocationMeta'
 import Address from '../misc/Address'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import * as Paths from '../../firestore-core/Paths'
+import { BusinessHours } from '../../utils/schedule'
+import { Coordinates } from '../../utils/geo'
+import { OrderType } from '../orders/OrderSymbols'
 
-export default class Location extends FirestoreObject<string> {
-  name: string;
+export interface LocationProps {
+  name: string
+  isActive: boolean
+  linkedObjects: { [Id: string]: LinkedObject }
+  address: Address
+  isPrimary: boolean
+  dailyOrderCounter: number
+  formattedAddress: string | null
+  displayName: string | null
+  menuId: string | null
+  imageUrls: string[]
+  orderTypes: OrderType[] | null
+  checkoutOptionsId: string | null
+  geoCoordinates: Coordinates | null
+  utcOffset: number | null
+  businessHours: BusinessHours | null
+}
 
-  isActive: boolean;
+const ref = (businessId: string) => Locations.docRef(businessId).collection(Paths.CollectionNames.locations)
 
-  // isInventoryTracking: boolean;
-
-  linkedObjects: { [Id: string]: LinkedObject };
-
-  address: Address;
-
-  isPrimary: boolean;
-
-  dailyOrderCounter: number;
-
-  constructor(
-    name: string,
-    isActive: boolean,
-    linkedObjects: { [Id: string]: LinkedObject },
-    address: Address,
-    isPrimary?: boolean,
-    dailyOrderCounter?: number,
-    created?: Date,
-    updated?: Date,
-    isDeleted?: boolean,
-    Id?: string,
-  ) {
-    super(created, updated, isDeleted, Id);
-
-    this.name = name;
-    this.isActive = isActive;
-    this.linkedObjects = linkedObjects;
-    this.address = address;
-    this.isPrimary = isPrimary ?? false;
-    this.dailyOrderCounter = dailyOrderCounter ?? 0;
+export class Location extends FirestoreObject {
+  static firestoreConverter = {
+    toFirestore (location: Location): FirebaseFirestore.DocumentData {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { Id, ...data } = location
+      return data
+    },
+    fromFirestore (snapshot: FirebaseFirestore.QueryDocumentSnapshot): Location {
+      const data = snapshot.data() as LocationProps & FirestoreObjectProps
+      data.Id = snapshot.id
+      return new Location(data)
+    },
   }
 
+  static collectionRef (businessId: string): FirebaseFirestore.CollectionReference {
+    return ref(businessId)
+  }
+
+  static get(businessId: string, Id: string) {
+    return ref(businessId).doc(Id).withConverter(this.firestoreConverter).get()
+  }
+
+  static set(businessId: string, obj: Location) {
+    return ref(businessId).doc(obj.Id).withConverter(this.firestoreConverter).set(obj)
+  }
+
+  static readonly dailyOrderCounterFieldName = 'dailyOrderCounter'
+
+  name: string
+  isActive: boolean
+  linkedObjects: { [Id: string]: LinkedObject }
+  address: Address
+  isPrimary: boolean
+  dailyOrderCounter: number
+  formattedAddress: string | null
+  displayName: string | null
+  menuId: string | null
+  imageUrls: string[]
+  orderTypes: OrderType[] | null
+  checkoutOptionsId: string | null
+  geoCoordinates: Coordinates | null
+  utcOffset: number | null
+  businessHours: BusinessHours | null
+
+  constructor (props: LocationProps & FirestoreObjectProps) {
+    super(props)
+
+    this.name = props.name
+    this.isActive = props.isActive
+    this.linkedObjects = props.linkedObjects
+    this.address = props.address
+    this.formattedAddress = props.formattedAddress ?? null
+    this.displayName = props.displayName ?? null
+    this.menuId = props.menuId ?? null
+    this.imageUrls = props.imageUrls ?? []
+    this.orderTypes = props.orderTypes ?? null
+    this.checkoutOptionsId = props.checkoutOptionsId ?? null
+    this.geoCoordinates = props.geoCoordinates ?? null
+    this.utcOffset = props.utcOffset ?? null
+    this.businessHours = props.businessHours ?? null
+    this.isPrimary = props.isPrimary ?? false
+    this.dailyOrderCounter = props.dailyOrderCounter ?? 0
+  }
+
+  /** delete */
   // eslint-disable-next-line class-methods-use-this
   collectionRef(businessId: string) {
-    return Location.collectionRef(businessId);
+    return ref(businessId);
   }
 
   metaLinks(businessId: string): { [p: string]: string } {
@@ -53,50 +103,11 @@ export default class Location extends FirestoreObject<string> {
     };
   }
 
-  metadata(): LocationMeta {
+  metadata(): any {
     return {
       name: this.name,
       isActive: this.isActive,
     };
   }
-
-  // STATICS
-
-  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Locations.docRef(businessId).collection(Paths.CollectionNames.locations);
-  }
-
-  static firestoreConverter = {
-    toFirestore(location: Location): FirebaseFirestore.DocumentData {
-      return {
-        name: location.name,
-        isActive: location.isActive,
-        linkedObjects: JSON.parse(JSON.stringify(location.linkedObjects)),
-        address: Address.firestoreConverter.toFirestore(location.address),
-        isPrimary: location.isPrimary,
-        dailyOrderCounter: location.dailyOrderCounter,
-        created: location.created.toISOString(),
-        updated: location.updated.toISOString(),
-        isDeleted: location.isDeleted,
-      };
-    },
-    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): Location {
-      const data = snapshot.data();
-
-      return new Location(
-        data.name,
-        data.isActive,
-        data.linkedObjects,
-        data.address,
-        data.isPrimary,
-        data.dailyOrderCounter ?? 0,
-        new Date(data.created),
-        new Date(data.updated),
-        data.isDeleted,
-        snapshot.id,
-      );
-    },
-  };
-
-  static dailyOrderCounterFieldName = 'dailyOrderCounter';
+  /** delete */
 }

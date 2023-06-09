@@ -1,5 +1,5 @@
 import * as firestore from 'firebase-admin/firestore'
-import FirestoreObject from '../../firestore-core/core/FirestoreObject'
+import { FirestoreObject } from '../../firestore-core'
 import * as Constants from '../../firestore-core/Constants'
 import BusinessProfile from '../misc/BusinessProfile'
 import * as Paths from '../../firestore-core/Paths'
@@ -8,7 +8,7 @@ export enum BusinessType {
   restaurant = 'restaurant',
 }
 
-export class Business extends FirestoreObject<void> {
+export class Business extends FirestoreObject {
   agent: string;
 
   createdBy: string;
@@ -30,7 +30,7 @@ export class Business extends FirestoreObject<void> {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    super(created, updated, isDeleted, Id);
+    super({created, updated, isDeleted, Id});
     this.agent = agent;
     this.createdBy = createdBy;
     this.type = type;
