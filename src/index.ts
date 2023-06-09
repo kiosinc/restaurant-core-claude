@@ -1,6 +1,3 @@
-import { initializeApp } from 'firebase-admin/app'
-initializeApp()
-
 export * as Core from './firestore-core';
 
 export * as Authentication from './user/Authentication';
