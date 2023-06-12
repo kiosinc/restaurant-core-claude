@@ -1,4 +1,4 @@
-import { FirestoreObject, FirestoreObjectProps } from '../../firestore-core'
+import { FirestoreObject, FirestoreObjectPropsV2 } from '../../firestore-core'
 import Locations from '../roots/Locations'
 import Address from '../misc/Address'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
@@ -35,7 +35,7 @@ export class Location extends FirestoreObject {
       return data
     },
     fromFirestore (snapshot: FirebaseFirestore.QueryDocumentSnapshot): Location {
-      const data = snapshot.data() as LocationProps & FirestoreObjectProps
+      const data = snapshot.data() as LocationProps & FirestoreObjectPropsV2
       data.Id = snapshot.id
       return new Location(data)
     },
@@ -71,7 +71,7 @@ export class Location extends FirestoreObject {
   utcOffset: number | null
   businessHours: BusinessHours | null
 
-  constructor (props: LocationProps & FirestoreObjectProps) {
+  constructor (props: LocationProps & FirestoreObjectPropsV2) {
     super(props)
 
     this.name = props.name
