@@ -53,6 +53,7 @@ export interface OptionConfig {
 
 // Discount, gift cards, and referral
 export interface FulfillmentOption {
+  isEnabled: boolean
   scheduleOptions: ScheduleOptions
   contactOptions: ContactOptions
   manualIdOptions: ManualIdOptions
@@ -104,10 +105,11 @@ export class CheckoutOptions extends FirestoreObjectV2 {
 
   async update() {
     this.updated = new Date()
+    const data = FirestoreObjectV2.firestoreConverter.toFirestore(this)
     return await ref(this.businessId)
       .doc(this.Id)
       .withConverter(FirestoreObjectV2.firestoreConverter)
-      .update(this)
+      .update(data)
   }
 
   static async get (businessId: string, Id: string) {
