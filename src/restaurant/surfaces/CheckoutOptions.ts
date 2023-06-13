@@ -59,19 +59,19 @@ export interface FulfillmentOption {
   options: OptionConfig[]
 }
 
-export interface CheckoutOptionsProps extends FirestoreObjectPropsV2{
+export interface CheckoutOptionsProps extends FirestoreObjectPropsV2 {
   name: string
   discounts: DiscountOptions
   giftCards: GiftCardOptions
   referralCodes: ReferralCodeOptions
-  tipOptions?: TipOptions
+  tipOptions: TipOptions | null
   fulfillmentOptions: { [key in OrderSymbols.OrderType]?: FulfillmentOption }
 }
 
 /**
  *
  */
-const path = 'CheckoutOptions'
+const path = 'checkoutOptions'
 const ref = (businessId: string) => Surfaces.docRef(businessId)
                                             .collection(path)
 
@@ -80,10 +80,10 @@ export class CheckoutOptions extends FirestoreObjectV2 {
   discounts: DiscountOptions
   giftCards: GiftCardOptions
   referralCodes: ReferralCodeOptions
-  tipOptions?: TipOptions
+  tipOptions: TipOptions | null
   fulfillmentOptions: { [key in OrderSymbols.OrderType]?: FulfillmentOption }
 
-  constructor (props: CheckoutOptionsProps & FirestoreObjectPropsV2) {
+  constructor (props: CheckoutOptionsProps) {
     super(props)
 
     this.name = props.name
@@ -94,14 +94,24 @@ export class CheckoutOptions extends FirestoreObjectV2 {
     this.fulfillmentOptions = props.fulfillmentOptions
   }
 
-  set (businessId: string) {
-    return ref(businessId)
+  set () {
+    this.updated = new Date()
+    return ref(this.businessId)
       .doc(this.Id)
       .withConverter(FirestoreObjectV2.firestoreConverter)
       .set(this)
   }
 
-  async get (businessId: string, Id: string) {
+  async update() {
+    this.updated = new Date()
+    return await ref(this.businessId)
+      .doc(this.Id)
+      .withConverter(FirestoreObjectV2.firestoreConverter)
+      .update(this)
+  }
+
+  static async get (businessId: string, Id: string) {
+
     const request = await ref(businessId)
       .doc(Id)
       .withConverter(FirestoreObjectV2.firestoreConverter)
@@ -111,6 +121,9 @@ export class CheckoutOptions extends FirestoreObjectV2 {
       return
     }
 
-    return new CheckoutOptions(request.data())
+    const props = request.data()
+    props.businessId = businessId
+
+    return new CheckoutOptions(props)
   }
 }
