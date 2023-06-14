@@ -59,9 +59,8 @@ export abstract class FirestoreObjectV2 implements FirestoreObjectPropsV2 {
   }
 
   async updateGeneric (documentReference: FirebaseFirestore.DocumentReference) {
-    const data = FirestoreObjectV2.firestoreConverter.toFirestore(this)
-
     this.updated = new Date()
+    const data = FirestoreObjectV2.firestoreConverter.toFirestore(this)
     return documentReference
       .withConverter(FirestoreObjectV2.firestoreConverter)
       .update(data)
