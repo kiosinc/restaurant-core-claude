@@ -51,6 +51,21 @@ export abstract class FirestoreObjectV2 implements FirestoreObjectPropsV2 {
     this.isDeleted = props.isDeleted ?? false
   }
 
+  async setGeneric (documentReference: FirebaseFirestore.DocumentReference) {
+    this.updated = new Date()
+    return documentReference
+      .withConverter(FirestoreObjectV2.firestoreConverter)
+      .set(this)
+  }
+
+  async updateGeneric (documentReference: FirebaseFirestore.DocumentReference) {
+    const data = FirestoreObjectV2.firestoreConverter.toFirestore(this)
+
+    this.updated = new Date()
+    return documentReference
+      .withConverter(FirestoreObjectV2.firestoreConverter)
+      .update(data)
+  }
   /**
    * Auto generate an unique ID using Firebase generation
    */
@@ -73,5 +88,24 @@ export abstract class FirestoreObjectV2 implements FirestoreObjectPropsV2 {
 
       return data
     },
+  }
+
+  static async getGeneric<T extends FirestoreObjectV2>(
+    businessId: string,
+    documentReference: FirebaseFirestore.DocumentReference,
+    object: { new (...args: any[]): T }) {
+
+    const request = await documentReference
+      .withConverter(FirestoreObjectV2.firestoreConverter)
+      .get()
+
+    if (!request.data()) {
+      return
+    }
+
+    const props = request.data()
+    props.businessId = businessId
+
+    return new object(props)
   }
 }

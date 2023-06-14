@@ -1,5 +1,5 @@
 import * as OrderSymbols from '../orders/OrderSymbols'
-import { FirestoreObjectV2, FirestoreObjectPropsV2 } from '../../firestore-core/core/FirestoreObjectV2'
+import { FirestoreObjectV2, FirestoreObjectPropsV2 } from '../../firestore-core'
 import Surfaces from '../roots/Surfaces'
 
 export interface TipOptions {
@@ -41,8 +41,7 @@ export interface ManualIdConfig {
 }
 
 export enum CheckoutOptionType {
-  switch = 'switch',
-  quantity = 'quantity'
+  switch = 'switch', quantity = 'quantity'
 }
 
 export interface OptionConfig {
@@ -76,7 +75,7 @@ const path = 'checkoutOptions'
 const ref = (businessId: string) => Surfaces.docRef(businessId)
                                             .collection(path)
 
-export class CheckoutOptions extends FirestoreObjectV2 {
+export class CheckoutOptions extends FirestoreObjectV2 implements CheckoutOptionsProps {
   name: string
   discounts: DiscountOptions
   giftCards: GiftCardOptions
@@ -95,37 +94,36 @@ export class CheckoutOptions extends FirestoreObjectV2 {
     this.fulfillmentOptions = props.fulfillmentOptions
   }
 
-  set () {
-    this.updated = new Date()
-    return ref(this.businessId)
-      .doc(this.Id)
-      .withConverter(FirestoreObjectV2.firestoreConverter)
-      .set(this)
-  }
-
-  async update() {
-    this.updated = new Date()
-    const data = FirestoreObjectV2.firestoreConverter.toFirestore(this)
-    return await ref(this.businessId)
-      .doc(this.Id)
-      .withConverter(FirestoreObjectV2.firestoreConverter)
-      .update(data)
-  }
-
   static async get (businessId: string, Id: string) {
+    const doc = ref(businessId).doc(Id)
 
-    const request = await ref(businessId)
-      .doc(Id)
-      .withConverter(FirestoreObjectV2.firestoreConverter)
-      .get()
+    return super.getGeneric(businessId, doc, CheckoutOptions)
 
-    if (!request.data()) {
-      return
-    }
+    // const request = await ref(businessId)
+    //   .doc(Id)
+    //   .withConverter(FirestoreObjectV2.firestoreConverter)
+    //   .get()
+    //
+    // if (!request.data()) {
+    //   return
+    // }
+    //
+    // const props = request.data()
+    // props.businessId = businessId
+    //
+    // return new CheckoutOptions(props)
+  }
 
-    const props = request.data()
-    props.businessId = businessId
+  async set () {
+    const doc = ref(this.businessId)
+      .doc(this.Id)
 
-    return new CheckoutOptions(props)
+    return super.setGeneric(doc)
+  }
+
+  async update () {
+    const doc = ref(this.businessId)
+      .doc(this.Id)
+    return super.updateGeneric(doc)
   }
 }

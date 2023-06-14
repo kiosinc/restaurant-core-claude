@@ -1,82 +1,52 @@
-import { FirestoreObject } from '../../firestore-core'
+import {
+  FirestoreObjectV2,
+  FirestoreObjectPropsV2,
+} from '../../firestore-core/core/FirestoreObjectV2'
 import Surfaces from '../roots/Surfaces'
-import * as Paths from '../../firestore-core/Paths'
 
-const kioskConfigurationVersion = '0.0';
-
-export default class KioskConfiguration extends FirestoreObject {
+export interface KioskOptionProps extends FirestoreObjectPropsV2 {
   name: string;
-
   unlockCode: string | null;
-
-  surfaceConfigurationId: string | null;
-
+  checkoutOptionId: string | null;
   version: string;
+}
 
-  constructor(
-    name: string,
-    unlockCode: string | null,
-    surfaceConfigurationId: string | null,
-    version?: string,
-    created?: Date,
-    updated?: Date,
-    isDeleted?: boolean,
-    Id?: string,
-  ) {
-    super({ created, updated, isDeleted, Id });
+const kioskConfigurationVersion = '1.0'
+const path = 'kioskConfigurations'
+const ref = (businessId: string) => Surfaces.docRef(businessId).collection(path)
 
-    this.name = name;
-    this.unlockCode = unlockCode;
-    this.surfaceConfigurationId = surfaceConfigurationId;
-    this.version = version ?? kioskConfigurationVersion;
+export default class KioskConfiguration extends FirestoreObjectV2 implements KioskOptionProps {
+
+  name: string
+  unlockCode: string | null
+  checkoutOptionId: string | null
+  version: string
+
+  constructor (props: KioskOptionProps) {
+    super(props)
+
+    this.name = props.name
+    this.unlockCode = props.unlockCode
+    this.checkoutOptionId = props.checkoutOptionId
+    this.version = props.version ?? kioskConfigurationVersion
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  collectionRef(businessId: string) {
-    return KioskConfiguration.collectionRef(businessId);
+  async set () {
+    const doc = ref(this.businessId)
+      .doc(this.Id)
+
+    return super.setGeneric(doc)
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  metaLinks(): { [p: string]: string } {
-    return {};
+  async update () {
+    const doc = ref(this.businessId)
+      .doc(this.Id)
+    return super.updateGeneric(doc)
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  metadata(): Record<string, never> {
-    return {};
+  static async get (businessId: string, Id: string) {
+    const doc = ref(businessId).doc(Id)
+
+    return super.getGeneric(businessId, doc, KioskConfiguration)
   }
-
-  // STATICS
-
-  static collectionRef(businessId: string): FirebaseFirestore.CollectionReference {
-    return Surfaces.docRef(businessId).collection(Paths.CollectionNames.kioskConfigurations);
-  }
-
-  static firestoreConverter = {
-    toFirestore(kioskConfiguration: KioskConfiguration): FirebaseFirestore.DocumentData {
-      return {
-        name: kioskConfiguration.name,
-        unlockCode: kioskConfiguration.unlockCode,
-        surfaceConfigurationId: kioskConfiguration.surfaceConfigurationId,
-        version: kioskConfiguration.version,
-        created: kioskConfiguration.created.toISOString(),
-        updated: kioskConfiguration.updated.toISOString(),
-        isDeleted: kioskConfiguration.isDeleted,
-      };
-    },
-    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): KioskConfiguration {
-      const data = snapshot.data();
-
-      return new KioskConfiguration(
-        data.name,
-        data.unlockCode,
-        data.surfaceConfigurationId,
-        data.version,
-        new Date(data.created),
-        new Date(data.updated),
-        data.isDeleted,
-        snapshot.id,
-      );
-    },
-  };
 }
