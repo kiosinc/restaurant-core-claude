@@ -23,7 +23,7 @@ export * from './restaurant/catalog/ServiceCharge';
 export { default as Event } from './restaurant/connected-accounts/Event';
 export { default as EventNotification } from './restaurant/connected-accounts/EventNotification';
 export { default as Token } from './restaurant/connected-accounts/Token';
-export { default as Address } from './restaurant/misc/Address';
+export { Address, emptyAddress } from './restaurant/misc/Address';
 export { default as BusinessProfile } from './restaurant/misc/BusinessProfile';
 export * from './restaurant/roots/Business';
 export * from './restaurant/roots/BusinessUtilities';

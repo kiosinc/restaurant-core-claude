@@ -1,5 +1,5 @@
 import { FirestoreObject } from '../../firestore-core'
-import Address from '../misc/Address'
+import { Address } from '../misc/Address'
 import { OrderLineItem } from '../orders/OrderV3'
 import { Onboarding } from '../roots/Onboarding'
 import { OrderState } from '../orders/OrderSymbols'
@@ -106,7 +106,7 @@ export class OnboardingOrder extends FirestoreObject {
         invoiceStatus: JSON.parse(JSON.stringify(onboardingOrder.invoiceStatus)),
         shippingTrackingNumber: onboardingOrder.shippingTrackingNumber,
         shipmentCarrier: onboardingOrder.shipmentCarrier,
-        shipmentAddress: Address.firestoreConverter.toFirestore(onboardingOrder.shipmentAddress),
+        shipmentAddress: onboardingOrder.shipmentAddress,
         totalAmount: onboardingOrder.totalAmount,
         orderStatus: JSON.parse(JSON.stringify(onboardingOrder.orderStatus)),
         lineItems: JSON.parse(JSON.stringify(onboardingOrder.lineItems)),

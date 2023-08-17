@@ -1,6 +1,6 @@
 import { FirestoreObject, FirestoreObjectPropsV2 } from '../../firestore-core'
 import Locations from '../roots/Locations'
-import Address from '../misc/Address'
+import { Address } from '../misc/Address'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import * as Paths from '../../firestore-core/Paths'
 import { BusinessHours } from '../../utils/schedule'
