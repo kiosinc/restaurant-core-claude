@@ -82,7 +82,6 @@ async function createOnboardingMenu(businessId: string, categoryIds: string[]) {
   const categoryPromises = categoryIds.map((id) => Category.collectionRef(businessId).doc(id)
     .withConverter(Category.firestoreConverter).get()
     .then((t) => t.data() as Category));
-  // Get
 
   const categories = await Promise.all(categoryPromises);
   // Create new menu groups / copy categories to menu groups

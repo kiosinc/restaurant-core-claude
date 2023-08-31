@@ -26,6 +26,8 @@ export default class Orders extends FirestoreObject {
 
   isFreeOrdersEnabled: boolean;
 
+  isSingleLineItemsOnly: boolean
+
   ticketHeaderFormat: { [key in OrderType]: string } | null;
 
   constructor(
@@ -38,6 +40,7 @@ export default class Orders extends FirestoreObject {
     isSquareAutoApplyTaxes: boolean | null,
     isKioskSessionIdleTimerOn: boolean | null,
     isFreeOrdersEnabled: boolean | null,
+    isSingleLineItemsOnly: boolean | null,
     ticketHeaderFormat: { [key in OrderType]: string } | null,
     created?: Date,
     updated?: Date,
@@ -55,6 +58,7 @@ export default class Orders extends FirestoreObject {
     this.isSquareAutoApplyTaxes = isSquareAutoApplyTaxes ?? true;
     this.isKioskSessionIdleTimerOn = isKioskSessionIdleTimerOn ?? true;
     this.isFreeOrdersEnabled = isFreeOrdersEnabled ?? true;
+    this.isSingleLineItemsOnly = isSingleLineItemsOnly ?? false;
     this.ticketHeaderFormat = ticketHeaderFormat;
   }
 
@@ -91,6 +95,7 @@ export default class Orders extends FirestoreObject {
         isSquareAutoApplyTaxes: orders.isSquareAutoApplyTaxes,
         isKioskSessionIdleTimerOn: orders.isKioskSessionIdleTimerOn,
         isFreeOrdersEnabled: orders.isFreeOrdersEnabled,
+        isSingleLineItemsOnly: orders.isSingleLineItemsOnly,
         ticketHeaderFormat: orders.ticketHeaderFormat,
         created: orders.created.toISOString(),
         updated: orders.updated.toISOString(),
@@ -110,6 +115,7 @@ export default class Orders extends FirestoreObject {
         data.isSquareAutoApplyTaxes ?? null,
         data.isKioskSessionIdleTimerOn ?? null,
         data.isFreeOrdersEnabled ?? null,
+        data.isSingleLineItemsOnly ?? null,
         data.ticketHeaderFormat ?? null,
         new Date(data.created),
         new Date(data.updated),
