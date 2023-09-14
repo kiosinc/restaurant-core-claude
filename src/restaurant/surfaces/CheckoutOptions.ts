@@ -118,7 +118,7 @@ export class CheckoutOptions extends FirestoreObjectV2 implements CheckoutOption
     const doc = ref(this.businessId)
       .doc(this.Id)
 
-    return super.setGeneric(doc)
+    return super.setGeneric(doc, {}, null)
   }
 
   async update () {

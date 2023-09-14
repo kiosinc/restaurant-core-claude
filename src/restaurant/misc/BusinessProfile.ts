@@ -24,7 +24,7 @@ export default class BusinessProfile {
       return {
         name: profile.name,
         address: profile.address,
-        shippingAddress: profile.shippingAddress,
+        shippingAddress: profile.shippingAddress ?? null,
       };
     },
     fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot): BusinessProfile {

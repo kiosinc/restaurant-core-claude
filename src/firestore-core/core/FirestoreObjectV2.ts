@@ -1,7 +1,9 @@
 /**
  * FirestoreObject base class for objects that live on firestore
  */
-import { getFirestore, Timestamp } from 'firebase-admin/firestore'
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore'
+import LinkedObject from './LinkedObject'
+import { Provider } from '../Constants'
 
 export interface FirestoreObjectPropsV2 {
   businessId: string,
@@ -51,11 +53,29 @@ export abstract class FirestoreObjectV2 implements FirestoreObjectPropsV2 {
     this.isDeleted = props.isDeleted ?? false
   }
 
-  async setGeneric (documentReference: FirebaseFirestore.DocumentReference) {
-    this.updated = new Date()
-    return documentReference
-      .withConverter(FirestoreObjectV2.firestoreConverter)
-      .set(this)
+  async setGeneric (documentReference: FirebaseFirestore.DocumentReference,
+                    metaLinks: {[p: string]: string},
+                    metadata: any
+                    ) {
+
+    getFirestore().runTransaction(async (t) => {
+      this.updated = new Date()
+      t.set(
+        documentReference.withConverter(FirestoreObjectV2.firestoreConverter),
+        this
+      )
+
+      Object.keys(metaLinks).forEach((key) => {
+        const value = metaLinks[key] as string;
+        const docRef = getFirestore().doc(key);
+
+        const fields = {
+          [value]: metadata,
+        };
+
+        t.update(docRef, fields);
+      });
+    })
   }
 
   async updateGeneric (documentReference: FirebaseFirestore.DocumentReference) {
@@ -79,8 +99,8 @@ export abstract class FirestoreObjectV2 implements FirestoreObjectPropsV2 {
       const { Id, businessId, ...data } = object
       return data
     },
-    fromFirestore<T extends FirestoreObjectPropsV2>(snapshot: FirebaseFirestore.QueryDocumentSnapshot) {
-      const data = snapshot.data() as T
+    fromFirestore(snapshot: FirebaseFirestore.QueryDocumentSnapshot) {
+      const data = snapshot.data()
       data.Id = snapshot.id
 
       dateify(data)
@@ -98,13 +118,57 @@ export abstract class FirestoreObjectV2 implements FirestoreObjectPropsV2 {
       .withConverter(FirestoreObjectV2.firestoreConverter)
       .get()
 
-    if (!request.data()) {
-      return
+    if (!request.exists) {
+      return null
     }
 
     const props = request.data()
     props.businessId = businessId
+    props.Id = request.id
 
     return new object(props)
+  }
+
+  static async findGeneric<T extends FirestoreObjectV2>(
+    linkedObjectId: string,
+    provider: Provider,
+    businessId: string,
+    fromCollectionRef: FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData>,
+    object: { new (...args: any[]): T }
+  ) {
+
+    const snapshot = await LinkedObject.findQuery(
+      linkedObjectId,
+      provider,
+      fromCollectionRef
+    ).get()
+
+    if (snapshot.empty) {
+      return null;
+    } if (snapshot.docs.length > 1) {
+      throw new Error(`${businessId} There is more than one document in ${fromCollectionRef.path} with the same linkedID ${linkedObjectId}: ${snapshot.docs.map((t) => t.id)}`);
+    }
+
+    const doc = snapshot.docs[0]
+    const props = doc.data()
+    props.businessId = businessId
+    props.Id = doc.id
+
+    return new object(props)
+  }
+
+  static deleteGeneric(documentReference: FirebaseFirestore.DocumentReference,
+                metaLinks: {[p: string]: string}) {
+    getFirestore().runTransaction(async (t) => {
+      t.delete(documentReference)
+
+      Object.keys(metaLinks).forEach((key) => {
+        const value = metaLinks[key] as string;
+        const docRef = getFirestore().doc(key);
+
+        const fields = { [value]: FieldValue.delete() };
+        t.update(docRef, fields);
+      });
+    });
   }
 }

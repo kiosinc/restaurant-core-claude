@@ -53,10 +53,16 @@ export default class LinkedObject {
     linkedObjectId: string,
     provider: Constants.Provider,
     fromCollectionRef: FirebaseFirestore.CollectionReference,
-    withConverter: FirebaseFirestore.FirestoreDataConverter<unknown>,
-  ): FirebaseFirestore.Query<unknown> {
-    return fromCollectionRef
-      .where(`linkedObjects.${provider}.linkedObjectId`, '==', linkedObjectId)
-      .withConverter(withConverter);
+    withConverter?: FirebaseFirestore.FirestoreDataConverter<any>,
+  ): FirebaseFirestore.Query<any> {
+
+  const query = fromCollectionRef
+    .where(`linkedObjects.${provider}.linkedObjectId`, '==', linkedObjectId)
+
+  if (withConverter) {
+    query.withConverter(withConverter)
+  }
+
+  return query
   }
 }

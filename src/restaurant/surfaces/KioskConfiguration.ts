@@ -35,7 +35,7 @@ export default class KioskConfiguration extends FirestoreObjectV2 implements Kio
     const doc = ref(this.businessId)
       .doc(this.Id)
 
-    return super.setGeneric(doc)
+    return super.setGeneric(doc, {}, null)
   }
 
   async update () {
