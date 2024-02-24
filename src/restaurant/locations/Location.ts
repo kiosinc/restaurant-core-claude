@@ -8,7 +8,7 @@ import { Coordinates } from '../../utils/geo'
 import { OrderType } from '../orders/OrderSymbols'
 import { Provider } from '../../firestore-core/Constants'
 
-export interface LocationProps extends FirestoreObjectV2 {
+export interface LocationProps {
   name: string
   isActive: boolean
   linkedObjects: { [Id: string]: LinkedObject }
