@@ -56,11 +56,11 @@ export default class LinkedObject {
     withConverter?: FirebaseFirestore.FirestoreDataConverter<any>,
   ): FirebaseFirestore.Query<any> {
 
-  const query = fromCollectionRef
+  let query = fromCollectionRef
     .where(`linkedObjects.${provider}.linkedObjectId`, '==', linkedObjectId)
 
   if (withConverter) {
-    query.withConverter(withConverter)
+    query = query.withConverter(withConverter)
   }
 
   return query
