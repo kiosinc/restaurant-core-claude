@@ -140,7 +140,7 @@ export async function setT<C extends FirestoreObject>(
     const newConnectedAccounts = new ConnectedAccounts({});
     const newSurface = new Surfaces({}, {});
     const newOnboarding = new Onboarding(null, null, null, null);
-    const newOrders = new Orders(true, false, false, null, null, null, null, null, null, null, null);
+    const newOrders = new Orders(true, false, false, null, null, null, null, null, null, null, null, null, null);
     const newServices = new Services(null, null);
     const newLocations = new Locations({});
 

@@ -30,6 +30,10 @@ export default class Orders extends FirestoreObject {
 
   ticketHeaderFormat: { [key in OrderType]: string } | null;
 
+  smsReadyTextFormat: { [key in OrderType]: string } | null;
+
+  smsReceiptTextFormat: { [key in OrderType]: string } | null;
+
   constructor(
     isSMSStateUpdate: boolean,
     isLoyaltyAccrue: boolean,
@@ -42,6 +46,8 @@ export default class Orders extends FirestoreObject {
     isFreeOrdersEnabled: boolean | null,
     isSingleLineItemsOnly: boolean | null,
     ticketHeaderFormat: { [key in OrderType]: string } | null,
+    smsReadyTextFormat: { [key in OrderType]: string } | null,
+    smsReceiptTextFormat: { [key in OrderType]: string } | null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -60,6 +66,8 @@ export default class Orders extends FirestoreObject {
     this.isFreeOrdersEnabled = isFreeOrdersEnabled ?? true;
     this.isSingleLineItemsOnly = isSingleLineItemsOnly ?? false;
     this.ticketHeaderFormat = ticketHeaderFormat;
+    this.smsReadyTextFormat = smsReadyTextFormat;
+    this.smsReceiptTextFormat = smsReceiptTextFormat;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -97,6 +105,8 @@ export default class Orders extends FirestoreObject {
         isFreeOrdersEnabled: orders.isFreeOrdersEnabled,
         isSingleLineItemsOnly: orders.isSingleLineItemsOnly,
         ticketHeaderFormat: orders.ticketHeaderFormat,
+        smsReadyTextFormat: orders.smsReadyTextFormat,
+        smsReceiptTextFormat: orders.smsReceiptTextFormat,
         created: orders.created.toISOString(),
         updated: orders.updated.toISOString(),
         isDeleted: orders.isDeleted,
@@ -117,6 +127,8 @@ export default class Orders extends FirestoreObject {
         data.isFreeOrdersEnabled ?? null,
         data.isSingleLineItemsOnly ?? null,
         data.ticketHeaderFormat ?? null,
+        data.smsReadyTextFormat ?? null,
+        data.smsReceiptTextFormat ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
