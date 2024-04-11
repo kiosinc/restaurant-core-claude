@@ -19,6 +19,8 @@ export default class MenuGroup extends FirestoreObject {
 
   childGroup?: string;
 
+  mirrorCategoryId?: string;
+
   constructor(
     name: string,
     products: { [p: string]: ProductMeta },
@@ -26,6 +28,7 @@ export default class MenuGroup extends FirestoreObject {
     displayName?: string,
     parentGroup?: string,
     childGroup?: string,
+    mirrorCategoryId?: string,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -41,6 +44,8 @@ export default class MenuGroup extends FirestoreObject {
 
     this.parentGroup = parentGroup;
     this.childGroup = childGroup;
+
+    this.mirrorCategoryId = mirrorCategoryId;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -76,6 +81,7 @@ export default class MenuGroup extends FirestoreObject {
         displayName: menuGroup.displayName,
         parentGroup: menuGroup.parentGroup,
         childGroup: menuGroup.childGroup,
+        mirrorCategoryId: menuGroup.mirrorCategoryId,
         created: menuGroup.created.toISOString(),
         updated: menuGroup.updated.toISOString(),
         isDeleted: menuGroup.isDeleted,
@@ -91,6 +97,7 @@ export default class MenuGroup extends FirestoreObject {
         data.displayName,
         data.parentGroup,
         data.childGroup,
+        data.mirrorCategoryId ?? null,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
