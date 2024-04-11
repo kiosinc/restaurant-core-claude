@@ -8,27 +8,27 @@ export default class MenuGroup extends FirestoreObject {
   // The group's name, meant to be displayable to the customer.
   name: string;
 
-  displayName?: string;
+  displayName: string | null;
 
   // Products in this group
   products: { [p: string]: ProductMeta };
 
   productDisplayOrder: string[];
 
-  parentGroup?: string;
+  parentGroup: string | null;
 
-  childGroup?: string;
+  childGroup: string | null;
 
-  mirrorCategoryId?: string;
+  mirrorCategoryId: string | null;
 
   constructor(
     name: string,
     products: { [p: string]: ProductMeta },
     productDisplayOrder: string[],
-    displayName?: string,
-    parentGroup?: string,
-    childGroup?: string,
-    mirrorCategoryId?: string,
+    displayName: string | null,
+    parentGroup: string | null,
+    childGroup: string | null,
+    mirrorCategoryId: string | null,
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
@@ -78,10 +78,10 @@ export default class MenuGroup extends FirestoreObject {
         name: menuGroup.name,
         products: JSON.parse(JSON.stringify(menuGroup.products)),
         productDisplayOrder: JSON.parse(JSON.stringify(menuGroup.productDisplayOrder)),
-        displayName: menuGroup.displayName,
-        parentGroup: menuGroup.parentGroup,
-        childGroup: menuGroup.childGroup,
-        mirrorCategoryId: menuGroup.mirrorCategoryId,
+        displayName: menuGroup.displayName ?? null,
+        parentGroup: menuGroup.parentGroup ?? null,
+        childGroup: menuGroup.childGroup ?? null,
+        mirrorCategoryId: menuGroup.mirrorCategoryId ?? null,
         created: menuGroup.created.toISOString(),
         updated: menuGroup.updated.toISOString(),
         isDeleted: menuGroup.isDeleted,
@@ -94,9 +94,9 @@ export default class MenuGroup extends FirestoreObject {
         data.name,
         data.products,
         data.productDisplayOrder,
-        data.displayName,
-        data.parentGroup,
-        data.childGroup,
+        data.displayName ?? null,
+        data.parentGroup ?? null,
+        data.childGroup ?? null,
         data.mirrorCategoryId ?? null,
         new Date(data.created),
         new Date(data.updated),

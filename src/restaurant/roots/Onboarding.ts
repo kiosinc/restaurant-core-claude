@@ -99,8 +99,9 @@ async function createOnboardingMenu(businessId: string, categoryIds: string[]) {
         category.products,
         category.productDisplayOrder,
         category.name,
-        '',
-        '',
+        null,
+        null,
+        null,
       );
       // Add menu group to be created
       newMenuGroups.push(menuGroup);
