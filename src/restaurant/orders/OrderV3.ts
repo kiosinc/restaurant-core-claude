@@ -90,6 +90,8 @@ export class Order extends FirestoreObject {
 
   agent: string;
 
+  deviceId: string | null;
+
   posProvider: Constants.Provider;
 
   totalAmount: number;
@@ -129,6 +131,8 @@ export class Order extends FirestoreObject {
   // TODO delete?
   isAvailable: boolean;
 
+  tags: string[] | null;
+
   /**
    * Create an Order
    */
@@ -139,6 +143,7 @@ export class Order extends FirestoreObject {
     timestamp: Date | null,
     channel: string,
     agent: string,
+    deviceId: string | null,
     posProvider: Constants.Provider | null,
     totalAmount: number,
     totalDiscountAmount: number,
@@ -157,6 +162,7 @@ export class Order extends FirestoreObject {
     state: OrderState | null,
     referralCode: string | null,
     source: string | null,
+    tags: string[] | null,
     version?: string,
     isAvailable?: boolean,
     created?: Date,
@@ -177,6 +183,7 @@ export class Order extends FirestoreObject {
     this.menuId = menuId;
     this.channel = channel;
     this.agent = agent;
+    this.deviceId = deviceId;
     this.totalAmount = totalAmount;
     this.totalDiscountAmount = totalDiscountAmount;
     this.totalTaxAmount = totalTaxAmount;
@@ -193,6 +200,7 @@ export class Order extends FirestoreObject {
     this.source = source;
     this.payment = payment;
     this.linkedObjects = linkedObjects;
+    this.tags = tags;
   }
 
   docRef(businessId: string): FirebaseFirestore.DocumentReference {
@@ -240,6 +248,7 @@ export class Order extends FirestoreObject {
         timestamp: order.timestamp.toISOString(),
         channel: order.channel,
         agent: order.agent,
+        deviceId: order.deviceId ?? null,
         posProvider: order.posProvider,
         totalAmount: order.totalAmount,
         totalDiscountAmount: order.totalDiscountAmount,
@@ -258,6 +267,7 @@ export class Order extends FirestoreObject {
         state: order.state,
         referralCode: order.referralCode,
         source: order.source,
+        tags: order.tags ?? null,
         version: order.version,
         isAvailable: order.isAvailable,
         created: order.created.toISOString(),
@@ -276,6 +286,7 @@ export class Order extends FirestoreObject {
         new Date(data.timestamp),
         data.channel,
         data.agent,
+        data.deviceId ?? null,
         data.posProvider,
         data.totalAmount,
         data.totalDiscountAmount,
@@ -295,6 +306,7 @@ export class Order extends FirestoreObject {
         data.state,
         data.referralCode ?? null,
         data.source ?? null,
+        data.tags ?? null,
         data.version,
         data.isAvailable,
         new Date(data.created),
