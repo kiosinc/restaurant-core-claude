@@ -22,6 +22,8 @@ export default class Orders extends FirestoreObject {
 
   isSquareAutoApplyTaxes: boolean;
 
+  isSquareDiscountCodeAutoEnabled: boolean;
+
   isKioskSessionIdleTimerOn: boolean;
 
   isFreeOrdersEnabled: boolean;
@@ -42,6 +44,7 @@ export default class Orders extends FirestoreObject {
     isSquareDiscountCodeAPI: boolean | null,
     isSquareAutoApplyDiscounts: boolean | null,
     isSquareAutoApplyTaxes: boolean | null,
+    isSquareDiscountCodeAutoEnabled: boolean | null,
     isKioskSessionIdleTimerOn: boolean | null,
     isFreeOrdersEnabled: boolean | null,
     isSingleLineItemsOnly: boolean | null,
@@ -59,9 +62,12 @@ export default class Orders extends FirestoreObject {
     this.isLoyaltyAccrue = isLoyaltyAccrue;
     this.isStateAutoNewToInProgress = isStateAutoNewToInProgress;
     this.gratuityRates = gratuityRates ?? defaultGratuityRate;
+
     this.isSquareDiscountCodeAPI = isSquareDiscountCodeAPI ?? false;
     this.isSquareAutoApplyDiscounts = isSquareAutoApplyDiscounts ?? false;
     this.isSquareAutoApplyTaxes = isSquareAutoApplyTaxes ?? true;
+    this.isSquareDiscountCodeAutoEnabled = isSquareDiscountCodeAutoEnabled ?? false
+
     this.isKioskSessionIdleTimerOn = isKioskSessionIdleTimerOn ?? true;
     this.isFreeOrdersEnabled = isFreeOrdersEnabled ?? true;
     this.isSingleLineItemsOnly = isSingleLineItemsOnly ?? false;
@@ -101,6 +107,7 @@ export default class Orders extends FirestoreObject {
         isSquareDiscountCodeAPI: orders.isSquareDiscountCodeAPI,
         isSquareAutoApplyDiscounts: orders.isSquareAutoApplyDiscounts,
         isSquareAutoApplyTaxes: orders.isSquareAutoApplyTaxes,
+        isSquareDiscountCodeAutoEnabled: orders.isSquareDiscountCodeAutoEnabled,
         isKioskSessionIdleTimerOn: orders.isKioskSessionIdleTimerOn,
         isFreeOrdersEnabled: orders.isFreeOrdersEnabled,
         isSingleLineItemsOnly: orders.isSingleLineItemsOnly,
@@ -123,6 +130,7 @@ export default class Orders extends FirestoreObject {
         data.isSquareDiscountCodeAPI ?? null,
         data.isSquareAutoApplyDiscounts ?? null,
         data.isSquareAutoApplyTaxes ?? null,
+        data.isSquareDiscountCodeAutoEnabled ?? null,
         data.isKioskSessionIdleTimerOn ?? null,
         data.isFreeOrdersEnabled ?? null,
         data.isSingleLineItemsOnly ?? null,
