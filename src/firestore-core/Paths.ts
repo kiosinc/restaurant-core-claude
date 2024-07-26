@@ -3,6 +3,7 @@ export const enum Environment {
   public = 'public',
   private = 'private',
   sandbox = 'sandbox',
+  featurelist = 'featurelist'
 }
 
 export const enum CollectionNames {

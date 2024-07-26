@@ -105,6 +105,11 @@ export class Business extends FirestoreObject {
       .collection(Paths.Environment.private);
   }
 
+  static featurelistRef(businessId: string): FirebaseFirestore.CollectionReference {
+    return Business.docRef(businessId)
+                   .collection(Paths.Environment.featurelist);
+  }
+
   static sandboxCollectionRef(businessId: string): FirebaseFirestore.CollectionReference {
     return Business.docRef(businessId)
       .collection(Paths.Environment.sandbox);

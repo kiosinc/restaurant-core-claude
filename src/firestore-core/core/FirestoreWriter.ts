@@ -19,6 +19,10 @@ import Locations from '../../restaurant/roots/Locations';
 import OptionSet from '../../restaurant/catalog/OptionSet';
 import Option from '../../restaurant/catalog/Option';
 import { Onboarding } from '../../restaurant/roots/Onboarding';
+import {
+  FeatureList,
+  DEFAULT_FEATURELIST
+} from '../../restaurant/roots/FeatureList'
 
 export interface BatchUpdateInfo {
   ref: FirebaseFirestore.DocumentReference;
@@ -144,6 +148,8 @@ export async function setT<C extends FirestoreObject>(
     const newServices = new Services(null, null);
     const newLocations = new Locations({});
 
+    const newFeatureList = new FeatureList({...DEFAULT_FEATURELIST, businessId})
+
     // TODO security is disabled
     // .then(() => {
     //     let claims = user.claims
@@ -158,6 +164,7 @@ export async function setT<C extends FirestoreObject>(
     await setT(newOrders, Orders.firestoreConverter, id, t);
     await setT(newServices, Services.firestoreConverter, id, t);
     await setT(newLocations, Locations.firestoreConverter, id, t);
+    await setT(newFeatureList, FeatureList.firestoreConverter, id, t)
   }
 
   return batchedUpdates;
