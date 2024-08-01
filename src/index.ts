@@ -53,4 +53,4 @@ export * as Utils from './utils';
 export * as Reports from './reports';
 export * as Paths from './firestore-core/Paths'
 export * as CheckoutOptions from './restaurant/surfaces/CheckoutOptions'
-export * as FeatureList from './restaurant/roots/FeatureList'
+// export * as FeatureList from './restaurant/roots/FeatureList'
