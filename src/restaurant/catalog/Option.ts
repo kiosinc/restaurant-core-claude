@@ -49,7 +49,7 @@ export default class Option extends FirestoreObject {
     this.name = name;
     this.price = price;
     this.sku = sku;
-    this.gtin = sku;
+    this.gtin = gtin;
     this.imageUrls = imageUrls;
     this.locationPrices = locationPrices;
     this.locationInventory = locationInventory;
