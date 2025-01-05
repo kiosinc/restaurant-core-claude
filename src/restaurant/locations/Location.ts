@@ -24,6 +24,8 @@ export interface LocationProps {
   geoCoordinates: Coordinates | null
   utcOffset: number | null
   businessHours: BusinessHours | null
+  phoneNumber: string | null
+  email: string | null
 }
 
 const ref = (businessId: string) => Locations.docRef(businessId).collection(Paths.CollectionNames.locations)
@@ -98,6 +100,8 @@ export class Location extends FirestoreObjectV2 implements LocationProps {
   geoCoordinates: Coordinates | null
   utcOffset: number | null
   businessHours: BusinessHours | null
+  phoneNumber: string | null
+  email: string | null
 
   constructor (props: LocationProps & FirestoreObjectPropsV2) {
     super(props)
@@ -119,6 +123,8 @@ export class Location extends FirestoreObjectV2 implements LocationProps {
     this.businessHours = props.businessHours ?? null
     this.isPrimary = props.isPrimary ?? false
     this.dailyOrderCounter = props.dailyOrderCounter ?? 0
+    this.phoneNumber = props.phoneNumber ?? null
+    this.email = props.email ?? null
   }
 
   /** delete */
