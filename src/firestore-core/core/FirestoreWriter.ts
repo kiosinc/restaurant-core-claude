@@ -19,10 +19,8 @@ import Locations from '../../restaurant/roots/Locations';
 import OptionSet from '../../restaurant/catalog/OptionSet';
 import Option from '../../restaurant/catalog/Option';
 import { Onboarding } from '../../restaurant/roots/Onboarding';
-// import {
-//   FeatureList,
-//   DEFAULT_FEATURELIST
-// } from '../../restaurant/roots/FeatureList'
+
+const FEATURELIST_PATH = '/_firebase_ext_/defaultFeatureList'
 
 export interface BatchUpdateInfo {
   ref: FirebaseFirestore.DocumentReference;
@@ -148,7 +146,22 @@ export async function setT<C extends FirestoreObject>(
     const newServices = new Services(null, null);
     const newLocations = new Locations({});
 
-    // const newFeatureList = new FeatureList({...DEFAULT_FEATURELIST, businessId})
+    // Feature List
+    const featureListQuery = firestore.getFirestore().doc(FEATURELIST_PATH)
+    const featureList = await t.get(featureListQuery).then(d => d.data())
+    if (featureList) {
+      const now = new Date()
+      const update = {
+        created: now.toISOString(),
+        isDeleted: false,
+        locationId: null,
+        updated: now.toISOString(),
+        ...featureList,
+      }
+      const featureListBusinessPath = `/businesses/${businessId}/featurelist`
+      t.set(firestore.getFirestore().collection(featureListBusinessPath).doc(), update)
+    }
+
 
     // TODO security is disabled
     // .then(() => {
@@ -164,7 +177,6 @@ export async function setT<C extends FirestoreObject>(
     await setT(newOrders, Orders.firestoreConverter, id, t);
     await setT(newServices, Services.firestoreConverter, id, t);
     await setT(newLocations, Locations.firestoreConverter, id, t);
-    // await setT(newFeatureList, FeatureList.firestoreConverter, id, t)
   }
 
   return batchedUpdates;
