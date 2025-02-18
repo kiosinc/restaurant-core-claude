@@ -11,16 +11,8 @@ import MenuGroup from '../../restaurant/surfaces/MenuGroup';
 import { Business } from '../../restaurant/roots/Business';
 import { FirestoreObject } from './FirestoreObject';
 import Catalog from '../../restaurant/roots/Catalog';
-import ConnectedAccounts from '../../restaurant/roots/ConnectedAccounts';
-import Surfaces from '../../restaurant/roots/Surfaces';
-import Services from '../../restaurant/roots/Services';
-import Orders from '../../restaurant/roots/Orders';
-import Locations from '../../restaurant/roots/Locations';
 import OptionSet from '../../restaurant/catalog/OptionSet';
 import Option from '../../restaurant/catalog/Option';
-import { Onboarding } from '../../restaurant/roots/Onboarding';
-
-const FEATURELIST_PATH = '/_firebase_ext_/defaultFeatureList'
 
 export interface BatchUpdateInfo {
   ref: FirebaseFirestore.DocumentReference;
@@ -138,45 +130,7 @@ export async function setT<C extends FirestoreObject>(
    * business is created
    * */
   if (object instanceof Business) {
-    const newCatalog = new Catalog({}, {});
-    const newConnectedAccounts = new ConnectedAccounts({});
-    const newSurface = new Surfaces({}, {});
-    const newOnboarding = new Onboarding(null, null, null, null);
-    const newOrders = new Orders(true, false, false, null, null, null, null, null, null, null, null, null, null, null);
-    const newServices = new Services(null, null);
-    const newLocations = new Locations({});
-
-    // Feature List
-    const featureListQuery = firestore.getFirestore().doc(FEATURELIST_PATH)
-    const featureList = await t.get(featureListQuery).then(d => d.data())
-    if (featureList) {
-      const now = new Date()
-      const update = {
-        created: now.toISOString(),
-        isDeleted: false,
-        locationId: null,
-        updated: now.toISOString(),
-        ...featureList,
-      }
-      const featureListBusinessPath = `/businesses/${businessId}/featurelist`
-      t.set(firestore.getFirestore().collection(featureListBusinessPath).doc(), update)
-    }
-
-
-    // TODO security is disabled
-    // .then(() => {
-    //     let claims = user.claims
-    //     claims.businessRole[newBusiness.Id] = Role.owner
-    //     return auth().setCustomUserClaims(uid, Claims.wrapper(claims))
-    // })
-
-    await setT(newCatalog, Catalog.firestoreConverter, id, t);
-    await setT(newConnectedAccounts, ConnectedAccounts.firestoreConverter, id, t);
-    await setT(newSurface, Surfaces.firestoreConverter, id, t);
-    await setT(newOnboarding, Onboarding.firestoreConverter, id, t);
-    await setT(newOrders, Orders.firestoreConverter, id, t);
-    await setT(newServices, Services.firestoreConverter, id, t);
-    await setT(newLocations, Locations.firestoreConverter, id, t);
+    throw "Use the Business utility function to create a business"
   }
 
   return batchedUpdates;
