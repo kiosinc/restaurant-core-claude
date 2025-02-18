@@ -99,6 +99,6 @@ export async function createBusiness(user: User, type: BusinessType, device: str
       t.set(firestore.getFirestore().collection(featureListBusinessPath).doc(), update)
     }
 
-    return newBusiness
+    return Business.docRef(businessId)
   });
 }
