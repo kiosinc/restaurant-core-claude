@@ -50,7 +50,7 @@ export async function createBusiness(user: User, type: BusinessType, device: str
   const newServices = new Services(null, null);
   const newLocations = new Locations({});
 
-  firestore.getFirestore().runTransaction(async t => {
+  return firestore.getFirestore().runTransaction(async t => {
     // Feature List
     const featureListQuery = firestore.getFirestore().doc(FEATURELIST_PATH)
     const featureList = await t.get(featureListQuery).then(d => d.data())
