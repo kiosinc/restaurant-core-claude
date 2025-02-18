@@ -10,7 +10,7 @@ import {Onboarding} from "./Onboarding";
 import Orders from "./Orders";
 import Services from "./Services";
 import Locations from "./Locations";
-import * as firestore from "firebase-admin/lib/firestore";
+import { getFirestore} from "firebase-admin/firestore";
 
 const FEATURELIST_PATH = '/_firebase_ext_/defaultFeatureList'
 
@@ -50,9 +50,9 @@ export async function createBusiness(user: User, type: BusinessType, device: str
   const newServices = new Services(null, null);
   const newLocations = new Locations({});
 
-  return firestore.getFirestore().runTransaction(async t => {
+  return getFirestore().runTransaction(async t => {
     // Feature List
-    const featureListQuery = firestore.getFirestore().doc(FEATURELIST_PATH)
+    const featureListQuery = getFirestore().doc(FEATURELIST_PATH)
     const featureList = await t.get(featureListQuery).then(d => d.data())
 
     t.set(
@@ -96,7 +96,7 @@ export async function createBusiness(user: User, type: BusinessType, device: str
         ...featureList,
       }
       const featureListBusinessPath = `/businesses/${businessId}/featurelist`
-      t.set(firestore.getFirestore().collection(featureListBusinessPath).doc(), update)
+      t.set(getFirestore().collection(featureListBusinessPath).doc(), update)
     }
 
     return Business.docRef(businessId)
