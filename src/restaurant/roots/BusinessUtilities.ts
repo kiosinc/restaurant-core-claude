@@ -14,19 +14,6 @@ import { getFirestore} from "firebase-admin/firestore";
 
 const FEATURELIST_PATH = '/_firebase_ext_/defaultFeatureList'
 
-// export function createBusiness(user: User, type: BusinessType, device: string, name?: string) {
-//   const profile: BusinessProfile = new BusinessProfile(name ?? '', emptyAddress);
-//
-//   const { uid } = user.token;
-//   const newBusiness = new Business(device,
-//     uid,
-//     type,
-//     profile,
-//     { [uid]: Constants.Role.owner });
-//
-//   return Writer.setObject(newBusiness, Business.firestoreConverter, newBusiness.Id);
-// }
-
 export async function createBusiness(user: User, type: BusinessType, device: string, name?: string) {
   const now = new Date()
 
@@ -93,7 +80,7 @@ export async function createBusiness(user: User, type: BusinessType, device: str
         isDeleted: false,
         locationId: null,
         updated: now.toISOString(),
-        ...featureList,
+        enabled: { ...featureList },
       }
       const featureListBusinessPath = `/businesses/${businessId}/featurelist`
       t.set(getFirestore().collection(featureListBusinessPath).doc(), update)

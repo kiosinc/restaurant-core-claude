@@ -62,10 +62,10 @@ export async function setT<C extends FirestoreObject>(
     /** Update menu group, category, attribute relationships */
     // Setup reads first
     // MenuGroups
-    const menuGroupQuery = MenuGroup.collectionRef(businessId)
-      .where('productDisplayOrder', 'array-contains', id)
-      .withConverter(MenuGroup.firestoreConverter);
-    const menuGroupQuerySnapshots = await t.get(menuGroupQuery);
+    // const menuGroupQuery = MenuGroup.collectionRef(businessId)
+    //   .where('productDisplayOrder', 'array-contains', id)
+    //   .withConverter(MenuGroup.firestoreConverter);
+    // const menuGroupQuerySnapshots = await t.get(menuGroupQuery);
     // Category
     const categoryQuery = Category.collectionRef(businessId)
       .where('productDisplayOrder', 'array-contains', id)
@@ -75,7 +75,7 @@ export async function setT<C extends FirestoreObject>(
 
     // Setup writes second
     // Update from each menu group
-    batchedUpdates.push(...menuGroupQuerySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `products.${id}`, metadata)));
+    // batchedUpdates.push(...menuGroupQuerySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `products.${id}`, metadata)));
 
     // Update each category group
     batchedUpdates.push(...categoryQuerySnapshots.docs.map((s) => batchUpdateInfo(s.ref, `products.${id}`, metadata)));
