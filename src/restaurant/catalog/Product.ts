@@ -24,6 +24,9 @@ export class Product extends FirestoreObject {
         optionSets: JSON.parse(JSON.stringify(product.optionSets ?? {})),
         optionSetsSelection: JSON.parse(
           JSON.stringify(product.optionSetsSelection)),
+        minPrice: product.minPrice,
+        maxPrice: product.maxPrice,
+        variationCount: product.variationCount,
         locationInventory:
           JSON.parse(JSON.stringify(
             LocationInventoryToFirestore(product.locationInventory))),
@@ -43,6 +46,9 @@ export class Product extends FirestoreObject {
         data.imageUrls,
         data.optionSets ?? {},
         data.optionSetsSelection ?? {},
+        data.minPrice ?? 0,
+        data.maxPrice ?? 0,
+        data.variationCount ?? 0,
         LocationInventoryFromFirestore(data.locationInventory),
         data.isActive,
         data.linkedObjects,
@@ -68,6 +74,9 @@ export class Product extends FirestoreObject {
   // Whether the product is currently available for purchase.
   isActive: boolean
   linkedObjects: { [Id: string]: LinkedObject }
+  minPrice: number
+  maxPrice: number
+  variationCount: number
 
   constructor (
     name: string,
@@ -76,6 +85,9 @@ export class Product extends FirestoreObject {
     imageUrls: URL[],
     optionSets: { [p: string]: OptionSetMeta },
     optionSetsSelection: { [Id: string]: ProductOptionSetSetting },
+    minPrice: number,
+    maxPrice: number,
+    variationCount: number,
     locationInventory: { [p: string]: InventoryCount },
     isActive: boolean,
     linkedObjects: { [p: string]: LinkedObject },
@@ -91,6 +103,9 @@ export class Product extends FirestoreObject {
     this.imageUrls = imageUrls
     this.optionSets = optionSets
     this.optionSetsSelection = optionSetsSelection
+    this.minPrice = minPrice
+    this.maxPrice = maxPrice
+    this.variationCount = variationCount
     this.locationInventory = locationInventory
     this.isActive = isActive
     this.linkedObjects = linkedObjects
@@ -117,6 +132,10 @@ export class Product extends FirestoreObject {
     return {
       name: this.name,
       isActive: this.isActive,
+      imageUrls: this.imageUrls,
+      minPrice: this.minPrice,
+      maxPrice: this.maxPrice,
+      variationCount: this.variationCount,
     }
   }
 }
