@@ -19,7 +19,10 @@ export default class Option extends FirestoreObject {
 
   gtin: string | null;
 
+  // -- Deprecate
   imageUrls: URL[];
+
+  imageGsls: URL[]
 
   locationPrices: { [locationId: string]: number };
 
@@ -35,6 +38,7 @@ export default class Option extends FirestoreObject {
     sku: string | null,
     gtin: string | null,
     imageUrls: URL[],
+    imageGsls: URL[],
     locationPrices: { [locationId: string]: number },
     locationInventory: { [locationId: string]: InventoryCount },
     isActive: boolean,
@@ -51,6 +55,7 @@ export default class Option extends FirestoreObject {
     this.sku = sku;
     this.gtin = gtin;
     this.imageUrls = imageUrls;
+    this.imageGsls = imageGsls;
     this.locationPrices = locationPrices;
     this.locationInventory = locationInventory;
     this.isActive = isActive;
@@ -96,6 +101,7 @@ export default class Option extends FirestoreObject {
         sku: option.sku,
         gtin: option.gtin,
         imageUrls: JSON.parse(JSON.stringify(option.imageUrls)),
+        imageGsls: JSON.parse(JSON.stringify(option.imageGsls)),
         locationPrices: JSON.parse(JSON.stringify(option.locationPrices)),
         locationInventory:
           JSON.parse(JSON.stringify(LocationInventoryToFirestore(option.locationInventory))),
@@ -114,6 +120,7 @@ export default class Option extends FirestoreObject {
         data.sku ?? null,
         data.gtin ?? null,
         data.imageUrls ?? [],
+        data.imageGsls ?? [],
         data.locationPrices,
         LocationInventoryFromFirestore(data.locationInventory),
         data.isActive,

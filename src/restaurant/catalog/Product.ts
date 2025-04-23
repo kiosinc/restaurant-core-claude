@@ -21,6 +21,7 @@ export class Product extends FirestoreObject {
         caption: product.caption,
         description: product.description,
         imageUrls: JSON.parse(JSON.stringify(product.imageUrls)),
+        imageGsls: JSON.parse(JSON.stringify(product.imageGsls)),
         optionSets: JSON.parse(JSON.stringify(product.optionSets ?? {})),
         optionSetsSelection: JSON.parse(
           JSON.stringify(product.optionSetsSelection)),
@@ -44,6 +45,7 @@ export class Product extends FirestoreObject {
         data.caption,
         data.description,
         data.imageUrls,
+        data.imageGsls ?? [],
         data.optionSets ?? {},
         data.optionSetsSelection ?? {},
         data.minPrice ?? 0,
@@ -66,7 +68,11 @@ export class Product extends FirestoreObject {
 
   // Product data
   // A list of URLs of images for this product, meant to be displayable to the customer.
+  // -- Deprecate
   imageUrls: URL[]
+
+  // A list of Gsls of images for this product, meant to be displayable to the customer.
+  imageGsls: URL[]
   optionSets: { [p: string]: OptionSetMeta }
   // TODO: this should be at the optionset level not product
   optionSetsSelection: { [Id: string]: ProductOptionSetSetting }
@@ -83,6 +89,7 @@ export class Product extends FirestoreObject {
     caption: string,
     description: string,
     imageUrls: URL[],
+    imageGsls: URL[],
     optionSets: { [p: string]: OptionSetMeta },
     optionSetsSelection: { [Id: string]: ProductOptionSetSetting },
     minPrice: number,
@@ -101,6 +108,7 @@ export class Product extends FirestoreObject {
     this.caption = caption
     this.description = description
     this.imageUrls = imageUrls
+    this.imageGsls = imageGsls
     this.optionSets = optionSets
     this.optionSetsSelection = optionSetsSelection
     this.minPrice = minPrice
@@ -133,6 +141,7 @@ export class Product extends FirestoreObject {
       name: this.name,
       isActive: this.isActive,
       imageUrls: this.imageUrls,
+      imageGsls: this.imageGsls,
       minPrice: this.minPrice,
       maxPrice: this.maxPrice,
       variationCount: this.variationCount,

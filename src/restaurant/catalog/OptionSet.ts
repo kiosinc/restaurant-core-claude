@@ -40,7 +40,10 @@ export default class OptionSet extends FirestoreObject {
 
   preselectedOptionIds: string[];
 
+  // -- Deprecate
   imageUrls: URL[];
+
+  imageGsls: URL[]
 
   locationInventory: { [p: string]: InventoryCount };
 
@@ -61,6 +64,7 @@ export default class OptionSet extends FirestoreObject {
     optionDisplayOrder: string[],
     preselectedOptionIds: string[],
     imageUrls: URL[],
+    imageGsls: URL[],
     locationInventory: { [p: string]: InventoryCount },
     isActive: boolean,
     linkedObjects: { [p: string]: LinkedObject },
@@ -81,7 +85,7 @@ export default class OptionSet extends FirestoreObject {
     this.optionDisplayOrder = optionDisplayOrder;
     this.preselectedOptionIds = preselectedOptionIds;
     this.imageUrls = imageUrls;
-
+    this.imageGsls = imageGsls
     this.locationInventory = locationInventory;
     this.isActive = isActive;
     this.linkedObjects = linkedObjects;
@@ -131,6 +135,7 @@ export default class OptionSet extends FirestoreObject {
         optionDisplayOrder: JSON.parse(JSON.stringify(optionSet.optionDisplayOrder)),
         preselectedOptionIds: JSON.parse(JSON.stringify(optionSet.preselectedOptionIds)),
         imageUrls: JSON.parse(JSON.stringify(optionSet.imageUrls)),
+        imageGsls: JSON.parse(JSON.stringify(optionSet.imageGsls)),
         locationInventory: JSON.parse(JSON.stringify(
           LocationInventoryToFirestore(optionSet.locationInventory),
         )),
@@ -154,6 +159,7 @@ export default class OptionSet extends FirestoreObject {
         data.optionDisplayOrder ?? [],
         data.preselectedOptionIds ?? [],
         data.imageUrls ?? [],
+        data.imageGsls ?? [],
         LocationInventoryFromFirestore(data.locationInventory),
         data.isActive,
         data.linkedObjects,
