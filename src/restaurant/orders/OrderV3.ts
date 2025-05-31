@@ -110,6 +110,8 @@ export class Order extends FirestoreObject {
 
   lineItems: OrderLineItem[];
 
+  currency: string
+
   taxes: OrderPriceAdjustmentMeta[];
 
   discounts: OrderPriceAdjustmentMeta[];
@@ -153,6 +155,7 @@ export class Order extends FirestoreObject {
     customerId: string | null,
     fulfillment: OrderFulfillment,
     lineItems: OrderLineItem[],
+    currency: string,
     taxes: OrderPriceAdjustmentMeta[],
     discounts: OrderPriceAdjustmentMeta[],
     surcharges: OrderPriceAdjustmentMeta[],
@@ -192,6 +195,7 @@ export class Order extends FirestoreObject {
     this.customerId = customerId;
     this.fulfillment = fulfillment;
     this.lineItems = lineItems;
+    this.currency = currency;
     this.taxes = taxes;
     this.discounts = discounts;
     this.surcharges = surcharges;
@@ -258,6 +262,7 @@ export class Order extends FirestoreObject {
         customerId: order.customerId,
         fulfillment: JSON.parse(JSON.stringify(order.fulfillment)),
         lineItems: JSON.parse(JSON.stringify(order.lineItems)),
+        currency: order.currency,
         taxes: JSON.parse(JSON.stringify(order.taxes)),
         discounts: JSON.parse(JSON.stringify(order.discounts)),
         surcharges: JSON.parse(JSON.stringify(order.surcharges)),
@@ -296,6 +301,7 @@ export class Order extends FirestoreObject {
         data.customerId,
         data.fulfillment,
         data.lineItems,
+        data.currency,
         data.taxes,
         data.discounts,
         data.surcharges,
