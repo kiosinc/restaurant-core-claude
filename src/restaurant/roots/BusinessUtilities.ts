@@ -29,7 +29,7 @@ export async function createBusiness(user: User, type: BusinessType, device: str
   const businessId = newBusiness.Id;
   // newBusiness.updated = now;
 
-  const newCatalog = new Catalog({}, {});
+  const newCatalog = new Catalog();
   const newConnectedAccounts = new ConnectedAccounts({});
   const newSurface = new Surfaces({}, {});
   const newOnboarding = new Onboarding(null, null, null, null);

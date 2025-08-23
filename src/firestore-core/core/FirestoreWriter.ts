@@ -339,13 +339,11 @@ async function deleteT<C extends FirestoreObject>(
 
   /** Category */
   if (object instanceof Category) {
-    const snapshot = await Catalog.docRef(businessId)
-      .withConverter(Catalog.firestoreConverter).get();
-    const catalog = snapshot.data();
-    if (catalog) {
-      delete catalog.categories[id];
-      t.set(snapshot.ref, catalog);
-    }
+    // const snapshot = await Catalog.docRef(businessId)
+    //   .withConverter(Catalog.firestoreConverter).get();
+    // const catalog = snapshot.data();
+    // if (catalog) {
+    // }
   }
 
   /** OptionSet */

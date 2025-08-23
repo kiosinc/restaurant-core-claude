@@ -1,28 +1,18 @@
 import { FirestoreObject } from '../../firestore-core'
 import { Business } from './Business'
-import ProductMeta from '../catalog/ProductMeta'
-import CategoryMeta from '../catalog/CategoryMeta'
 import * as Paths from '../../firestore-core/Paths'
 
 const catalogKey = Paths.CollectionNames.catalog;
 
 export default class Catalog extends FirestoreObject {
-  categories: { [Id: string]: CategoryMeta };
-
-  products: { [Id: string]: ProductMeta };
 
   constructor(
-    categories: { [p: string]: CategoryMeta },
-    products: { [p: string]: ProductMeta },
     created?: Date,
     updated?: Date,
     isDeleted?: boolean,
     Id?: string,
   ) {
     super( { created, updated, isDeleted, Id: Id ?? catalogKey });
-
-    this.categories = categories;
-    this.products = products;
   }
 
   // eslint-disable-next-line class-methods-use-this
@@ -49,8 +39,6 @@ export default class Catalog extends FirestoreObject {
   static firestoreConverter = {
     toFirestore(catalog: Catalog): FirebaseFirestore.DocumentData {
       return {
-        categories: JSON.parse(JSON.stringify(catalog.categories)),
-        products: JSON.parse(JSON.stringify(catalog.products)),
         created: catalog.created.toISOString(),
         updated: catalog.updated.toISOString(),
         isDeleted: catalog.isDeleted,
@@ -60,8 +48,6 @@ export default class Catalog extends FirestoreObject {
       const data = snapshot.data();
 
       return new Catalog(
-        data.categories,
-        data.products,
         new Date(data.created),
         new Date(data.updated),
         data.isDeleted,
