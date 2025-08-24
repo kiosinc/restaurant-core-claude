@@ -11,12 +11,15 @@ export default class Event extends FirestoreObject {
   /** Is syncing active for this event */
   isSync: boolean;
 
+  queueCap: number;
+
   timestamp?: Date;
 
   constructor(
     provider: string,
     type: string,
     isSync: boolean,
+    queueCap?: number,
     timestamp?: Date,
     created?: Date,
     updated?: Date,
@@ -27,6 +30,7 @@ export default class Event extends FirestoreObject {
     this.provider = provider;
     this.type = type;
     this.isSync = isSync;
+    this.queueCap = queueCap ?? -1;
     this.timestamp = timestamp;
   }
 
@@ -76,6 +80,7 @@ export default class Event extends FirestoreObject {
         provider: event.provider,
         type: event.type,
         isSync: event.isSync,
+        queueCap: event.queueCap,
         timestamp: event.timestamp?.toISOString() ?? '',
         created: event.created.toISOString(),
         updated: event.updated.toISOString(),
@@ -89,6 +94,7 @@ export default class Event extends FirestoreObject {
         data.provider,
         data.type,
         data.isSync,
+        data.queueCap ?? -1,
         data.timestamp === '' ? undefined : new Date(data.timestamp),
         new Date(data.created),
         new Date(data.updated),
