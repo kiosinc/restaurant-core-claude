@@ -54,12 +54,10 @@ export default class Category extends FirestoreObject {
     return Category.collectionRef(businessId);
   }
 
-  metaLinks(businessId: string): { [p: string]: string } {
-    return {
-      [Catalog.docRef(businessId).path]: `${Paths.CollectionNames.categories}.${this.Id}`,
-    };
+// eslint-disable-next-line class-methods-use-this
+  metaLinks(): { [p: string]: string } {
+    return {};
   }
-
   metadata(): CategoryMeta {
     return {
       name: this.name,

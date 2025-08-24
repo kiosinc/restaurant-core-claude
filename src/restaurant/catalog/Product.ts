@@ -129,11 +129,9 @@ export class Product extends FirestoreObject {
     return Product.collectionRef(businessId)
   }
 
-  metaLinks (businessId: string): { [p: string]: string } {
-    return {
-      [Catalog.docRef(
-        businessId).path]: `${Paths.CollectionNames.products}.${this.Id}`,
-    }
+  // eslint-disable-next-line class-methods-use-this
+  metaLinks(): { [p: string]: string } {
+    return {};
   }
 
   metadata (): ProductMeta {
