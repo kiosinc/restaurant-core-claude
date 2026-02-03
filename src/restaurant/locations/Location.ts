@@ -5,7 +5,6 @@ import LinkedObject from '../../firestore-core/core/LinkedObject'
 import * as Paths from '../../firestore-core/Paths'
 import { BusinessHours } from '../../utils/schedule'
 import { Coordinates } from '../../utils/geo'
-import { OrderType } from '../orders/OrderSymbols'
 import { Provider } from '../../firestore-core/Constants'
 
 export interface LocationProps {
@@ -17,16 +16,14 @@ export interface LocationProps {
   dailyOrderCounter: number
   formattedAddress: string | null
   displayName: string | null
-  menuId: string | null
   imageUrls: string[]
-  orderTypes: OrderType[] | null
-  checkoutOptionsId: string | null
   geoCoordinates: Coordinates | null
   utcOffset: number | null
   businessHours: BusinessHours | null
   phoneNumber: string | null
   email: string | null
   currency: string | null
+  isAcceptsMobileOrders: boolean | null
 }
 
 const ref = (businessId: string) => Locations.docRef(businessId).collection(Paths.CollectionNames.locations)
@@ -94,16 +91,14 @@ export class Location extends FirestoreObjectV2 implements LocationProps {
   dailyOrderCounter: number
   formattedAddress: string | null
   displayName: string | null
-  menuId: string | null
   imageUrls: string[]
-  orderTypes: OrderType[] | null
-  checkoutOptionsId: string | null
   geoCoordinates: Coordinates | null
   utcOffset: number | null
   businessHours: BusinessHours | null
   phoneNumber: string | null
   email: string | null
   currency: string | null
+  isAcceptsMobileOrders: boolean | null
 
   constructor (props: LocationProps & FirestoreObjectPropsV2) {
     super(props)
@@ -116,10 +111,7 @@ export class Location extends FirestoreObjectV2 implements LocationProps {
     this.address = props.address
     this.formattedAddress = props.formattedAddress ?? null
     this.displayName = props.displayName ?? null
-    this.menuId = props.menuId ?? null
     this.imageUrls = props.imageUrls ?? []
-    this.orderTypes = props.orderTypes ?? null
-    this.checkoutOptionsId = props.checkoutOptionsId ?? null
     this.geoCoordinates = props.geoCoordinates ?? null
     this.utcOffset = props.utcOffset ?? null
     this.businessHours = props.businessHours ?? null
@@ -128,6 +120,7 @@ export class Location extends FirestoreObjectV2 implements LocationProps {
     this.phoneNumber = props.phoneNumber ?? null
     this.email = props.email ?? null
     this.currency = props.currency ?? null
+    this.isAcceptsMobileOrders = props.isAcceptsMobileOrders
   }
 
   /** delete */
