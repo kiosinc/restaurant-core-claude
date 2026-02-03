@@ -16,6 +16,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 There is no test framework configured. tsconfig excludes `**/__tests__/*` for future use.
 
+## Verification
+
+After adding or changing dependencies in `package.json`, always run `rm -rf node_modules && npm install` before compiling to ensure a clean dependency tree. Stale `node_modules` can mask missing or incorrect dependency configurations.
+
 ## Architecture
 
 ### Domain Structure
