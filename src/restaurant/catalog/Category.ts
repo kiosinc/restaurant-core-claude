@@ -1,5 +1,6 @@
 /**
  * Category class
+ * @deprecated Use Domain.Catalog.Category instead.
  */
 import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'

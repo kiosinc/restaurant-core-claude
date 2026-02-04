@@ -1,5 +1,5 @@
 
-// TODO change to camel case
+/** @deprecated Use Domain.Catalog.InventoryCountState instead. */
 export const enum InventoryCountState {
   instock = 'instock',
   soldout = 'soldout',

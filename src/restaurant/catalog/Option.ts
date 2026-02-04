@@ -1,3 +1,4 @@
+/** @deprecated Use Domain.Catalog.Option instead. */
 import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import Catalog from '../roots/Catalog'

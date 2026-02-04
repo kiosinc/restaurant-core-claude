@@ -1,5 +1,6 @@
 /**
  * Discount class
+ * @deprecated Use Domain.Catalog.Discount instead.
  */
 import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'

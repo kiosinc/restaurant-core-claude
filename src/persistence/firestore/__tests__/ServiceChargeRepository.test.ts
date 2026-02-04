@@ -1,0 +1,140 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ServiceCharge, ServiceChargeType } from '../../../domain/catalog/ServiceCharge';
+import { MetadataRegistry } from '../../MetadataRegistry';
+import { ServiceChargeRepository } from '../ServiceChargeRepository';
+import { createTestServiceChargeProps } from '../../../domain/__tests__/helpers/CatalogFixtures';
+
+const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
+const mockDocRef = { get: vi.fn(), update: vi.fn() };
+const mockQuery = { get: vi.fn() };
+
+let lastCollectionName = '';
+const mockCollectionRef = {
+  doc: vi.fn(() => mockDocRef),
+  where: vi.fn(() => mockQuery),
+};
+const mockDb = {
+  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
+  doc: vi.fn(() => mockDocRef),
+};
+
+vi.mock('firebase-admin/firestore', () => ({
+  getFirestore: () => mockDb,
+  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
+}));
+
+vi.mock('../../../restaurant/roots/Catalog', () => ({
+  default: {
+    docRef: (_businessId: string) => ({
+      collection: (name: string) => {
+        lastCollectionName = name;
+        return mockCollectionRef;
+      },
+    }),
+  },
+}));
+
+describe('ServiceChargeRepository', () => {
+  let registry: MetadataRegistry;
+  let repo: ServiceChargeRepository;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    lastCollectionName = '';
+    registry = new MetadataRegistry();
+    repo = new ServiceChargeRepository(registry);
+  });
+
+  it('get() returns ServiceCharge when exists', async () => {
+    const ts = '2024-01-15T10:00:00.000Z';
+    mockDocRef.get.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        name: 'Delivery Fee', value: 500, type: 'number',
+        isCalculatedSubTotalPhase: false, isTaxable: true,
+        linkedObjects: {}, created: ts, updated: ts, isDeleted: false,
+      }),
+      id: 'sc-1',
+    });
+    const result = await repo.get('biz-1', 'sc-1');
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe('Delivery Fee');
+    expect(result!.value).toBe(500);
+    expect(result!.type).toBe(ServiceChargeType.amount);
+  });
+
+  it('get() returns null when missing', async () => {
+    mockDocRef.get.mockResolvedValue({ exists: false });
+    expect(await repo.get('biz-1', 'missing')).toBeNull();
+  });
+
+  it('set() serializes type amount as number for Firestore', async () => {
+    const sc = new ServiceCharge(createTestServiceChargeProps({
+      Id: 'sc-1', type: ServiceChargeType.amount,
+    }));
+    await repo.set(sc, 'biz-1');
+    const data = mockTransaction.set.mock.calls[0][1];
+    expect(data.type).toBe('number');
+  });
+
+  it('set() serializes type percentage unchanged', async () => {
+    const sc = new ServiceCharge(createTestServiceChargeProps({
+      Id: 'sc-1', type: ServiceChargeType.percentage, value: 15,
+    }));
+    await repo.set(sc, 'biz-1');
+    const data = mockTransaction.set.mock.calls[0][1];
+    expect(data.type).toBe('percentage');
+  });
+
+  it('fromFirestore maps type number to ServiceChargeType.amount', async () => {
+    const ts = '2024-01-15T10:00:00.000Z';
+    mockDocRef.get.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        name: 'Fee', value: 100, type: 'number',
+        isCalculatedSubTotalPhase: false, isTaxable: false,
+        linkedObjects: {}, created: ts, updated: ts, isDeleted: false,
+      }),
+      id: 'sc-1',
+    });
+    const result = await repo.get('biz-1', 'sc-1');
+    expect(result!.type).toBe(ServiceChargeType.amount);
+  });
+
+  it('fromFirestore reads value field, falls back to rate', async () => {
+    const ts = '2024-01-15T10:00:00.000Z';
+    mockDocRef.get.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        name: 'Fee', rate: 250, type: 'number',
+        isCalculatedSubTotalPhase: false, isTaxable: false,
+        linkedObjects: {}, created: ts, updated: ts, isDeleted: false,
+      }),
+      id: 'sc-1',
+    });
+    const result = await repo.get('biz-1', 'sc-1');
+    expect(result!.value).toBe(250);
+  });
+
+  it('round-trip preserves data', async () => {
+    const ts = new Date('2024-06-01T12:00:00Z');
+    const original = new ServiceCharge(createTestServiceChargeProps({
+      Id: 'sc-rt', name: 'RT Fee', value: 300, type: ServiceChargeType.percentage,
+      isCalculatedSubTotalPhase: true, isTaxable: true,
+      created: ts, updated: ts,
+    }));
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'sc-rt' });
+    const restored = await repo.get('biz-1', 'sc-rt');
+    expect(restored!.name).toBe(original.name);
+    expect(restored!.value).toBe(original.value);
+    expect(restored!.type).toBe(original.type);
+  });
+
+  it('collectionRef uses serviceCharges not taxRates', async () => {
+    const sc = new ServiceCharge(createTestServiceChargeProps());
+    await repo.set(sc, 'biz-1');
+    expect(lastCollectionName).toBe('serviceCharges');
+  });
+});

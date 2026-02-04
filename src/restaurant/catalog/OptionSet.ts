@@ -1,5 +1,6 @@
 /**
  * OptionSet class
+ * @deprecated Use Domain.Catalog.OptionSet instead.
  */
 import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'

@@ -1,8 +1,10 @@
+/** @deprecated Use Domain.Catalog.ServiceCharge instead. */
 import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import Catalog from '../roots/Catalog'
 import * as Paths from '../../firestore-core/Paths'
 
+/** @deprecated Use Domain.Catalog.ServiceChargeType instead. */
 export const enum ServiceChargeType {
   percentage = 'percentage',
   number = 'number',
