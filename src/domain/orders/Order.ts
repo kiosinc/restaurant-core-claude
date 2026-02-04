@@ -1,5 +1,6 @@
 import { DomainEntity, DomainEntityProps } from '../DomainEntity';
 import { OrderState, OrderType, OrderTypeMeta, PaymentState } from './OrderSymbols';
+import { LinkedObjectRef, LinkedObjectMap } from '../LinkedObjectRef';
 
 export interface SelectedValue {
   optionId: string;
@@ -58,9 +59,7 @@ export interface OrderPayment {
   receiptUrl: string | null;
 }
 
-export interface LinkedObjectRef {
-  linkedObjectId: string;
-}
+export { LinkedObjectRef, LinkedObjectMap };
 
 export interface OrderProps extends DomainEntityProps {
   businessId: string;

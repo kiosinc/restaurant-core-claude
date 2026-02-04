@@ -10,6 +10,7 @@ export {
   OptionSetSelected,
   SelectedValue,
   LinkedObjectRef,
+  LinkedObjectMap,
 } from './Order';
 export {
   OrderType,
