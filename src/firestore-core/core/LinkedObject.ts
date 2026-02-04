@@ -4,8 +4,9 @@
 import * as Constants from '../Constants';
 
 /**
- * LinkedObject represents a direct relationship to another object
- * that exists on an external system
+ * @deprecated Use `LinkedObjectRef` from `src/domain/LinkedObjectRef` for the data type.
+ * Use `linkedObjectQuery`/`findByLinkedObjectId` from `src/persistence/firestore/LinkedObjectQueries`
+ * for query logic. Will be removed in the next major version.
  */
 export default class LinkedObject {
   linkedObjectId: string;
@@ -23,6 +24,7 @@ export default class LinkedObject {
   /**
    * Finds the object, if any, in the specified collection that is 'linked'
    * to the specified object (i.e. ID key matches).  Return false if not found.
+   * @deprecated Use `findByLinkedObjectId` from `src/persistence/firestore/LinkedObjectQueries`.
    */
   static async find(
     linkedObjectId: string,
@@ -48,6 +50,7 @@ export default class LinkedObject {
   /**
    * Constructs a Firestore query to find a converted object given the
    * 'linked' object ID
+   * @deprecated Use `linkedObjectQuery` from `src/persistence/firestore/LinkedObjectQueries`.
    */
   static findQuery(
     linkedObjectId: string,
