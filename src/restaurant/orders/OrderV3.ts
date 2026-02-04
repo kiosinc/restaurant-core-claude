@@ -74,6 +74,7 @@ export interface OrderPayment {
 
 /**
  * Order class extends FirestoreObject
+ * @deprecated Use `Domain.Orders.Order` from `src/domain/orders/Order` instead.
  */
 export class Order extends FirestoreObject {
   readonly version: string;
