@@ -1,3 +1,4 @@
+/** @deprecated Use Domain.Catalog.OptionSetMeta instead. */
 export default interface OptionSetMeta {
   name: string
   displayOrder: number
