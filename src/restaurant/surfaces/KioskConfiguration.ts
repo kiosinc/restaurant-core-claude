@@ -15,6 +15,7 @@ const kioskConfigurationVersion = '1.0'
 const path = 'kioskConfigurations'
 const ref = (businessId: string) => Surfaces.docRef(businessId).collection(path)
 
+/** @deprecated Use Domain.Surfaces.KioskConfiguration */
 export default class KioskConfiguration extends FirestoreObjectV2 implements KioskOptionProps {
 
   name: string

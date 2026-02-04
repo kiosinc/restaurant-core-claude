@@ -65,6 +65,7 @@ export interface TipConfiguration {
 
 const surfaceVersion = '0.0';
 
+/** @deprecated Use Domain.Surfaces.SurfaceConfiguration */
 export class SurfaceConfiguration extends FirestoreObject {
   name: string;
 
