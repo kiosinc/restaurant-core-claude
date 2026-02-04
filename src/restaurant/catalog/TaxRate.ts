@@ -1,8 +1,10 @@
+/** @deprecated Use Domain.Catalog.TaxRate instead. */
 import { FirestoreObject } from '../../firestore-core'
 import LinkedObject from '../../firestore-core/core/LinkedObject'
 import Catalog from '../roots/Catalog'
 import * as Paths from '../../firestore-core/Paths'
 
+/** @deprecated Use Domain.Catalog.TaxRate instead. */
 export default class TaxRate extends FirestoreObject {
   name: string;
 

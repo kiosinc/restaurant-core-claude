@@ -1,3 +1,4 @@
+/** @deprecated Use Domain.Catalog.ProductMeta instead. */
 export default interface ProductMeta {
   name: string;
   isActive: boolean;
