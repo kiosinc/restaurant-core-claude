@@ -3,6 +3,7 @@ import ConnectedAccounts from '../roots/ConnectedAccounts'
 import * as Constants from '../../firestore-core/Constants'
 import * as Paths from '../../firestore-core/Paths'
 
+/** @deprecated Use `Domain.ConnectedAccounts.Event` from `src/domain/connected-accounts/Event` instead. */
 export default class Event extends FirestoreObject {
   readonly provider: string;
 
