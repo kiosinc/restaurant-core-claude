@@ -28,14 +28,17 @@ export interface LocationProps {
 
 const ref = (businessId: string) => Locations.docRef(businessId).collection(Paths.CollectionNames.locations)
 
+/** @deprecated Use `Domain.Locations.Location` from `src/domain/locations/Location.ts` instead. */
 export class Location extends FirestoreObjectV2 implements LocationProps {
   // TODO try to remove this line
   static firestoreConverter = super.firestoreConverter
 
+  /** @deprecated Use `LocationRepository` instead. */
   static collectionRef (businessId: string): FirebaseFirestore.CollectionReference {
     return ref(businessId)
   }
 
+  /** @deprecated Use `LocationRepository.get()` instead. */
   static get(businessId: string, Id: string) {
     return super.getGeneric(businessId,
                             ref(businessId)
@@ -45,6 +48,7 @@ export class Location extends FirestoreObjectV2 implements LocationProps {
     )
   }
 
+  /** @deprecated Use `LocationRepository.delete()` instead. */
   static delete(businessId: string, Id: string) {
     return super.deleteGeneric(
       ref(businessId).doc(Id),
@@ -52,6 +56,7 @@ export class Location extends FirestoreObjectV2 implements LocationProps {
     )
   }
 
+  /** @deprecated Use `LocationRepository.findByLinkedObject()` instead. */
   static find(businessId: string, linkedObjectId: string, provider: Provider) {
     return FirestoreObjectV2.findGeneric(
       linkedObjectId,
@@ -62,6 +67,7 @@ export class Location extends FirestoreObjectV2 implements LocationProps {
     )
   }
 
+  /** @deprecated Use `LocationRepository.set()` instead. */
   set() {
     return super.setGeneric(
       ref(this.businessId)
@@ -72,6 +78,7 @@ export class Location extends FirestoreObjectV2 implements LocationProps {
     )
   }
 
+  /** @deprecated Use `LocationRepository.update()` instead. */
   update() {
     // TODO Update metalinks
     return super.updateGeneric(
