@@ -75,6 +75,7 @@ const path = 'checkoutOptions'
 const ref = (businessId: string) => Surfaces.docRef(businessId)
                                             .collection(path)
 
+/** @deprecated Use Domain.Surfaces.CheckoutOptions */
 export class CheckoutOptions extends FirestoreObjectV2 implements CheckoutOptionsProps {
   name: string
   discounts: DiscountOptions

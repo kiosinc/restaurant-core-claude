@@ -4,6 +4,7 @@ import MenuGroupMeta from './MenuGroupMeta'
 import MenuMeta from './MenuMeta'
 import * as Paths from '../../firestore-core/Paths'
 
+/** @deprecated Use Domain.Surfaces.Menu */
 export default class Menu extends FirestoreObject {
   static firestoreConverter = {
     toFirestore (menu: Menu): FirebaseFirestore.DocumentData {

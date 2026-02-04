@@ -2,6 +2,7 @@ import { FirestoreObject } from '../../firestore-core'
 import ConnectedAccounts from '../roots/ConnectedAccounts'
 import * as Paths from '../../firestore-core/Paths'
 
+/** @deprecated Use Domain.ConnectedAccounts.Token */
 export default abstract class Token extends FirestoreObject {
   createdBy: string;
 
