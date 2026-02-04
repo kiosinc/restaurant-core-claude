@@ -4,6 +4,7 @@ import MenuGroupMeta from './MenuGroupMeta'
 import ProductMeta from '../catalog/ProductMeta'
 import * as Paths from '../../firestore-core/Paths'
 
+/** @deprecated Use Domain.Surfaces.MenuGroup */
 export default class MenuGroup extends FirestoreObject {
   // The group's name, meant to be displayable to the customer.
   name: string;

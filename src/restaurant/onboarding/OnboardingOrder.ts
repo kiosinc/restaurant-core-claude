@@ -26,6 +26,7 @@ export const enum InvoiceStatus {
   uncollectible = 'uncollectible',
 }
 
+/** @deprecated Use Domain.Onboarding.OnboardingOrder */
 export class OnboardingOrder extends FirestoreObject {
   invoiceId: string;
 

@@ -7,3 +7,6 @@ export * as Catalog from './catalog';
 export * as ConnectedAccounts from './connected-accounts';
 export * as Locations from './locations';
 export * as Orders from './orders';
+export * as Surfaces from './surfaces';
+export * as Onboarding from './onboarding';
+export * as Misc from './misc';
