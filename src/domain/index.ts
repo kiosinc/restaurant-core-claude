@@ -10,3 +10,4 @@ export * as Orders from './orders';
 export * as Surfaces from './surfaces';
 export * as Onboarding from './onboarding';
 export * as Misc from './misc';
+export * as Roots from './roots';

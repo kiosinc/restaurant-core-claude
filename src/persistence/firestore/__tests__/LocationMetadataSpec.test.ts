@@ -3,13 +3,37 @@ import { Location } from '../../../domain/locations/Location';
 import { LocationMetadataSpec } from '../LocationMetadataSpec';
 import { createTestLocationProps } from '../../../domain/__tests__/helpers/LocationFixtures';
 
-// Mock Locations.docRef to avoid real Firestore
-vi.mock('../../../restaurant/roots/Locations', () => ({
-  default: {
-    docRef: (businessId: string) => ({
-      path: `businesses/${businessId}/public/locations`,
-    }),
+// Mock firebase-admin/firestore with proper chain for PathResolver
+// PathResolver does: db.collection('businesses').doc(businessId).collection('public').doc('locations')
+let capturedBusinessId = '';
+
+const mockLocationsDocRef = {
+  get path() {
+    return `businesses/${capturedBusinessId}/public/locations`;
   },
+};
+
+const mockPublicCollectionRef = {
+  doc: vi.fn(() => mockLocationsDocRef),
+};
+
+const mockBusinessDocRef = {
+  collection: vi.fn(() => mockPublicCollectionRef),
+};
+
+const mockBusinessesCollectionRef = {
+  doc: vi.fn((businessId: string) => {
+    capturedBusinessId = businessId;
+    return mockBusinessDocRef;
+  }),
+};
+
+const mockDb = {
+  collection: vi.fn(() => mockBusinessesCollectionRef),
+};
+
+vi.mock('firebase-admin/firestore', () => ({
+  getFirestore: () => mockDb,
 }));
 
 describe('LocationMetadataSpec', () => {

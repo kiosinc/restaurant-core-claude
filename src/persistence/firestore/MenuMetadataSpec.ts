@@ -1,7 +1,7 @@
 import { MetadataSpec, MetaLinkDeclaration } from '../../domain/MetadataSpec';
 import { Menu } from '../../domain/surfaces/Menu';
 import { MenuMeta } from '../../domain/surfaces/MenuMeta';
-import Surfaces from '../../restaurant/roots/Surfaces';
+import { PathResolver } from './PathResolver';
 import * as Paths from '../../firestore-core/Paths';
 
 export class MenuMetadataSpec implements MetadataSpec<Menu, MenuMeta> {
@@ -11,7 +11,7 @@ export class MenuMetadataSpec implements MetadataSpec<Menu, MenuMeta> {
 
   getMetaLinks(entity: Menu, businessId: string): MetaLinkDeclaration[] {
     return [{
-      documentPath: Surfaces.docRef(businessId).path,
+      documentPath: PathResolver.surfacesDoc(businessId).path,
       fieldPath: `${Paths.CollectionNames.menus}.${entity.Id}`,
     }];
   }

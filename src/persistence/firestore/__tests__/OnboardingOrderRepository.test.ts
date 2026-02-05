@@ -6,28 +6,29 @@ import { createTestOnboardingOrderProps } from '../../../domain/__tests__/helper
 import { OrderState } from '../../../domain/orders/OrderSymbols';
 
 const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn() };
+const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
 const mockQuery = { get: vi.fn() };
 const mockCollectionRef = {
   doc: vi.fn(() => mockDocRef),
   where: vi.fn(() => mockQuery),
 };
+
 const mockDb = {
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
+  collection: vi.fn(() => mockCollectionRef),
   doc: vi.fn(() => mockDocRef),
+  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
 };
+
+// Make chaining work: collection().doc() returns something with .collection()
+mockCollectionRef.doc.mockReturnValue({
+  ...mockDocRef,
+  collection: vi.fn(() => mockCollectionRef),
+  path: 'mocked/path',
+});
 
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mockDb,
   FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
-
-vi.mock('../../../restaurant/roots/Onboarding', () => ({
-  Onboarding: {
-    docRef: (_businessId: string) => ({
-      collection: (_name: string) => mockCollectionRef,
-    }),
-  },
 }));
 
 function createFullSerializedOnboardingOrder() {

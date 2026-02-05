@@ -1,4 +1,3 @@
-export { FirestoreObjectProps, FirestoreObject } from './core/FirestoreObject';
-export * as Writer from './core/FirestoreWriter';
+export * as Paths from './Paths';
+export * as Constants from './Constants';
 export { default as DistributedCounter } from './core/DistributedCounter';
-export { FirestoreObjectPropsV2, FirestoreObjectV2 } from './core/FirestoreObjectV2';

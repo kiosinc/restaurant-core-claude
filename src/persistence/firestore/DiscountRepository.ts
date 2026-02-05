@@ -1,13 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { Discount, DiscountType } from '../../domain/catalog/Discount';
-import Catalog from '../../restaurant/roots/Catalog';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class DiscountRepository extends FirestoreRepository<Discount> {
   protected config(): FirestoreRepositoryConfig<Discount> {
     return {
       collectionRef(businessId: string) {
-        return Catalog.docRef(businessId).collection(Paths.CollectionNames.discounts);
+        return PathResolver.discountsCollection(businessId);
       },
       toFirestore(discount: Discount): FirebaseFirestore.DocumentData {
         return {

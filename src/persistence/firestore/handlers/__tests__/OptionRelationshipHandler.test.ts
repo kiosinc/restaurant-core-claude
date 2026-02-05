@@ -6,20 +6,26 @@ import { createTestOptionProps } from '../../../../domain/__tests__/helpers/Cata
 const mockUpdate = vi.fn();
 const mockGet = vi.fn();
 const mockWhere = vi.fn();
-const mockCollectionRef = { where: mockWhere };
+const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
+const mockCollectionRef = { where: mockWhere, doc: vi.fn(() => mockDocRef) };
+
+const mockDb = {
+  collection: vi.fn(() => mockCollectionRef),
+  doc: vi.fn(() => mockDocRef),
+};
+
+// Make chaining work: collection().doc() returns something with .collection()
+mockCollectionRef.doc.mockReturnValue({
+  ...mockDocRef,
+  collection: vi.fn(() => mockCollectionRef),
+  path: 'mocked/path',
+});
 
 vi.mock('firebase-admin/firestore', () => ({
+  getFirestore: () => mockDb,
   FieldValue: {
     delete: () => '$$FIELD_DELETE$$',
     arrayRemove: (val: string) => `$$ARRAY_REMOVE:${val}$$`,
-  },
-}));
-
-vi.mock('../../../../restaurant/roots/Catalog', () => ({
-  default: {
-    docRef: (_businessId: string) => ({
-      collection: (_name: string) => mockCollectionRef,
-    }),
   },
 }));
 

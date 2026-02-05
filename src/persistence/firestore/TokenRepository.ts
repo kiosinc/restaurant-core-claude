@@ -1,13 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { Token } from '../../domain/connected-accounts/Token';
-import ConnectedAccounts from '../../restaurant/roots/ConnectedAccounts';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class TokenRepository extends FirestoreRepository<Token> {
   protected config(): FirestoreRepositoryConfig<Token> {
     return {
       collectionRef(businessId: string) {
-        return ConnectedAccounts.docRef(businessId).collection(Paths.CollectionNames.tokens);
+        return PathResolver.tokensCollection(businessId);
       },
       toFirestore(token: Token): FirebaseFirestore.DocumentData {
         return {

@@ -1,14 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { Event } from '../../domain/connected-accounts/Event';
-import ConnectedAccounts from '../../restaurant/roots/ConnectedAccounts';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class EventRepository extends FirestoreRepository<Event> {
   protected config(): FirestoreRepositoryConfig<Event> {
     return {
       collectionRef(businessId: string) {
-        return ConnectedAccounts.docRef(businessId)
-          .collection(Paths.CollectionNames.events);
+        return PathResolver.eventsCollection(businessId);
       },
       toFirestore(event: Event): FirebaseFirestore.DocumentData {
         return {

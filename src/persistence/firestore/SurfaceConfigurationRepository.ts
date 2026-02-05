@@ -1,13 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { SurfaceConfiguration } from '../../domain/surfaces/SurfaceConfiguration';
-import Surfaces from '../../restaurant/roots/Surfaces';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class SurfaceConfigurationRepository extends FirestoreRepository<SurfaceConfiguration> {
   protected config(): FirestoreRepositoryConfig<SurfaceConfiguration> {
     return {
       collectionRef(businessId: string) {
-        return Surfaces.docRef(businessId).collection(Paths.CollectionNames.surfaceConfigurations);
+        return PathResolver.surfaceConfigurationsCollection(businessId);
       },
       toFirestore(sc: SurfaceConfiguration): FirebaseFirestore.DocumentData {
         return {

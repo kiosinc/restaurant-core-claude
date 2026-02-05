@@ -1,7 +1,7 @@
 import { TenantEntity, TenantEntityProps } from '../TenantEntity';
 import { MetadataProjection } from '../MetadataSpec';
 import { LinkedObjectRef, LinkedObjectMap } from '../LinkedObjectRef';
-import { Address } from '../../restaurant/misc/Address';
+import { Address } from '../misc/Address';
 import { BusinessHours } from '../../utils/schedule';
 import { Coordinates } from '../../utils/geo';
 

@@ -1,13 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { TaxRate } from '../../domain/catalog/TaxRate';
-import Catalog from '../../restaurant/roots/Catalog';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class TaxRateRepository extends FirestoreRepository<TaxRate> {
   protected config(): FirestoreRepositoryConfig<TaxRate> {
     return {
       collectionRef(businessId: string) {
-        return Catalog.docRef(businessId).collection(Paths.CollectionNames.taxRates);
+        return PathResolver.taxRatesCollection(businessId);
       },
       toFirestore(taxRate: TaxRate): FirebaseFirestore.DocumentData {
         return {
