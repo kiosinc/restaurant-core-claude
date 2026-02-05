@@ -1,58 +1,24 @@
-export * as Core from './firestore-core';
+// Domain layer — pure models
+export * as Domain from './domain';
 
+// Persistence layer — repositories, registries, path resolver
+export * as Persistence from './persistence';
+
+// Infrastructure — Firestore path constants & enums
+export * as Paths from './firestore-core/Paths';
+export * as Constants from './firestore-core/Constants';
+
+// Auth & User — unchanged
 export * as Authentication from './user/Authentication';
 export * as Claims from './user/Claims';
 export * as User from './user/User';
 
-export { default as LinkedObject } from './firestore-core/core/LinkedObject';
-export { default as LinkedObjectType } from './firestore-core/core/LinkedObjectType';
-export * as LinkedObjectSync from './firestore-core/core/LinkedObjectUtilities';
-
-export * as Constants from './firestore-core/Constants';
-
-export { default as Category } from './restaurant/catalog/Category';
-export { default as CategoryMeta } from './restaurant/catalog/CategoryMeta';
-export * from './restaurant/catalog/Product';
-export { default as OptionSet, OptionSetSelection } from './restaurant/catalog/OptionSet';
-export { default as OptionSetMeta } from './restaurant/catalog/OptionSetMeta';
-export { default as Option } from './restaurant/catalog/Option';
-export { default as OptionMeta } from './restaurant/catalog/OptionMeta';
-export { default as ProductMeta } from './restaurant/catalog/ProductMeta';
-export { default as TaxRate } from './restaurant/catalog/TaxRate';
-export * from './restaurant/catalog/ServiceCharge';
-export { default as Event } from './restaurant/connected-accounts/Event';
-export { default as EventNotification } from './restaurant/connected-accounts/EventNotification';
-export { default as Token } from './restaurant/connected-accounts/Token';
-export { Address, emptyAddress } from './restaurant/misc/Address';
-export { default as BusinessProfile } from './restaurant/misc/BusinessProfile';
-export * from './restaurant/roots/Business';
-export * from './restaurant/roots/BusinessUtilities';
-export { default as Catalog } from './restaurant/roots/Catalog';
-export { default as ConnectedAccounts } from './restaurant/roots/ConnectedAccounts';
-export { default as Surfaces } from './restaurant/roots/Surfaces';
-export { default as Menu } from './restaurant/surfaces/Menu';
-export { default as MenuGroup } from './restaurant/surfaces/MenuGroup';
-export { default as MenuGroupMeta } from './restaurant/surfaces/MenuGroupMeta';
-export { default as MenuMeta } from './restaurant/surfaces/MenuMeta';
-export { default as KioskConfiguration } from './restaurant/surfaces/KioskConfiguration';
-export * from './restaurant/surfaces/SurfaceConfiguration';
-export * from './restaurant/catalog/Discount';
-export { default as Orders } from './restaurant/roots/Orders';
-export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';
-export { default as Locations } from './restaurant/roots/Locations';
-export { Location, LocationProps } from './restaurant/locations/Location';
-export { default as LocationMeta } from './restaurant/locations/LocationMeta';
-export {
-  InventoryCount, InventoryCountState, LocationInventoryFromFirestore, LocationInventoryToFirestore,
-} from './restaurant/catalog/InventoryCount';
-export { Onboarding, OnboardingStage, OnboardingStageStatus } from './restaurant/roots/Onboarding';
-export { OnboardingOrder, InvoiceStatus } from './restaurant/onboarding/OnboardingOrder';
-export * as OrderV3 from './restaurant/orders/OrderV3';
-export * as OrderSymbols from './restaurant/orders/OrderSymbols';
+// Utils — unchanged
 export * as Utils from './utils';
+
+// Reports — unchanged
 export * as Reports from './reports';
-export * as Paths from './firestore-core/Paths'
-export * as CheckoutOptions from './restaurant/surfaces/CheckoutOptions'
-// export * as FeatureList from './restaurant/roots/FeatureList'
-export * as Domain from './domain';
-export * as Persistence from './persistence';
+
+// RTDB modules — not migrated, kept as-is
+export { default as EventNotification } from './restaurant/connected-accounts/EventNotification';
+export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';

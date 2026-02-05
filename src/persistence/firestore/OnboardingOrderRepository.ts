@@ -1,13 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { OnboardingOrder } from '../../domain/onboarding/OnboardingOrder';
-import { Onboarding } from '../../restaurant/roots/Onboarding';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class OnboardingOrderRepository extends FirestoreRepository<OnboardingOrder> {
   protected config(): FirestoreRepositoryConfig<OnboardingOrder> {
     return {
       collectionRef(businessId: string) {
-        return Onboarding.docRef(businessId).collection(Paths.CollectionNames.onboardingOrders);
+        return PathResolver.onboardingOrdersCollection(businessId);
       },
       toFirestore(oo: OnboardingOrder): FirebaseFirestore.DocumentData {
         return {

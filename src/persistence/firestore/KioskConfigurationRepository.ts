@@ -1,12 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { KioskConfiguration } from '../../domain/surfaces/KioskConfiguration';
-import Surfaces from '../../restaurant/roots/Surfaces';
+import { PathResolver } from './PathResolver';
 
 export class KioskConfigurationRepository extends FirestoreRepository<KioskConfiguration> {
   protected config(): FirestoreRepositoryConfig<KioskConfiguration> {
     return {
       collectionRef(businessId: string) {
-        return Surfaces.docRef(businessId).collection('kioskConfigurations');
+        return PathResolver.kioskConfigurationsCollection(businessId);
       },
       toFirestore(kc: KioskConfiguration): FirebaseFirestore.DocumentData {
         return {

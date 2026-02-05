@@ -1,12 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { CheckoutOptions } from '../../domain/surfaces/CheckoutOptions';
-import Surfaces from '../../restaurant/roots/Surfaces';
+import { PathResolver } from './PathResolver';
 
 export class CheckoutOptionsRepository extends FirestoreRepository<CheckoutOptions> {
   protected config(): FirestoreRepositoryConfig<CheckoutOptions> {
     return {
       collectionRef(businessId: string) {
-        return Surfaces.docRef(businessId).collection('checkoutOptions');
+        return PathResolver.checkoutOptionsCollection(businessId);
       },
       toFirestore(co: CheckoutOptions): FirebaseFirestore.DocumentData {
         return {

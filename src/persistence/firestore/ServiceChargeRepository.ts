@@ -1,14 +1,13 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { ServiceCharge, ServiceChargeType } from '../../domain/catalog/ServiceCharge';
-import Catalog from '../../restaurant/roots/Catalog';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class ServiceChargeRepository extends FirestoreRepository<ServiceCharge> {
   protected config(): FirestoreRepositoryConfig<ServiceCharge> {
     return {
       collectionRef(businessId: string) {
         // FIX: Old code incorrectly used 'taxRates' collection.
-        return Catalog.docRef(businessId).collection(Paths.CollectionNames.serviceCharges);
+        return PathResolver.serviceChargesCollection(businessId);
       },
       toFirestore(charge: ServiceCharge): FirebaseFirestore.DocumentData {
         return {

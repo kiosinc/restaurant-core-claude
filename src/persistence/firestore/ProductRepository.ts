@@ -1,7 +1,6 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { Product } from '../../domain/catalog/Product';
-import Catalog from '../../restaurant/roots/Catalog';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 import { locationInventoryToFirestore, locationInventoryFromFirestore }
   from './helpers/InventoryCountConverter';
 
@@ -9,7 +8,7 @@ export class ProductRepository extends FirestoreRepository<Product> {
   protected config(): FirestoreRepositoryConfig<Product> {
     return {
       collectionRef(businessId: string) {
-        return Catalog.docRef(businessId).collection(Paths.CollectionNames.products);
+        return PathResolver.productsCollection(businessId);
       },
       toFirestore(product: Product): FirebaseFirestore.DocumentData {
         return {

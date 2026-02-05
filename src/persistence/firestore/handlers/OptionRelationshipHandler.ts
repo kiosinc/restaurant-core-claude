@@ -1,8 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { RelationshipHandler } from './RelationshipHandler';
 import { Option } from '../../../domain/catalog/Option';
-import Catalog from '../../../restaurant/roots/Catalog';
-import { CollectionNames } from '../../../firestore-core/Paths';
+import { PathResolver } from '../PathResolver';
 
 /**
  * When an Option is saved: update OptionMeta in all OptionSets that contain it.
@@ -13,7 +12,7 @@ import { CollectionNames } from '../../../firestore-core/Paths';
  */
 export class OptionRelationshipHandler implements RelationshipHandler<Option> {
   async onSet(option: Option, businessId: string, t: FirebaseFirestore.Transaction): Promise<void> {
-    const optionSetRef = Catalog.docRef(businessId).collection(CollectionNames.optionSets);
+    const optionSetRef = PathResolver.optionSetsCollection(businessId);
     const snapshot = await t.get(
       optionSetRef.where(`options.${option.Id}.name`, '>=', ''),
     );
@@ -23,7 +22,7 @@ export class OptionRelationshipHandler implements RelationshipHandler<Option> {
   }
 
   async onDelete(option: Option, businessId: string, t: FirebaseFirestore.Transaction): Promise<void> {
-    const optionSetRef = Catalog.docRef(businessId).collection(CollectionNames.optionSets);
+    const optionSetRef = PathResolver.optionSetsCollection(businessId);
     const snapshot = await t.get(
       optionSetRef.where(`options.${option.Id}.name`, '>=', ''),
     );

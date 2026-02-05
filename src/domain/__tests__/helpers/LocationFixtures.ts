@@ -1,5 +1,5 @@
 import { LocationProps } from '../../locations/Location';
-import { emptyAddress } from '../../../restaurant/misc/Address';
+import { emptyAddress } from '../../misc/Address';
 
 export function createTestLocationProps(overrides?: Partial<LocationProps>): LocationProps {
   return {

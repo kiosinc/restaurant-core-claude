@@ -1,14 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { Location } from '../../domain/locations/Location';
-import Locations from '../../restaurant/roots/Locations';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class LocationRepository extends FirestoreRepository<Location> {
   protected config(): FirestoreRepositoryConfig<Location> {
     return {
       collectionRef(businessId: string) {
-        return Locations.docRef(businessId)
-          .collection(Paths.CollectionNames.locations);
+        return PathResolver.locationsCollection(businessId);
       },
       toFirestore(location: Location): FirebaseFirestore.DocumentData {
         return {

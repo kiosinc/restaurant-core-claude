@@ -9,11 +9,13 @@ const mockTransaction = {
   set: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
+  get: vi.fn(),
 };
 
 const mockDocRef = {
   get: vi.fn(),
   update: vi.fn(),
+  path: '',
 };
 
 const mockCollectionRef = {
@@ -24,9 +26,13 @@ const mockCollectionRef = {
 };
 
 const mockDb = {
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
+  collection: vi.fn(() => mockCollectionRef),
   doc: vi.fn(() => mockDocRef),
+  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
 };
+
+// Add collection method to mockDocRef for PathResolver chaining
+(mockDocRef as any).collection = vi.fn(() => mockCollectionRef);
 
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mockDb,

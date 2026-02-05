@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Location } from '../Location';
 import { createTestLocationProps } from '../../__tests__/helpers/LocationFixtures';
-import { emptyAddress } from '../../../restaurant/misc/Address';
+import { emptyAddress } from '../../misc/Address';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

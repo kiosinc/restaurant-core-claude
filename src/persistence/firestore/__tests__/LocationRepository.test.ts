@@ -6,45 +6,31 @@ import { LocationMetadataSpec } from '../LocationMetadataSpec';
 import { createTestLocationProps } from '../../../domain/__tests__/helpers/LocationFixtures';
 
 // Mock firebase-admin/firestore
-const mockTransaction = {
-  set: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-};
-
-const mockDocRef = {
-  get: vi.fn(),
-  update: vi.fn(),
-};
-
+const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
+const mockDocRef = { get: vi.fn(), update: vi.fn(), path: 'businesses/biz-1/public/locations' };
+const mockQuery = { get: vi.fn() };
 const mockCollectionRef = {
   doc: vi.fn(() => mockDocRef),
   where: vi.fn(() => mockQuery),
 };
 
-const mockQuery = {
-  get: vi.fn(),
+const mockDb = {
+  collection: vi.fn(() => mockCollectionRef),
+  doc: vi.fn(() => mockDocRef),
+  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
 };
 
-const mockDb = {
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-  doc: vi.fn(() => mockDocRef),
-};
+// Make chaining work: collection().doc() returns something with .collection()
+mockCollectionRef.doc.mockReturnValue({
+  ...mockDocRef,
+  collection: vi.fn(() => mockCollectionRef),
+  path: 'businesses/biz-1/public/locations',
+});
 
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mockDb,
   FieldValue: {
     delete: () => '$$FIELD_DELETE$$',
-  },
-}));
-
-// Mock Locations.docRef to avoid real Firestore
-vi.mock('../../../restaurant/roots/Locations', () => ({
-  default: {
-    docRef: (_businessId: string) => ({
-      collection: (_name: string) => mockCollectionRef,
-      path: `businesses/${_businessId}/public/locations`,
-    }),
   },
 }));
 

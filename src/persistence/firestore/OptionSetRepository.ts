@@ -1,7 +1,6 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { OptionSet } from '../../domain/catalog/OptionSet';
-import Catalog from '../../restaurant/roots/Catalog';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 import { locationInventoryToFirestore, locationInventoryFromFirestore }
   from './helpers/InventoryCountConverter';
 
@@ -9,7 +8,7 @@ export class OptionSetRepository extends FirestoreRepository<OptionSet> {
   protected config(): FirestoreRepositoryConfig<OptionSet> {
     return {
       collectionRef(businessId: string) {
-        return Catalog.docRef(businessId).collection(Paths.CollectionNames.optionSets);
+        return PathResolver.optionSetsCollection(businessId);
       },
       toFirestore(os: OptionSet): FirebaseFirestore.DocumentData {
         return {

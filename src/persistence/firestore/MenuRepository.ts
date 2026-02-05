@@ -1,13 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { Menu } from '../../domain/surfaces/Menu';
-import Surfaces from '../../restaurant/roots/Surfaces';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class MenuRepository extends FirestoreRepository<Menu> {
   protected config(): FirestoreRepositoryConfig<Menu> {
     return {
       collectionRef(businessId: string) {
-        return Surfaces.docRef(businessId).collection(Paths.CollectionNames.menus);
+        return PathResolver.menusCollection(businessId);
       },
       toFirestore(menu: Menu): FirebaseFirestore.DocumentData {
         return {

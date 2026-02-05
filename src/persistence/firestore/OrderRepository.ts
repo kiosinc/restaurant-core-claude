@@ -1,14 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { Order } from '../../domain/orders/Order';
-import Orders from '../../restaurant/roots/Orders';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class OrderRepository extends FirestoreRepository<Order> {
   protected config(): FirestoreRepositoryConfig<Order> {
     return {
       collectionRef(businessId: string) {
-        return Orders.docRef(businessId)
-          .collection(Paths.CollectionNames.orders);
+        return PathResolver.ordersCollection(businessId);
       },
       toFirestore(order: Order): FirebaseFirestore.DocumentData {
         return {

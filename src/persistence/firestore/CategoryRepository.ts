@@ -1,13 +1,12 @@
 import { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
 import { Category } from '../../domain/catalog/Category';
-import Catalog from '../../restaurant/roots/Catalog';
-import * as Paths from '../../firestore-core/Paths';
+import { PathResolver } from './PathResolver';
 
 export class CategoryRepository extends FirestoreRepository<Category> {
   protected config(): FirestoreRepositoryConfig<Category> {
     return {
       collectionRef(businessId: string) {
-        return Catalog.docRef(businessId).collection(Paths.CollectionNames.categories);
+        return PathResolver.categoriesCollection(businessId);
       },
       toFirestore(category: Category): FirebaseFirestore.DocumentData {
         return {

@@ -1,6 +1,6 @@
 import { MetadataSpec, MetaLinkDeclaration } from '../../domain/MetadataSpec';
 import { Location, LocationMeta } from '../../domain/locations/Location';
-import Locations from '../../restaurant/roots/Locations';
+import { PathResolver } from './PathResolver';
 import * as Paths from '../../firestore-core/Paths';
 
 export class LocationMetadataSpec implements MetadataSpec<Location, LocationMeta> {
@@ -11,7 +11,7 @@ export class LocationMetadataSpec implements MetadataSpec<Location, LocationMeta
   getMetaLinks(entity: Location, businessId: string): MetaLinkDeclaration[] {
     return [
       {
-        documentPath: Locations.docRef(businessId).path,
+        documentPath: PathResolver.locationsDoc(businessId).path,
         fieldPath: `${Paths.CollectionNames.locations}.${entity.Id}`,
       },
     ];

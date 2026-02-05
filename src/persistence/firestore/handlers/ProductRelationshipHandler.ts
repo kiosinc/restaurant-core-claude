@@ -1,8 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { RelationshipHandler } from './RelationshipHandler';
 import { Product } from '../../../domain/catalog/Product';
-import Catalog from '../../../restaurant/roots/Catalog';
-import { CollectionNames } from '../../../firestore-core/Paths';
+import { PathResolver } from '../PathResolver';
 
 /**
  * When a Product is saved: update ProductMeta in all Categories that contain it.
@@ -10,7 +9,7 @@ import { CollectionNames } from '../../../firestore-core/Paths';
  */
 export class ProductRelationshipHandler implements RelationshipHandler<Product> {
   async onSet(product: Product, businessId: string, t: FirebaseFirestore.Transaction): Promise<void> {
-    const categoryRef = Catalog.docRef(businessId).collection(CollectionNames.categories);
+    const categoryRef = PathResolver.categoriesCollection(businessId);
     const snapshot = await t.get(
       categoryRef.where('productDisplayOrder', 'array-contains', product.Id),
     );
@@ -20,7 +19,7 @@ export class ProductRelationshipHandler implements RelationshipHandler<Product> 
   }
 
   async onDelete(product: Product, businessId: string, t: FirebaseFirestore.Transaction): Promise<void> {
-    const categoryRef = Catalog.docRef(businessId).collection(CollectionNames.categories);
+    const categoryRef = PathResolver.categoriesCollection(businessId);
     const snapshot = await t.get(
       categoryRef.where('productDisplayOrder', 'array-contains', product.Id),
     );
