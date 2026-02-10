@@ -1,0 +1,31 @@
+steps:
+  # Generate .npmrc dynamically using the current project ID
+  - name: 'node:18'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cat > .npmrc << EOF
+        @kiosinc:registry=https://us-central1-npm.pkg.dev/${PROJECT_ID}/npm-packages/
+        //us-central1-npm.pkg.dev/${PROJECT_ID}/npm-packages/:always-auth=true
+        EOF
+
+  # Install dependencies
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['install']
+
+  # Compile TypeScript
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['run', 'tsc']
+
+  # Authenticate with Artifact Registry
+  - name: 'node:18'
+    entrypoint: 'npx'
+    args: ['google-artifactregistry-auth', '.npmrc']
+
+  # Publish to Artifact Registry
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['publish']
