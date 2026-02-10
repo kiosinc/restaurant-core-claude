@@ -1,6 +1,6 @@
 {
-  "name": "@kiosinc/restaurant-core",
-  "version": "0.4.33",
+  "name": "@kiosinc/restaurant-core-claude",
+  "version": "0.0.1",
   "description": "",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -14,17 +14,17 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kiosinc/core.git"
+    "url": "git+https://github.com/jjc235/restaurant-core-claude"
   },
   "keywords": [],
   "author": "jjc",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/kiosinc/core/issues"
+    "url": "https://github.com/jjc235/restaurant-core-claude/issues"
   },
-  "homepage": "https://github.com/kiosinc/core#readme",
+  "homepage": "https://github.com/jjc235/restaurant-core-claude#readme",
   "devDependencies": {
-    "@google-cloud/functions-framework": "^4.0.0",
+    "@google-cloud/functions-framework": "^5.0.0",
     "@google-cloud/tasks": "^6.2.0",
     "@types/express": "^4.17.13",
     "@types/http-errors": "^1.8.2",
@@ -32,15 +32,9 @@
     "@typescript-eslint/eslint-plugin": "^4.33.0",
     "@typescript-eslint/parser": "^4.33.0",
     "eslint": "^7.32.0",
-    "eslint-config-airbnb-typescript": "^12.3.1",
-    "eslint-plugin-import": "^2.25.4",
-    "eslint-plugin-jsx-a11y": "^6.5.1",
-    "eslint-plugin-react": "^7.29.4",
-    "eslint-plugin-react-hooks": "^4.3.0",
-    "express": "^4.21.2",
-    "firebase-admin": "^13.4.0",
+    "express": "^5.2.1",
+    "firebase-admin": "^13.6.1",
     "http-errors": "~1.6.3",
-    "prettier": "^2.6.1",
     "typescript": "^5.8.3",
     "uuid": "^8.3.2",
     "vitest": "^4.0.18"
