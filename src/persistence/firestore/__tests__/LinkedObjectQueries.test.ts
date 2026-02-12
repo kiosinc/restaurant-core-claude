@@ -33,7 +33,7 @@ describe('linkedObjectQuery', () => {
 
     linkedObjectQuery(
       'ext-123',
-      'square' as any,
+      'square',
       collectionRef as any,
     );
 
@@ -49,7 +49,7 @@ describe('linkedObjectQuery', () => {
 
     linkedObjectQuery(
       'ext-123',
-      'square' as any,
+      'square',
       collectionRef as any,
       mockConverter as any,
     );
@@ -62,7 +62,7 @@ describe('linkedObjectQuery', () => {
 
     linkedObjectQuery(
       'ext-123',
-      'square' as any,
+      'square',
       collectionRef as any,
     );
 
@@ -81,7 +81,7 @@ describe('findByLinkedObjectId', () => {
 
     const result = await findByLinkedObjectId(
       'ext-123',
-      'square' as any,
+      'square',
       collectionRef as any,
       mockConverter as any,
     );
@@ -89,7 +89,7 @@ describe('findByLinkedObjectId', () => {
     expect(result).toEqual(entityData);
   });
 
-  it('returns false when no match', async () => {
+  it('returns null when no match', async () => {
     const { collectionRef, mockQuery } = createMockCollectionRef();
     mockQuery.get.mockResolvedValue({
       empty: true,
@@ -98,12 +98,12 @@ describe('findByLinkedObjectId', () => {
 
     const result = await findByLinkedObjectId(
       'ext-123',
-      'square' as any,
+      'square',
       collectionRef as any,
       mockConverter as any,
     );
 
-    expect(result).toBe(false);
+    expect(result).toBeNull();
   });
 
   it('throws on multiple matches', async () => {
@@ -119,7 +119,7 @@ describe('findByLinkedObjectId', () => {
     await expect(
       findByLinkedObjectId(
         'ext-123',
-        'square' as any,
+        'square',
         collectionRef as any,
         mockConverter as any,
       ),
@@ -128,7 +128,7 @@ describe('findByLinkedObjectId', () => {
     await expect(
       findByLinkedObjectId(
         'ext-123',
-        'square' as any,
+        'square',
         collectionRef as any,
         mockConverter as any,
       ),
@@ -144,7 +144,7 @@ describe('findByLinkedObjectId', () => {
 
     await findByLinkedObjectId(
       'ext-123',
-      'square' as any,
+      'square',
       collectionRef as any,
       mockConverter as any,
     );

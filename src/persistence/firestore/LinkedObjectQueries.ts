@@ -1,12 +1,10 @@
-import * as Constants from '../../firestore-core/Constants';
-
 /**
  * Constructs a Firestore query to find entities by their linked external object ID.
  * Replaces LinkedObject.findQuery().
  */
 export function linkedObjectQuery(
   linkedObjectId: string,
-  provider: Constants.Provider,
+  provider: string,
   collectionRef: FirebaseFirestore.CollectionReference,
   converter?: FirebaseFirestore.FirestoreDataConverter<any>,
 ): FirebaseFirestore.Query<any> {
@@ -22,15 +20,15 @@ export function linkedObjectQuery(
 
 /**
  * Finds a single entity by its linked external object ID.
- * Returns the entity data if exactly one match, false if none, throws if multiple.
+ * Returns the entity data if exactly one match, null if none, throws if multiple.
  * Replaces LinkedObject.find().
  */
 export async function findByLinkedObjectId(
   linkedObjectId: string,
-  provider: Constants.Provider,
+  provider: string,
   collectionRef: FirebaseFirestore.CollectionReference,
   converter: FirebaseFirestore.FirestoreDataConverter<unknown>,
-): Promise<unknown | false> {
+): Promise<unknown | null> {
   const snapshot = await linkedObjectQuery(
     linkedObjectId,
     provider,
@@ -39,7 +37,7 @@ export async function findByLinkedObjectId(
   ).get();
 
   if (snapshot.empty) {
-    return false;
+    return null;
   }
   if (snapshot.docs.length > 1) {
     throw new Error(

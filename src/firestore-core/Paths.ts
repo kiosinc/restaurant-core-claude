@@ -29,6 +29,7 @@ export const enum CollectionNames {
   menuGroups = 'menuGroups',
   kioskConfigurations = 'kioskConfigurations',
   surfaceConfigurations = 'surfaceConfigurations',
+  checkoutOptions = 'checkoutOptions',
   services = 'services',
   semaphores = 'semaphores',
 
