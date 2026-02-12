@@ -3,6 +3,7 @@ import { DomainEntity, DomainEntityProps } from '../../../domain/DomainEntity';
 import { MetadataRegistry } from '../../MetadataRegistry';
 import { MetadataSpec, MetaLinkDeclaration } from '../../../domain/MetadataSpec';
 import { FirestoreRepository, FirestoreRepositoryConfig } from '../FirestoreRepository';
+import { RelationshipHandlerRegistry } from '../handlers/RelationshipHandlerRegistry';
 
 // Mock firebase-admin/firestore
 const mockTransaction = {
@@ -235,5 +236,88 @@ describe('FirestoreRepository', () => {
     expect(result.num).toBe(42);
     expect(result.bool).toBe(true);
     expect(result.nil).toBeNull();
+  });
+
+  describe('RelationshipHandler wiring', () => {
+    let handlerRegistry: RelationshipHandlerRegistry;
+    let mockHandler: { onSet: ReturnType<typeof vi.fn>; onDelete: ReturnType<typeof vi.fn> };
+    let repoWithHandler: TestRepository;
+
+    beforeEach(() => {
+      handlerRegistry = new RelationshipHandlerRegistry();
+      mockHandler = {
+        onSet: vi.fn().mockResolvedValue(undefined),
+        onDelete: vi.fn().mockResolvedValue(undefined),
+      };
+      handlerRegistry.register(TestEntity, mockHandler);
+      repoWithHandler = new TestRepository(registry, handlerRegistry);
+    });
+
+    it('set() invokes handler.onSet() inside transaction when handler is registered', async () => {
+      const entity = new TestEntity({ Id: 'e1', name: 'test' });
+
+      await repoWithHandler.set(entity, 'biz-1');
+
+      expect(mockHandler.onSet).toHaveBeenCalledWith(entity, 'biz-1', mockTransaction);
+      expect(mockHandler.onDelete).not.toHaveBeenCalled();
+      expect(mockTransaction.set).toHaveBeenCalledWith(mockDocRef, { name: 'test' });
+    });
+
+    it('set() dispatches to handler.onDelete() when entity has isDeleted=true', async () => {
+      const entity = new TestEntity({ Id: 'e1', name: 'test', isDeleted: true });
+
+      await repoWithHandler.set(entity, 'biz-1');
+
+      expect(mockHandler.onDelete).toHaveBeenCalledWith(entity, 'biz-1', mockTransaction);
+      expect(mockHandler.onSet).not.toHaveBeenCalled();
+      expect(mockTransaction.set).toHaveBeenCalled();
+    });
+
+    it('delete() invokes handler.onDelete() inside transaction when handler is registered', async () => {
+      mockDocRef.get.mockResolvedValue({
+        exists: true,
+        data: () => ({ name: 'to-delete' }),
+        id: 'del-1',
+      });
+
+      await repoWithHandler.delete('biz-1', 'del-1');
+
+      expect(mockHandler.onDelete).toHaveBeenCalledWith(
+        expect.objectContaining({ Id: 'del-1', name: 'to-delete' }),
+        'biz-1',
+        mockTransaction,
+      );
+      expect(mockTransaction.delete).toHaveBeenCalledWith(mockDocRef);
+    });
+
+    it('handler error rolls back entire transaction', async () => {
+      mockHandler.onSet.mockRejectedValue(new Error('parent not found'));
+      const entity = new TestEntity({ Id: 'e1', name: 'test' });
+
+      await expect(repoWithHandler.set(entity, 'biz-1')).rejects.toThrow('parent not found');
+      expect(mockTransaction.set).not.toHaveBeenCalled();
+    });
+
+    it('handler t.get() is called before any transaction writes', async () => {
+      const callOrder: string[] = [];
+
+      // Track call ordering to verify reads precede writes
+      mockHandler.onSet.mockImplementation(async () => {
+        callOrder.push('handler');
+      });
+      mockTransaction.set.mockImplementation(() => {
+        callOrder.push('transaction.set');
+      });
+      mockTransaction.update.mockImplementation(() => {
+        callOrder.push('transaction.update');
+      });
+
+      registry.register(TestEntity, testSpec);
+      const entity = new TestEntity({ Id: 'e1', name: 'test' });
+
+      await repoWithHandler.set(entity, 'biz-1');
+
+      expect(callOrder).toEqual(['handler', 'transaction.set', 'transaction.update']);
+    });
   });
 });
