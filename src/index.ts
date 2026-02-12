@@ -7,6 +7,7 @@ export * as Persistence from './persistence';
 // Infrastructure — Firestore path constants & enums
 export * as Paths from './firestore-core/Paths';
 export * as Constants from './firestore-core/Constants';
+export { default as DistributedCounter } from './firestore-core/core/DistributedCounter';
 
 // Auth & User — unchanged
 export * as Authentication from './user/Authentication';
