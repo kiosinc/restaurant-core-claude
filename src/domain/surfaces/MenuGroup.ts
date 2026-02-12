@@ -11,6 +11,7 @@ export interface MenuGroupProps extends DomainEntityProps {
   parentGroup: string | null;
   childGroup: string | null;
   mirrorCategoryId: string | null;
+  managedBy: string | null;
 }
 
 export class MenuGroup extends DomainEntity implements MetadataProjection<MenuGroupMeta> {
@@ -21,6 +22,7 @@ export class MenuGroup extends DomainEntity implements MetadataProjection<MenuGr
   parentGroup: string | null;
   childGroup: string | null;
   mirrorCategoryId: string | null;
+  managedBy: string | null;
 
   constructor(props: MenuGroupProps) {
     super(props);
@@ -31,6 +33,7 @@ export class MenuGroup extends DomainEntity implements MetadataProjection<MenuGr
     this.parentGroup = props.parentGroup ?? null;
     this.childGroup = props.childGroup ?? null;
     this.mirrorCategoryId = props.mirrorCategoryId ?? null;
+    this.managedBy = props.managedBy ?? null;
   }
 
   metadata(): MenuGroupMeta {

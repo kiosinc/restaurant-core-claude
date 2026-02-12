@@ -13,6 +13,7 @@ export interface MenuProps extends DomainEntityProps {
   coverVideoGsl: string | null;
   logoImageGsl: string | null;
   gratuityRates: number[];
+  managedBy: string | null;
 }
 
 export class Menu extends DomainEntity implements MetadataProjection<MenuMeta> {
@@ -25,6 +26,7 @@ export class Menu extends DomainEntity implements MetadataProjection<MenuMeta> {
   coverVideoGsl: string | null;
   logoImageGsl: string | null;
   gratuityRates: number[];
+  managedBy: string | null;
 
   constructor(props: MenuProps) {
     super(props);
@@ -37,6 +39,7 @@ export class Menu extends DomainEntity implements MetadataProjection<MenuMeta> {
     this.coverVideoGsl = props.coverVideoGsl ?? null;
     this.logoImageGsl = props.logoImageGsl ?? null;
     this.gratuityRates = props.gratuityRates ?? [];
+    this.managedBy = props.managedBy ?? null;
   }
 
   metadata(): MenuMeta {

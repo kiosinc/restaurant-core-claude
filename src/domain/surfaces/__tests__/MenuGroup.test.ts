@@ -16,6 +16,7 @@ describe('MenuGroup (domain)', () => {
       parentGroup: 'mg-parent',
       childGroup: 'mg-child',
       mirrorCategoryId: 'cat-1',
+      managedBy: 'square',
       created: now,
       updated: now,
     }));
@@ -28,6 +29,7 @@ describe('MenuGroup (domain)', () => {
     expect(mg.parentGroup).toBe('mg-parent');
     expect(mg.childGroup).toBe('mg-child');
     expect(mg.mirrorCategoryId).toBe('cat-1');
+    expect(mg.managedBy).toBe('square');
   });
 
   it('auto-generates UUID', () => {
@@ -63,6 +65,11 @@ describe('MenuGroup (domain)', () => {
   it('defaults mirrorCategoryId to null', () => {
     const mg = new MenuGroup(createTestMenuGroupProps());
     expect(mg.mirrorCategoryId).toBeNull();
+  });
+
+  it('defaults managedBy to null', () => {
+    const mg = new MenuGroup(createTestMenuGroupProps());
+    expect(mg.managedBy).toBeNull();
   });
 
   it('metadata() returns MenuGroupMeta', () => {

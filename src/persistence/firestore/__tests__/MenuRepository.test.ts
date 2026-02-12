@@ -39,6 +39,7 @@ function createFullSerializedMenu() {
     coverImageGsl: 'gs://cover', coverBackgroundImageGsl: 'gs://bg',
     coverVideoGsl: 'gs://video', logoImageGsl: 'gs://logo',
     gratuityRates: [15, 18, 20],
+    managedBy: null,
     created: ts, updated: ts, isDeleted: false,
   };
 }
@@ -108,6 +109,7 @@ describe('MenuRepository', () => {
     expect(restored!.name).toBe(original.name);
     expect(restored!.displayName).toBe(original.displayName);
     expect(restored!.coverImageGsl).toBe(original.coverImageGsl);
+    expect(restored!.managedBy).toBe(original.managedBy);
   });
 
   it('fromFirestore defaults optional fields', async () => {

@@ -38,6 +38,7 @@ function createFullSerializedMenuGroup() {
     productDisplayOrder: ['prod-1'],
     displayName: 'Starters',
     parentGroup: null, childGroup: null, mirrorCategoryId: null,
+    managedBy: null,
     created: ts, updated: ts, isDeleted: false,
   };
 }
@@ -93,6 +94,7 @@ describe('MenuGroupRepository', () => {
     expect(restored!.name).toBe(original.name);
     expect(restored!.displayName).toBe(original.displayName);
     expect(restored!.parentGroup).toBe(original.parentGroup);
+    expect(restored!.managedBy).toBe(original.managedBy);
   });
 
   it('fromFirestore defaults products to {}', async () => {
