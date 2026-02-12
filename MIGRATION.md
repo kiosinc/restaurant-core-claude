@@ -519,6 +519,24 @@ product.linkedObjects = linkedObjects;
 
 `LinkedObjectMap` is typed as `{ [provider: string]: LinkedObjectRef }` and is the type used for `linkedObjects` properties on Product, Category, Option, OptionSet, TaxRate, Discount, ServiceCharge, and Location.
 
+### LinkedObjectSync is removed
+
+The legacy `LinkedObjectSync` export (an alias for `LinkedObjectUtilities`) has been removed. Its query/sync utility functions are replaced by:
+
+- **`Repository.findByLinkedObject()`** — the standard way to look up an entity by linked object ID (see section 3, "Querying by linked object")
+- **`Persistence.linkedObjectQuery()` / `Persistence.findByLinkedObjectId()`** — standalone helpers for custom queries beyond the repository method
+
+```typescript
+// OLD
+import { LinkedObjectSync } from '@kiosinc/restaurant-core';
+
+// NEW — use the repository method
+const product = await productRepo.findByLinkedObject(businessId, squareItemId, 'square');
+
+// NEW — or standalone helpers for custom queries
+const { linkedObjectQuery, findByLinkedObjectId } = Persistence;
+```
+
 ## 9. Replace BusinessUtilities.createBusiness
 
 ```typescript
@@ -620,6 +638,7 @@ const address: Domain.Misc.Address = { ...emptyAddress, city: 'Austin', state: '
 | Metadata: links | `metaLinks()` on models | `MetadataSpec` + `MetadataRegistry` (3 specs) |
 | Metadata: cascading | Manual updates in application code | `RelationshipHandler` + `RelationshipHandlerRegistry` (3 handlers, auto-invoked by `FirestoreRepository` — see section 7) |
 | Linked objects | `LinkedObject` class | `LinkedObjectRef` / `LinkedObjectMap` interfaces |
+| Linked object queries | `LinkedObjectSync` utilities | `Repository.findByLinkedObject()` / `Persistence.linkedObjectQuery()` |
 | Business creation | `createBusiness(user, type, device, name)` | `createBusiness({ uid, device, type, name? })` |
 | Constructors | Positional parameters | Props interfaces (`*Props`) |
 | ID generation | Firebase auto-ID | UUID v4 (configurable via `IdGenerator`) |
