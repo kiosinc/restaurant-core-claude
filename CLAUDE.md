@@ -19,6 +19,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Tests use Vitest with `globals: true`. Test files live in `__tests__/` directories alongside source code, matching `src/**/__tests__/**/*.test.ts`.
 
+## Publishing
+
+When creating a PR against `master` or `dev`, always bump the version in `package.json` before pushing. Artifact Registry rejects duplicate versions — every merge that triggers Cloud Build must have a unique version. Use semver patch bumps for fixes, minor for features.
+
 ## Verification
 
 After adding or changing dependencies in `package.json`, always run `rm -rf node_modules && npm install` before compiling to ensure a clean dependency tree. Stale `node_modules` can mask missing or incorrect dependency configurations.
