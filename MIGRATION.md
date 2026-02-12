@@ -86,13 +86,26 @@ metadataRegistry.register(Location, new LocationMetadataSpec());
 metadataRegistry.register(Menu, new MenuMetadataSpec());
 metadataRegistry.register(MenuGroup, new MenuGroupMetadataSpec());
 
-// 2. Create repository instances — pass the registry to each
-const productRepo = new Persistence.ProductRepository(metadataRegistry);
-const categoryRepo = new Persistence.CategoryRepository(metadataRegistry);
+// 2. Create and populate the relationship handler registry (see section 7 for details)
+const { RelationshipHandlerRegistry, ProductRelationshipHandler,
+  OptionSetRelationshipHandler, OptionRelationshipHandler } = Persistence;
+const { Product, OptionSet, Option } = Domain.Catalog;
+const relationshipRegistry = new RelationshipHandlerRegistry();
+relationshipRegistry.register(Product, new ProductRelationshipHandler());
+relationshipRegistry.register(OptionSet, new OptionSetRelationshipHandler());
+relationshipRegistry.register(Option, new OptionRelationshipHandler());
+
+// 3. Create repository instances — pass the metadata registry to each
 const orderRepo = new Persistence.OrderRepository(metadataRegistry);
 const businessRepo = new Persistence.BusinessRepository(metadataRegistry);
 const menuRepo = new Persistence.MenuRepository(metadataRegistry);
 // ... etc. for any repositories your code needs
+
+// 4. Catalog repos that cascade metadata need a RelationshipHandlerRegistry too (see section 7)
+const productRepo = new Persistence.ProductRepository(metadataRegistry, relationshipRegistry);
+const categoryRepo = new Persistence.CategoryRepository(metadataRegistry);
+const optionSetRepo = new Persistence.OptionSetRepository(metadataRegistry, relationshipRegistry);
+const optionRepo = new Persistence.OptionRepository(metadataRegistry, relationshipRegistry);
 ```
 
 ### Complete repository list
