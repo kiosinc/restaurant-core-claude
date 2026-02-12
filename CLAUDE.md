@@ -14,7 +14,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Pre-publish:** `npm run pre-publish` (clean + compile)
 - **Lint:** `npx eslint src/` (ESLint with airbnb-typescript config)
 
-There is no test framework configured. tsconfig excludes `**/__tests__/*` for future use.
+- **Test:** `npm test` (runs `vitest run`)
+- **Test watch:** `npm run test:watch` (runs `vitest`)
+
+Tests use Vitest with `globals: true`. Test files live in `__tests__/` directories alongside source code, matching `src/**/__tests__/**/*.test.ts`.
 
 ## Verification
 

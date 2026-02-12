@@ -2,6 +2,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { DomainEntity } from '../../domain/DomainEntity';
 import { Repository } from '../Repository';
 import { MetadataRegistry } from '../MetadataRegistry';
+import { RelationshipHandlerRegistry } from './handlers/RelationshipHandlerRegistry';
 
 export interface FirestoreRepositoryConfig<T extends DomainEntity> {
   collectionRef(businessId: string): FirebaseFirestore.CollectionReference;
@@ -12,7 +13,10 @@ export interface FirestoreRepositoryConfig<T extends DomainEntity> {
 export abstract class FirestoreRepository<T extends DomainEntity>
   implements Repository<T>
 {
-  constructor(protected readonly metadataRegistry: MetadataRegistry) {}
+  constructor(
+    protected readonly metadataRegistry: MetadataRegistry,
+    protected readonly relationshipHandlerRegistry?: RelationshipHandlerRegistry,
+  ) {}
 
   protected abstract config(): FirestoreRepositoryConfig<T>;
 
@@ -32,8 +36,17 @@ export abstract class FirestoreRepository<T extends DomainEntity>
     const metaLinks = this.metadataRegistry.getMetaLinks(entity, businessId);
     const metadata = this.metadataRegistry.getMetadata(entity);
 
+    const handler = this.relationshipHandlerRegistry?.resolve(entity);
+
     const db = getFirestore();
     await db.runTransaction(async (transaction) => {
+      if (handler) {
+        if (entity.isDeleted) {
+          await handler.onDelete(entity, businessId, transaction);
+        } else {
+          await handler.onSet(entity, businessId, transaction);
+        }
+      }
       transaction.set(docRef, data);
       for (const link of metaLinks) {
         const metaDocRef = db.doc(link.documentPath);
@@ -57,8 +70,13 @@ export abstract class FirestoreRepository<T extends DomainEntity>
     const docRef = cfg.collectionRef(businessId).doc(id);
     const metaLinks = this.metadataRegistry.getMetaLinks(entity, businessId);
 
+    const handler = this.relationshipHandlerRegistry?.resolve(entity);
+
     const db = getFirestore();
     await db.runTransaction(async (transaction) => {
+      if (handler) {
+        await handler.onDelete(entity, businessId, transaction);
+      }
       transaction.delete(docRef);
       for (const link of metaLinks) {
         const metaDocRef = db.doc(link.documentPath);

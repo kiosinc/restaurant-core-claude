@@ -111,7 +111,7 @@ export class PathResolver {
   }
 
   static checkoutOptionsCollection(businessId: string): FirebaseFirestore.CollectionReference {
-    return this.surfacesDoc(businessId).collection('checkoutOptions');
+    return this.surfacesDoc(businessId).collection(Paths.CollectionNames.checkoutOptions);
   }
 
   static locationsCollection(businessId: string): FirebaseFirestore.CollectionReference {
