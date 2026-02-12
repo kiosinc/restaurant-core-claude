@@ -18,6 +18,7 @@ describe('Menu (domain)', () => {
       coverVideoGsl: 'gs://video',
       logoImageGsl: 'gs://logo',
       gratuityRates: [15, 18, 20],
+      managedBy: 'square',
       created: now,
       updated: now,
     }));
@@ -32,6 +33,7 @@ describe('Menu (domain)', () => {
     expect(menu.coverVideoGsl).toBe('gs://video');
     expect(menu.logoImageGsl).toBe('gs://logo');
     expect(menu.gratuityRates).toEqual([15, 18, 20]);
+    expect(menu.managedBy).toBe('square');
   });
 
   it('auto-generates UUID when no Id', () => {
@@ -77,6 +79,11 @@ describe('Menu (domain)', () => {
   it('defaults gratuityRates to []', () => {
     const menu = new Menu(createTestMenuProps());
     expect(menu.gratuityRates).toEqual([]);
+  });
+
+  it('defaults managedBy to null', () => {
+    const menu = new Menu(createTestMenuProps());
+    expect(menu.managedBy).toBeNull();
   });
 
   it('metadata() returns MenuMeta', () => {

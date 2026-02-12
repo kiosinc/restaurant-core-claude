@@ -19,6 +19,7 @@ export function createTestMenuProps(overrides?: Partial<MenuProps>): MenuProps {
     coverVideoGsl: null,
     logoImageGsl: null,
     gratuityRates: [],
+    managedBy: null,
     ...overrides,
   };
 }
@@ -32,6 +33,7 @@ export function createTestMenuGroupProps(overrides?: Partial<MenuGroupProps>): M
     parentGroup: null,
     childGroup: null,
     mirrorCategoryId: null,
+    managedBy: null,
     ...overrides,
   };
 }
