@@ -1,34 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SurfaceConfiguration } from '../../../domain/surfaces/SurfaceConfiguration';
+import { SurfaceConfiguration, createSurfaceConfiguration } from '../../../domain/surfaces/SurfaceConfiguration';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { SurfaceConfigurationRepository } from '../SurfaceConfigurationRepository';
-import { createTestSurfaceConfigurationProps } from '../../../domain/__tests__/helpers/SurfacesFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { surfaceConfigurationConverter } from '../converters';
+import { createTestSurfaceConfigurationInput } from '../../../domain/__tests__/helpers/SurfacesFixtures';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedSurfaceConfiguration() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -53,12 +31,12 @@ function createFullSerializedSurfaceConfiguration() {
 
 describe('SurfaceConfigurationRepository', () => {
   let registry: MetadataRegistry;
-  let repo: SurfaceConfigurationRepository;
+  let repo: FirestoreRepository<SurfaceConfiguration>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new SurfaceConfigurationRepository(registry);
+    repo = new FirestoreRepository<SurfaceConfiguration>(surfaceConfigurationConverter, registry);
   });
 
   it('get() returns SurfaceConfiguration when exists', async () => {
@@ -78,7 +56,7 @@ describe('SurfaceConfigurationRepository', () => {
   });
 
   it('set() serializes nested configurations', async () => {
-    const sc = new SurfaceConfiguration(createTestSurfaceConfigurationProps({
+    const sc = createSurfaceConfiguration(createTestSurfaceConfigurationInput({
       Id: 'sc-1',
       coverConfiguration: { isCoverNoticeEnabled: true, coverNoticeText: 'Hello' },
       tipConfiguration: { isTipsEnabled: true, isSmartTipsEnabled: true },
@@ -91,7 +69,7 @@ describe('SurfaceConfigurationRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new SurfaceConfiguration(createTestSurfaceConfigurationProps({
+    const original = createSurfaceConfiguration(createTestSurfaceConfigurationInput({
       Id: 'sc-rt', name: 'Test Config', isChargeCustomerServiceFee: true,
       version: '2.0', created: ts, updated: ts,
     }));

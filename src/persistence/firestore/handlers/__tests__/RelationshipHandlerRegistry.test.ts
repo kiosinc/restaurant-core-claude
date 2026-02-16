@@ -1,18 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RelationshipHandlerRegistry } from '../RelationshipHandlerRegistry';
 import { RelationshipHandler } from '../RelationshipHandler';
-import { DomainEntity, DomainEntityProps } from '../../../../domain/DomainEntity';
+import { BaseEntity } from '../../../../domain/BaseEntity';
 
-class TestEntity extends DomainEntity {
-  constructor(props: DomainEntityProps = {}) { super(props); }
-}
-
-class ChildEntity extends TestEntity {
-  constructor(props: DomainEntityProps = {}) { super(props); }
+interface TestEntity extends BaseEntity {
+  name: string;
 }
 
 const stubHandler: RelationshipHandler<TestEntity> = {
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   async onSet() {},
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   async onDelete() {},
 };
 
@@ -23,27 +21,18 @@ describe('RelationshipHandlerRegistry', () => {
     registry = new RelationshipHandlerRegistry();
   });
 
-  it('register and resolve', () => {
-    registry.register(TestEntity, stubHandler);
-    const entity = new TestEntity();
-    expect(registry.resolve(entity)).toBe(stubHandler);
+  it('register and resolve by string key', () => {
+    registry.register('TestEntity', stubHandler);
+    expect(registry.resolve('TestEntity')).toBe(stubHandler);
   });
 
-  it('null for unregistered', () => {
-    const entity = new TestEntity();
-    expect(registry.resolve(entity)).toBeNull();
-  });
-
-  it('prototype chain walking', () => {
-    registry.register(TestEntity, stubHandler);
-    const child = new ChildEntity();
-    expect(registry.resolve(child)).toBe(stubHandler);
+  it('null for unregistered key', () => {
+    expect(registry.resolve('unknown')).toBeNull();
   });
 
   it('clear() removes all', () => {
-    registry.register(TestEntity, stubHandler);
+    registry.register('TestEntity', stubHandler);
     registry.clear();
-    const entity = new TestEntity();
-    expect(registry.resolve(entity)).toBeNull();
+    expect(registry.resolve('TestEntity')).toBeNull();
   });
 });

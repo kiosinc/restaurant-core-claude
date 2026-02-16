@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { Business, BusinessProps, BusinessType, Role } from '../Business';
-import { DomainEntity } from '../../DomainEntity';
+import { Business, createBusinessRoot, BusinessType, Role } from '../Business';
+import { ValidationError } from '../../validation';
 
-const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function createProps(overrides: Partial<BusinessProps> = {}): BusinessProps {
+function createProps(overrides: Partial<Business> = {}) {
   return {
     agent: 'ios-device',
     createdBy: 'uid-123',
@@ -18,7 +18,7 @@ function createProps(overrides: Partial<BusinessProps> = {}): BusinessProps {
 describe('Business', () => {
   it('constructs with all props', () => {
     const props = createProps();
-    const biz = new Business(props);
+    const biz = createBusinessRoot(props);
     expect(biz.agent).toBe('ios-device');
     expect(biz.createdBy).toBe('uid-123');
     expect(biz.type).toBe(BusinessType.restaurant);
@@ -27,8 +27,8 @@ describe('Business', () => {
   });
 
   it('auto-generates UUID when no Id provided', () => {
-    const biz = new Business(createProps());
-    expect(biz.Id).toMatch(UUID_V4_REGEX);
+    const biz = createBusinessRoot(createProps());
+    expect(biz.Id).toMatch(UUID_REGEX);
   });
 
   it('BusinessType enum has expected values', () => {
@@ -41,12 +41,12 @@ describe('Business', () => {
   });
 
   it('defaults roles to {} when nullish', () => {
-    const biz = new Business(createProps({ roles: undefined as any }));
+    const biz = createBusinessRoot(createProps({ roles: undefined as any }));
     expect(biz.roles).toEqual({});
   });
 
   it('stores BusinessProfile with nested structure', () => {
-    const biz = new Business(createProps({
+    const biz = createBusinessRoot(createProps({
       businessProfile: {
         name: 'My Place',
         address: { line1: '123 Main St', city: 'Anytown', state: 'CA', postalCode: '12345', country: 'US' },
@@ -56,16 +56,26 @@ describe('Business', () => {
     expect(biz.businessProfile.address?.line1).toBe('123 Main St');
   });
 
-  it('inherits DomainEntity fields', () => {
-    const biz = new Business(createProps());
-    expect(biz).toBeInstanceOf(DomainEntity);
+  it('has BaseEntity fields', () => {
+    const biz = createBusinessRoot(createProps());
     expect(biz.created).toBeInstanceOf(Date);
     expect(biz.updated).toBeInstanceOf(Date);
     expect(biz.isDeleted).toBe(false);
   });
 
-  it('instantiates without Firebase', () => {
-    const biz = new Business(createProps());
-    expect(biz).toBeInstanceOf(Business);
+  it('creates without Firebase', () => {
+    const biz = createBusinessRoot(createProps());
+    expect(biz).toBeDefined();
+    expect(biz.Id).toBeDefined();
+  });
+
+  describe('validation', () => {
+    it('throws for empty agent', () => {
+      expect(() => createBusinessRoot(createProps({ agent: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for empty createdBy', () => {
+      expect(() => createBusinessRoot(createProps({ createdBy: '' }))).toThrow(ValidationError);
+    });
   });
 });

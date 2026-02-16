@@ -1,26 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ServiceCharge, ServiceChargeType } from '../../../domain/catalog/ServiceCharge';
+import { ServiceCharge, ServiceChargeType, createServiceCharge } from '../../../domain/catalog/ServiceCharge';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { ServiceChargeRepository } from '../ServiceChargeRepository';
-import { createTestServiceChargeProps } from '../../../domain/__tests__/helpers/CatalogFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { serviceChargeConverter } from '../converters/serviceChargeConverter';
+import { createTestServiceChargeInput } from '../../../domain/__tests__/helpers/CatalogFixtures';
+import { mockTransaction, mockDocRef, mockCollectionRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 let lastCollectionName = '';
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
 mockCollectionRef.doc.mockReturnValue({
   ...mockDocRef,
   collection: (name: string) => {
@@ -30,20 +18,15 @@ mockCollectionRef.doc.mockReturnValue({
   path: 'mocked/path',
 });
 
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
-
 describe('ServiceChargeRepository', () => {
   let registry: MetadataRegistry;
-  let repo: ServiceChargeRepository;
+  let repo: FirestoreRepository<ServiceCharge>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     lastCollectionName = '';
     registry = new MetadataRegistry();
-    repo = new ServiceChargeRepository(registry);
+    repo = new FirestoreRepository<ServiceCharge>(serviceChargeConverter, registry);
   });
 
   it('get() returns ServiceCharge when exists', async () => {
@@ -70,18 +53,20 @@ describe('ServiceChargeRepository', () => {
   });
 
   it('set() serializes type amount as number for Firestore', async () => {
-    const sc = new ServiceCharge(createTestServiceChargeProps({
+    const sc = createServiceCharge({
+      ...createTestServiceChargeInput(),
       Id: 'sc-1', type: ServiceChargeType.amount,
-    }));
+    });
     await repo.set(sc, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.type).toBe('number');
   });
 
   it('set() serializes type percentage unchanged', async () => {
-    const sc = new ServiceCharge(createTestServiceChargeProps({
+    const sc = createServiceCharge({
+      ...createTestServiceChargeInput(),
       Id: 'sc-1', type: ServiceChargeType.percentage, value: 15,
-    }));
+    });
     await repo.set(sc, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.type).toBe('percentage');
@@ -119,11 +104,12 @@ describe('ServiceChargeRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new ServiceCharge(createTestServiceChargeProps({
+    const original = createServiceCharge({
+      ...createTestServiceChargeInput(),
       Id: 'sc-rt', name: 'RT Fee', value: 300, type: ServiceChargeType.percentage,
       isCalculatedSubTotalPhase: true, isTaxable: true,
       created: ts, updated: ts,
-    }));
+    });
     await repo.set(original, 'biz-1');
     const serialized = mockTransaction.set.mock.calls[0][1];
     mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'sc-rt' });
@@ -134,7 +120,7 @@ describe('ServiceChargeRepository', () => {
   });
 
   it('collectionRef uses serviceCharges not taxRates', async () => {
-    const sc = new ServiceCharge(createTestServiceChargeProps());
+    const sc = createServiceCharge(createTestServiceChargeInput());
     await repo.set(sc, 'biz-1');
     expect(lastCollectionName).toBe('serviceCharges');
   });

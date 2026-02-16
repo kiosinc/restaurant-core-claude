@@ -1,6 +1,6 @@
-import { TenantEntity, TenantEntityProps } from '../TenantEntity';
-import { MetadataProjection } from '../MetadataSpec';
-import { LinkedObjectRef, LinkedObjectMap } from '../LinkedObjectRef';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString } from '../validation';
+import { LinkedObjectMap } from '../LinkedObjectRef';
 import { Address } from '../misc/Address';
 import { BusinessHours } from '../../utils/schedule';
 import { Coordinates } from '../../utils/geo';
@@ -10,7 +10,8 @@ export interface LocationMeta {
   isActive: boolean;
 }
 
-export interface LocationProps extends TenantEntityProps {
+export interface LocationInput {
+  businessId: string;
   name: string;
   isActive: boolean;
   linkedObjects: LinkedObjectMap;
@@ -29,7 +30,8 @@ export interface LocationProps extends TenantEntityProps {
   isAcceptsMobileOrders?: boolean | null;
 }
 
-export class Location extends TenantEntity implements MetadataProjection<LocationMeta> {
+export interface Location extends BaseEntity {
+  readonly businessId: string;
   name: string;
   isActive: boolean;
   linkedObjects: LinkedObjectMap;
@@ -46,31 +48,36 @@ export class Location extends TenantEntity implements MetadataProjection<Locatio
   email: string | null;
   currency: string | null;
   isAcceptsMobileOrders: boolean | null;
+}
 
-  constructor(props: LocationProps) {
-    super(props);
-    this.name = props.name;
-    this.isActive = props.isActive;
-    this.linkedObjects = props.linkedObjects;
-    this.address = props.address;
-    this.isPrimary = props.isPrimary ?? false;
-    this.dailyOrderCounter = props.dailyOrderCounter ?? 0;
-    this.formattedAddress = props.formattedAddress ?? null;
-    this.displayName = props.displayName ?? null;
-    this.imageUrls = props.imageUrls ?? [];
-    this.geoCoordinates = props.geoCoordinates ?? null;
-    this.utcOffset = props.utcOffset ?? null;
-    this.businessHours = props.businessHours ?? null;
-    this.phoneNumber = props.phoneNumber ?? null;
-    this.email = props.email ?? null;
-    this.currency = props.currency ?? null;
-    this.isAcceptsMobileOrders = props.isAcceptsMobileOrders ?? null;
-  }
+export function createLocation(input: LocationInput & Partial<BaseEntity>): Location {
+  requireNonEmptyString('businessId', input.businessId);
+  requireNonEmptyString('name', input.name);
+  return {
+    ...baseEntityDefaults(input),
+    businessId: input.businessId,
+    name: input.name,
+    isActive: input.isActive,
+    linkedObjects: input.linkedObjects,
+    address: input.address,
+    isPrimary: input.isPrimary ?? false,
+    dailyOrderCounter: input.dailyOrderCounter ?? 0,
+    formattedAddress: input.formattedAddress ?? null,
+    displayName: input.displayName ?? null,
+    imageUrls: input.imageUrls ?? [],
+    geoCoordinates: input.geoCoordinates ?? null,
+    utcOffset: input.utcOffset ?? null,
+    businessHours: input.businessHours ?? null,
+    phoneNumber: input.phoneNumber ?? null,
+    email: input.email ?? null,
+    currency: input.currency ?? null,
+    isAcceptsMobileOrders: input.isAcceptsMobileOrders ?? null,
+  };
+}
 
-  metadata(): LocationMeta {
-    return {
-      name: this.name,
-      isActive: this.isActive,
-    };
-  }
+export function locationMeta(location: Location): LocationMeta {
+  return {
+    name: location.name,
+    isActive: location.isActive,
+  };
 }

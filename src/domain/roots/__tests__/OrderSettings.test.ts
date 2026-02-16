@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { OrderSettings, OrderSettingsProps } from '../Orders';
-import { DomainEntity } from '../../DomainEntity';
+import { OrderSettings, createOrderSettings } from '../Orders';
 
-function createFullProps(overrides: Partial<OrderSettingsProps> = {}): OrderSettingsProps {
+function createFullInput(overrides: Partial<OrderSettings> = {}) {
   return {
     isSMSStateUpdate: true,
     isLoyaltyAccrue: true,
@@ -24,7 +23,7 @@ function createFullProps(overrides: Partial<OrderSettingsProps> = {}): OrderSett
 
 describe('OrderSettings', () => {
   it('constructs with all props', () => {
-    const os = new OrderSettings(createFullProps());
+    const os = createOrderSettings(createFullInput());
     expect(os.isSMSStateUpdate).toBe(true);
     expect(os.isLoyaltyAccrue).toBe(true);
     expect(os.isStateAutoNewToInProgress).toBe(true);
@@ -42,27 +41,27 @@ describe('OrderSettings', () => {
   });
 
   it('defaults gratuityRates to [10, 15, 20]', () => {
-    const os = new OrderSettings(createFullProps({ gratuityRates: undefined as any }));
+    const os = createOrderSettings(createFullInput({ gratuityRates: undefined as any }));
     expect(os.gratuityRates).toEqual([10, 15, 20]);
   });
 
   it('defaults isSquareAutoApplyTaxes to true', () => {
-    const os = new OrderSettings(createFullProps({ isSquareAutoApplyTaxes: undefined as any }));
+    const os = createOrderSettings(createFullInput({ isSquareAutoApplyTaxes: undefined as any }));
     expect(os.isSquareAutoApplyTaxes).toBe(true);
   });
 
   it('defaults isKioskSessionIdleTimerOn to true', () => {
-    const os = new OrderSettings(createFullProps({ isKioskSessionIdleTimerOn: undefined as any }));
+    const os = createOrderSettings(createFullInput({ isKioskSessionIdleTimerOn: undefined as any }));
     expect(os.isKioskSessionIdleTimerOn).toBe(true);
   });
 
   it('defaults isFreeOrdersEnabled to true', () => {
-    const os = new OrderSettings(createFullProps({ isFreeOrdersEnabled: undefined as any }));
+    const os = createOrderSettings(createFullInput({ isFreeOrdersEnabled: undefined as any }));
     expect(os.isFreeOrdersEnabled).toBe(true);
   });
 
   it('defaults other booleans to false', () => {
-    const os = new OrderSettings(createFullProps({
+    const os = createOrderSettings(createFullInput({
       isSquareDiscountCodeAPI: undefined as any,
       isSquareAutoApplyDiscounts: undefined as any,
       isSquareDiscountCodeAutoEnabled: undefined as any,
@@ -75,7 +74,7 @@ describe('OrderSettings', () => {
   });
 
   it('defaults format maps to null', () => {
-    const os = new OrderSettings(createFullProps({
+    const os = createOrderSettings(createFullInput({
       ticketHeaderFormat: undefined as any,
       smsReadyTextFormat: undefined as any,
       smsReceiptTextFormat: undefined as any,
@@ -85,9 +84,11 @@ describe('OrderSettings', () => {
     expect(os.smsReceiptTextFormat).toBeNull();
   });
 
-  it('instantiates without Firebase', () => {
-    const os = new OrderSettings(createFullProps());
-    expect(os).toBeInstanceOf(DomainEntity);
-    expect(os).toBeInstanceOf(OrderSettings);
+  it('creates plain object with BaseEntity fields', () => {
+    const os = createOrderSettings(createFullInput());
+    expect(os.Id).toBeDefined();
+    expect(os.created).toBeInstanceOf(Date);
+    expect(os.updated).toBeInstanceOf(Date);
+    expect(os.isDeleted).toBe(false);
   });
 });

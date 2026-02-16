@@ -1,11 +1,10 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
 
-export interface CatalogProps extends DomainEntityProps {
-  // Catalog is an empty root — only base fields
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface Catalog extends BaseEntity {}
 
-export class Catalog extends DomainEntity {
-  constructor(props?: CatalogProps) {
-    super(props ?? {});
-  }
+export function createCatalog(input?: Partial<Catalog>): Catalog {
+  return {
+    ...baseEntityDefaults(input),
+  };
 }

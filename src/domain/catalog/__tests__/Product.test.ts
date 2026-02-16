@@ -1,14 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { Product } from '../Product';
-import { createTestProductProps, createTestInventoryCount } from '../../__tests__/helpers/CatalogFixtures';
+import { createProduct, productMeta } from '../Product';
+import { createTestProductInput, createTestInventoryCount } from '../../__tests__/helpers/CatalogFixtures';
 import { InventoryCountState } from '../InventoryCount';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { ValidationError } from '../../validation';
 
 describe('Product (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const product = new Product(createTestProductProps({
+    const product = createProduct(createTestProductInput({
       Id: 'prod-1',
       name: 'Burger',
       caption: 'Delicious',
@@ -43,49 +42,44 @@ describe('Product (domain)', () => {
     expect(product.linkedObjects.square.linkedObjectId).toBe('sq-1');
   });
 
-  it('auto-generates UUID', () => {
-    const product = new Product(createTestProductProps());
-    expect(product.Id).toMatch(UUID_REGEX);
-  });
-
   it('defaults caption to empty string', () => {
-    const product = new Product(createTestProductProps());
+    const product = createProduct(createTestProductInput());
     expect(product.caption).toBe('');
   });
 
   it('defaults description to empty string', () => {
-    const product = new Product(createTestProductProps());
+    const product = createProduct(createTestProductInput());
     expect(product.description).toBe('');
   });
 
   it('defaults imageUrls/imageGsls to []', () => {
-    const product = new Product(createTestProductProps());
+    const product = createProduct(createTestProductInput());
     expect(product.imageUrls).toEqual([]);
     expect(product.imageGsls).toEqual([]);
   });
 
   it('defaults optionSets to {}', () => {
-    const product = new Product(createTestProductProps());
+    const product = createProduct(createTestProductInput());
     expect(product.optionSets).toEqual({});
   });
 
   it('defaults optionSetsSelection to {}', () => {
-    const product = new Product(createTestProductProps());
+    const product = createProduct(createTestProductInput());
     expect(product.optionSetsSelection).toEqual({});
   });
 
   it('defaults locationInventory to {}', () => {
-    const product = new Product(createTestProductProps());
+    const product = createProduct(createTestProductInput());
     expect(product.locationInventory).toEqual({});
   });
 
   it('defaults linkedObjects to {}', () => {
-    const product = new Product(createTestProductProps());
+    const product = createProduct(createTestProductInput());
     expect(product.linkedObjects).toEqual({});
   });
 
-  it('metadata() returns ProductMeta', () => {
-    const product = new Product(createTestProductProps({
+  it('productMeta() returns ProductMeta', () => {
+    const product = createProduct(createTestProductInput({
       name: 'Pizza',
       isActive: false,
       imageUrls: ['pizza.jpg'],
@@ -94,7 +88,7 @@ describe('Product (domain)', () => {
       maxPrice: 1500,
       variationCount: 2,
     }));
-    expect(product.metadata()).toEqual({
+    expect(productMeta(product)).toEqual({
       name: 'Pizza',
       isActive: false,
       imageUrls: ['pizza.jpg'],
@@ -105,21 +99,8 @@ describe('Product (domain)', () => {
     });
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const product = new Product(createTestProductProps({ created: now, updated: now, isDeleted: true }));
-    expect(product.created).toEqual(now);
-    expect(product.updated).toEqual(now);
-    expect(product.isDeleted).toBe(true);
-  });
-
-  it('instantiates without Firebase', () => {
-    const product = new Product(createTestProductProps());
-    expect(product).toBeDefined();
-  });
-
   it('optionSets stores OptionSetMeta', () => {
-    const product = new Product(createTestProductProps({
+    const product = createProduct(createTestProductInput({
       optionSets: {
         'os-1': { name: 'Size', displayOrder: 1, displayTier: 0 },
         'os-2': { name: 'Toppings', displayOrder: 2, displayTier: 1 },
@@ -130,7 +111,7 @@ describe('Product (domain)', () => {
   });
 
   it('locationInventory stores InventoryCount', () => {
-    const product = new Product(createTestProductProps({
+    const product = createProduct(createTestProductInput({
       locationInventory: {
         'loc-1': { count: 5, state: InventoryCountState.inStock, isAvailable: true },
         'loc-2': { count: 0, state: InventoryCountState.soldOut, isAvailable: false },
@@ -138,5 +119,31 @@ describe('Product (domain)', () => {
     }));
     expect(product.locationInventory['loc-1'].count).toBe(5);
     expect(product.locationInventory['loc-2'].state).toBe(InventoryCountState.soldOut);
+  });
+
+  describe('validation', () => {
+    it('throws for empty name', () => {
+      expect(() => createProduct(createTestProductInput({ name: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative minPrice', () => {
+      expect(() => createProduct(createTestProductInput({ minPrice: -1 }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative maxPrice', () => {
+      expect(() => createProduct(createTestProductInput({ maxPrice: -1, minPrice: -2 }))).toThrow(ValidationError);
+    });
+
+    it('throws when minPrice > maxPrice', () => {
+      expect(() => createProduct(createTestProductInput({ minPrice: 1000, maxPrice: 500 }))).toThrow(ValidationError);
+    });
+
+    it('allows minPrice equal to maxPrice', () => {
+      expect(() => createProduct(createTestProductInput({ minPrice: 500, maxPrice: 500 }))).not.toThrow();
+    });
+
+    it('throws for negative variationCount', () => {
+      expect(() => createProduct(createTestProductInput({ variationCount: -1 }))).toThrow(ValidationError);
+    });
   });
 });

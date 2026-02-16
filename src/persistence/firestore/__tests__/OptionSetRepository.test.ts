@@ -1,35 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { OptionSet } from '../../../domain/catalog/OptionSet';
+import { createOptionSet } from '../../../domain/catalog/OptionSet';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { OptionSetRepository } from '../OptionSetRepository';
-import { createTestOptionSetProps } from '../../../domain/__tests__/helpers/CatalogFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { optionSetConverter } from '../converters';
+import { createTestOptionSetInput } from '../../../domain/__tests__/helpers/CatalogFixtures';
 import { InventoryCountState } from '../../../domain/catalog/InventoryCount';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedOptionSet() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -46,12 +24,12 @@ function createFullSerializedOptionSet() {
 
 describe('OptionSetRepository', () => {
   let registry: MetadataRegistry;
-  let repo: OptionSetRepository;
+  let repo: FirestoreRepository<any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new OptionSetRepository(registry);
+    repo = new FirestoreRepository(optionSetConverter, registry);
   });
 
   it('get() returns OptionSet when exists', async () => {
@@ -74,7 +52,7 @@ describe('OptionSetRepository', () => {
   });
 
   it('set() serializes all fields', async () => {
-    const os = new OptionSet(createTestOptionSetProps({
+    const os = createOptionSet(createTestOptionSetInput({
       Id: 'os-1', name: 'Size', minSelection: 1, maxSelection: 3,
       displayOrder: 2, displayTier: 1,
     }));
@@ -86,7 +64,7 @@ describe('OptionSetRepository', () => {
   });
 
   it('set() uses locationInventoryToFirestore', async () => {
-    const os = new OptionSet(createTestOptionSetProps({
+    const os = createOptionSet(createTestOptionSetInput({
       locationInventory: { 'loc-1': { count: 5, state: InventoryCountState.inStock, isAvailable: true } },
     }));
     await repo.set(os, 'biz-1');
@@ -96,7 +74,7 @@ describe('OptionSetRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new OptionSet(createTestOptionSetProps({
+    const original = createOptionSet(createTestOptionSetInput({
       Id: 'os-rt', name: 'Toppings', minSelection: 0, maxSelection: 5,
       displayOrder: 3, displayTier: 2,
       options: { 'opt-1': { name: 'Cheese', isActive: true } },

@@ -1,34 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CheckoutOptions } from '../../../domain/surfaces/CheckoutOptions';
+import { CheckoutOptions, createCheckoutOptions } from '../../../domain/surfaces/CheckoutOptions';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { CheckoutOptionsRepository } from '../CheckoutOptionsRepository';
-import { createTestCheckoutOptionsProps } from '../../../domain/__tests__/helpers/SurfacesFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { checkoutOptionsConverter } from '../converters';
+import { createTestCheckoutOptionsInput } from '../../../domain/__tests__/helpers/SurfacesFixtures';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedCheckoutOptions() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -53,12 +31,12 @@ function createFullSerializedCheckoutOptions() {
 
 describe('CheckoutOptionsRepository', () => {
   let registry: MetadataRegistry;
-  let repo: CheckoutOptionsRepository;
+  let repo: FirestoreRepository<CheckoutOptions>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new CheckoutOptionsRepository(registry);
+    repo = new FirestoreRepository<CheckoutOptions>(checkoutOptionsConverter, registry);
   });
 
   it('get() returns CheckoutOptions when exists', async () => {
@@ -78,7 +56,7 @@ describe('CheckoutOptionsRepository', () => {
   });
 
   it('set() deep-clones fulfillmentOptions', async () => {
-    const co = new CheckoutOptions(createTestCheckoutOptionsProps({
+    const co = createCheckoutOptions(createTestCheckoutOptionsInput({
       fulfillmentOptions: {
         toGo: {
           isEnabled: true,
@@ -97,7 +75,7 @@ describe('CheckoutOptionsRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new CheckoutOptions(createTestCheckoutOptionsProps({
+    const original = createCheckoutOptions(createTestCheckoutOptionsInput({
       Id: 'co-rt', name: 'Custom Checkout',
       discounts: { isEnabled: true },
       tipOptions: { isEnabled: true, isSmartTipEnabled: true, tipAmounts: [10, 20], preselectedIdx: 0 },

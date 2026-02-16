@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { ServiceCharge, ServiceChargeType } from '../ServiceCharge';
-import { createTestServiceChargeProps } from '../../__tests__/helpers/CatalogFixtures';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { createServiceCharge, ServiceChargeType } from '../ServiceCharge';
+import { createTestServiceChargeInput } from '../../__tests__/helpers/CatalogFixtures';
+import { ValidationError } from '../../validation';
 
 describe('ServiceCharge (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const sc = new ServiceCharge(createTestServiceChargeProps({
+    const sc = createServiceCharge({
+      ...createTestServiceChargeInput(),
       Id: 'sc-1',
       name: 'Delivery Fee',
       value: 500,
@@ -17,7 +17,7 @@ describe('ServiceCharge (domain)', () => {
       linkedObjects: { square: { linkedObjectId: 'sq-1' } },
       created: now,
       updated: now,
-    }));
+    });
 
     expect(sc.Id).toBe('sc-1');
     expect(sc.name).toBe('Delivery Fee');
@@ -28,31 +28,28 @@ describe('ServiceCharge (domain)', () => {
     expect(sc.linkedObjects.square.linkedObjectId).toBe('sq-1');
   });
 
-  it('auto-generates UUID', () => {
-    const sc = new ServiceCharge(createTestServiceChargeProps());
-    expect(sc.Id).toMatch(UUID_REGEX);
-  });
-
   it('ServiceChargeType enum has expected values', () => {
     expect(ServiceChargeType.percentage).toBe('percentage');
     expect(ServiceChargeType.amount).toBe('amount');
   });
 
   it('defaults linkedObjects to {}', () => {
-    const sc = new ServiceCharge(createTestServiceChargeProps());
+    const sc = createServiceCharge(createTestServiceChargeInput());
     expect(sc.linkedObjects).toEqual({});
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const sc = new ServiceCharge(createTestServiceChargeProps({ created: now, updated: now, isDeleted: true }));
-    expect(sc.created).toEqual(now);
-    expect(sc.updated).toEqual(now);
-    expect(sc.isDeleted).toBe(true);
+  describe('validation', () => {
+    it('throws for empty name', () => {
+      expect(() => createServiceCharge(createTestServiceChargeInput({ name: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative value', () => {
+      expect(() => createServiceCharge(createTestServiceChargeInput({ value: -1 }))).toThrow(ValidationError);
+    });
+
+    it('allows zero value', () => {
+      expect(() => createServiceCharge(createTestServiceChargeInput({ value: 0 }))).not.toThrow();
+    });
   });
 
-  it('instantiates without Firebase', () => {
-    const sc = new ServiceCharge(createTestServiceChargeProps());
-    expect(sc).toBeDefined();
-  });
 });

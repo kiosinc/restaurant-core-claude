@@ -4,7 +4,7 @@ import {
   inventoryCountFromFirestore,
   locationInventoryToFirestore,
   locationInventoryFromFirestore,
-} from '../../helpers/InventoryCountConverter';
+} from '../../converters/inventoryCountHelper';
 import { InventoryCountState, InventoryCount } from '../../../../domain/catalog/InventoryCount';
 
 describe('InventoryCountConverter', () => {

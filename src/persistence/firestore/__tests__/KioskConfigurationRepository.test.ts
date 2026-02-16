@@ -1,43 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { KioskConfiguration } from '../../../domain/surfaces/KioskConfiguration';
+import { KioskConfiguration, createKioskConfiguration } from '../../../domain/surfaces/KioskConfiguration';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { KioskConfigurationRepository } from '../KioskConfigurationRepository';
-import { createTestKioskConfigurationProps } from '../../../domain/__tests__/helpers/SurfacesFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { kioskConfigurationConverter } from '../converters';
+import { createTestKioskConfigurationInput } from '../../../domain/__tests__/helpers/SurfacesFixtures';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 describe('KioskConfigurationRepository', () => {
   let registry: MetadataRegistry;
-  let repo: KioskConfigurationRepository;
+  let repo: FirestoreRepository<KioskConfiguration>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new KioskConfigurationRepository(registry);
+    repo = new FirestoreRepository<KioskConfiguration>(kioskConfigurationConverter, registry);
   });
 
   it('get() returns KioskConfiguration when exists', async () => {
@@ -62,7 +40,7 @@ describe('KioskConfigurationRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new KioskConfiguration(createTestKioskConfigurationProps({
+    const original = createKioskConfiguration(createTestKioskConfigurationInput({
       Id: 'kc-rt', name: 'Back Kiosk', unlockCode: '5678',
       checkoutOptionId: 'co-2', version: '3.0', created: ts, updated: ts,
     }));

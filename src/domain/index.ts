@@ -1,7 +1,6 @@
-export { IdGenerator } from './IdGenerator';
-export { DomainEntity, DomainEntityProps } from './DomainEntity';
-export { TenantEntity, TenantEntityProps } from './TenantEntity';
-export { MetadataProjection, MetaLinkDeclaration, MetadataSpec } from './MetadataSpec';
+export { BaseEntity, generateId, baseEntityDefaults } from './BaseEntity';
+export { ValidationError, requireNonEmptyString, requireNonNegativeNumber, requireNonNegativeInteger, requireMinLessOrEqual } from './validation';
+export { MetaLinkDeclaration, MetadataSpec, createMetadataSpec } from './MetadataSpec';
 export { LinkedObjectRef, LinkedObjectMap } from './LinkedObjectRef';
 export * as Catalog from './catalog';
 export * as ConnectedAccounts from './connected-accounts';
@@ -11,3 +10,4 @@ export * as Surfaces from './surfaces';
 export * as Onboarding from './onboarding';
 export * as Misc from './misc';
 export * as Roots from './roots';
+export * as Services from './services';

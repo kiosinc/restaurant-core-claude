@@ -1,14 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { Option } from '../Option';
-import { createTestOptionProps, createTestInventoryCount } from '../../__tests__/helpers/CatalogFixtures';
-import { InventoryCountState } from '../InventoryCount';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { createOption, optionMeta } from '../Option';
+import { createTestOptionInput, createTestInventoryCount } from '../../__tests__/helpers/CatalogFixtures';
+import { ValidationError } from '../../validation';
 
 describe('Option (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const option = new Option(createTestOptionProps({
+    const option = createOption(createTestOptionInput({
       Id: 'opt-1',
       name: 'Large',
       price: 250,
@@ -37,78 +35,74 @@ describe('Option (domain)', () => {
     expect(option.linkedObjects.square.linkedObjectId).toBe('sq-1');
   });
 
-  it('auto-generates UUID when no Id', () => {
-    const option = new Option(createTestOptionProps());
-    expect(option.Id).toMatch(UUID_REGEX);
-  });
-
   it('uses provided Id', () => {
-    const option = new Option(createTestOptionProps({ Id: 'opt-123' }));
+    const option = createOption(createTestOptionInput({ Id: 'opt-123' }));
     expect(option.Id).toBe('opt-123');
   });
 
   it('defaults sku to null', () => {
-    const option = new Option(createTestOptionProps());
+    const option = createOption(createTestOptionInput());
     expect(option.sku).toBeNull();
   });
 
   it('defaults gtin to null', () => {
-    const option = new Option(createTestOptionProps());
+    const option = createOption(createTestOptionInput());
     expect(option.gtin).toBeNull();
   });
 
   it('defaults imageUrls to []', () => {
-    const option = new Option(createTestOptionProps());
+    const option = createOption(createTestOptionInput());
     expect(option.imageUrls).toEqual([]);
   });
 
   it('defaults imageGsls to []', () => {
-    const option = new Option(createTestOptionProps());
+    const option = createOption(createTestOptionInput());
     expect(option.imageGsls).toEqual([]);
   });
 
   it('defaults locationPrices to {}', () => {
-    const option = new Option(createTestOptionProps());
+    const option = createOption(createTestOptionInput());
     expect(option.locationPrices).toEqual({});
   });
 
   it('defaults locationInventory to {}', () => {
-    const option = new Option(createTestOptionProps());
+    const option = createOption(createTestOptionInput());
     expect(option.locationInventory).toEqual({});
   });
 
   it('defaults linkedObjects to {}', () => {
-    const option = new Option(createTestOptionProps());
+    const option = createOption(createTestOptionInput());
     expect(option.linkedObjects).toEqual({});
   });
 
-  it('metadata() returns OptionMeta', () => {
-    const option = new Option(createTestOptionProps({ name: 'Small', isActive: false }));
-    expect(option.metadata()).toEqual({ name: 'Small', isActive: false });
-  });
-
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const option = new Option(createTestOptionProps({ created: now, updated: now, isDeleted: true }));
-    expect(option.created).toEqual(now);
-    expect(option.updated).toEqual(now);
-    expect(option.isDeleted).toBe(true);
-  });
-
-  it('instantiates without Firebase', () => {
-    const option = new Option(createTestOptionProps());
-    expect(option).toBeDefined();
+  it('optionMeta() returns OptionMeta', () => {
+    const option = createOption(createTestOptionInput({ name: 'Small', isActive: false }));
+    expect(optionMeta(option)).toEqual({ name: 'Small', isActive: false });
   });
 
   it('name is mutable', () => {
-    const option = new Option(createTestOptionProps({ name: 'Original' }));
+    const option = createOption(createTestOptionInput({ name: 'Original' }));
     option.name = 'Updated';
     expect(option.name).toBe('Updated');
   });
 
   it('price is mutable', () => {
-    const option = new Option(createTestOptionProps({ price: 100 }));
+    const option = createOption(createTestOptionInput({ price: 100 }));
     option.price = 200;
     expect(option.price).toBe(200);
+  });
+
+  describe('validation', () => {
+    it('throws for empty name', () => {
+      expect(() => createOption(createTestOptionInput({ name: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative price', () => {
+      expect(() => createOption(createTestOptionInput({ price: -1 }))).toThrow(ValidationError);
+    });
+
+    it('allows zero price', () => {
+      expect(() => createOption(createTestOptionInput({ price: 0 }))).not.toThrow();
+    });
   });
 });

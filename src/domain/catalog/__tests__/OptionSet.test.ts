@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { OptionSet, ProductOptionSetSetting } from '../OptionSet';
-import { createTestOptionSetProps } from '../../__tests__/helpers/CatalogFixtures';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { createOptionSet, optionSetMeta, ProductOptionSetSetting } from '../OptionSet';
+import { createTestOptionSetInput } from '../../__tests__/helpers/CatalogFixtures';
+import { ValidationError } from '../../validation';
 
 describe('OptionSet (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const os = new OptionSet(createTestOptionSetProps({
+    const os = createOptionSet(createTestOptionSetInput({
       Id: 'os-1',
       name: 'Size',
       options: { 'opt-1': { name: 'Small', isActive: true } },
@@ -40,49 +39,44 @@ describe('OptionSet (domain)', () => {
     expect(os.linkedObjects.square.linkedObjectId).toBe('sq-1');
   });
 
-  it('auto-generates UUID', () => {
-    const os = new OptionSet(createTestOptionSetProps());
-    expect(os.Id).toMatch(UUID_REGEX);
-  });
-
   it('defaults options to {}', () => {
-    const os = new OptionSet(createTestOptionSetProps());
+    const os = createOptionSet(createTestOptionSetInput());
     expect(os.options).toEqual({});
   });
 
   it('defaults optionDisplayOrder to []', () => {
-    const os = new OptionSet(createTestOptionSetProps());
+    const os = createOptionSet(createTestOptionSetInput());
     expect(os.optionDisplayOrder).toEqual([]);
   });
 
   it('defaults preselectedOptionIds to []', () => {
-    const os = new OptionSet(createTestOptionSetProps());
+    const os = createOptionSet(createTestOptionSetInput());
     expect(os.preselectedOptionIds).toEqual([]);
   });
 
   it('defaults imageUrls/imageGsls to []', () => {
-    const os = new OptionSet(createTestOptionSetProps());
+    const os = createOptionSet(createTestOptionSetInput());
     expect(os.imageUrls).toEqual([]);
     expect(os.imageGsls).toEqual([]);
   });
 
   it('defaults locationInventory to {}', () => {
-    const os = new OptionSet(createTestOptionSetProps());
+    const os = createOptionSet(createTestOptionSetInput());
     expect(os.locationInventory).toEqual({});
   });
 
   it('defaults linkedObjects to {}', () => {
-    const os = new OptionSet(createTestOptionSetProps());
+    const os = createOptionSet(createTestOptionSetInput());
     expect(os.linkedObjects).toEqual({});
   });
 
-  it('metadata() returns OptionSetMeta', () => {
-    const os = new OptionSet(createTestOptionSetProps({
+  it('optionSetMeta() returns OptionSetMeta', () => {
+    const os = createOptionSet(createTestOptionSetInput({
       name: 'Toppings',
       displayOrder: 5,
       displayTier: 2,
     }));
-    expect(os.metadata()).toEqual({
+    expect(optionSetMeta(os)).toEqual({
       name: 'Toppings',
       displayOrder: 5,
       displayTier: 2,
@@ -100,16 +94,34 @@ describe('OptionSet (domain)', () => {
     expect(setting.preSelected).toEqual(['opt-1']);
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const os = new OptionSet(createTestOptionSetProps({ created: now, updated: now, isDeleted: true }));
-    expect(os.created).toEqual(now);
-    expect(os.updated).toEqual(now);
-    expect(os.isDeleted).toBe(true);
+  describe('validation', () => {
+    it('throws for empty name', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ name: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative minSelection', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ minSelection: -1 }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative maxSelection', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ maxSelection: -1, minSelection: -2 }))).toThrow(ValidationError);
+    });
+
+    it('throws when minSelection > maxSelection', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ minSelection: 5, maxSelection: 2 }))).toThrow(ValidationError);
+    });
+
+    it('allows minSelection equal to maxSelection', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ minSelection: 1, maxSelection: 1 }))).not.toThrow();
+    });
+
+    it('throws for negative displayOrder', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ displayOrder: -1 }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative displayTier', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ displayTier: -1 }))).toThrow(ValidationError);
+    });
   });
 
-  it('instantiates without Firebase', () => {
-    const os = new OptionSet(createTestOptionSetProps());
-    expect(os).toBeDefined();
-  });
 });

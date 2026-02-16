@@ -1,19 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { Token, TokenProps } from '../Token';
-import { createTestTokenProps } from '../../__tests__/helpers/SurfacesFixtures';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-class ConcreteToken extends Token {
-  constructor(props: TokenProps) {
-    super(props);
-  }
-}
+import { createToken } from '../Token';
+import { createTestTokenInput } from '../../__tests__/helpers/SurfacesFixtures';
+import { ValidationError } from '../../validation';
 
 describe('Token (domain)', () => {
-  it('concrete subclass constructs with all props', () => {
+  it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const token = new ConcreteToken(createTestTokenProps({
+    const token = createToken(createTestTokenInput({
       Id: 'tok-1',
       createdBy: 'admin',
       businessId: 'biz-99',
@@ -28,36 +21,33 @@ describe('Token (domain)', () => {
     expect(token.provider).toBe('stripe');
   });
 
-  it('auto-generates UUID', () => {
-    const token = new ConcreteToken(createTestTokenProps());
-    expect(token.Id).toMatch(UUID_REGEX);
-  });
-
   it('stores businessId', () => {
-    const token = new ConcreteToken(createTestTokenProps({ businessId: 'biz-123' }));
+    const token = createToken(createTestTokenInput({ businessId: 'biz-123' }));
     expect(token.businessId).toBe('biz-123');
   });
 
   it('stores provider', () => {
-    const token = new ConcreteToken(createTestTokenProps({ provider: 'square' }));
+    const token = createToken(createTestTokenInput({ provider: 'square' }));
     expect(token.provider).toBe('square');
   });
 
   it('stores createdBy', () => {
-    const token = new ConcreteToken(createTestTokenProps({ createdBy: 'user-42' }));
+    const token = createToken(createTestTokenInput({ createdBy: 'user-42' }));
     expect(token.createdBy).toBe('user-42');
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const token = new ConcreteToken(createTestTokenProps({ created: now, updated: now, isDeleted: true }));
-    expect(token.created).toEqual(now);
-    expect(token.updated).toEqual(now);
-    expect(token.isDeleted).toBe(true);
+  describe('validation', () => {
+    it('throws for empty createdBy', () => {
+      expect(() => createToken(createTestTokenInput({ createdBy: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for empty businessId', () => {
+      expect(() => createToken(createTestTokenInput({ businessId: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for empty provider', () => {
+      expect(() => createToken(createTestTokenInput({ provider: '' }))).toThrow(ValidationError);
+    });
   });
 
-  it('instantiates without Firebase', () => {
-    const token = new ConcreteToken(createTestTokenProps());
-    expect(token).toBeDefined();
-  });
 });

@@ -1,35 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Option } from '../../../domain/catalog/Option';
+import { createOption } from '../../../domain/catalog/Option';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { OptionRepository } from '../OptionRepository';
-import { createTestOptionProps, createTestInventoryCount } from '../../../domain/__tests__/helpers/CatalogFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { optionConverter } from '../converters';
+import { createTestOptionInput, createTestInventoryCount } from '../../../domain/__tests__/helpers/CatalogFixtures';
 import { InventoryCountState } from '../../../domain/catalog/InventoryCount';
+import { mockTransaction, mockDocRef, mockQuery, mockCollectionRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedOption() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -46,12 +24,12 @@ function createFullSerializedOption() {
 
 describe('OptionRepository', () => {
   let registry: MetadataRegistry;
-  let repo: OptionRepository;
+  let repo: FirestoreRepository<any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new OptionRepository(registry);
+    repo = new FirestoreRepository(optionConverter, registry);
   });
 
   it('get() returns Option when exists', async () => {
@@ -75,7 +53,7 @@ describe('OptionRepository', () => {
 
   it('set() serializes all fields correctly', async () => {
     const ts = new Date('2024-01-15T10:00:00Z');
-    const option = new Option(createTestOptionProps({
+    const option = createOption(createTestOptionInput({
       Id: 'opt-1', name: 'Large', price: 250, sku: 'SKU-001', gtin: 'GTIN-001',
       imageUrls: ['img1.jpg'], imageGsls: ['gs://img1'],
       locationPrices: { 'loc-1': 300 },
@@ -94,7 +72,7 @@ describe('OptionRepository', () => {
   });
 
   it('set() uses locationInventoryToFirestore', async () => {
-    const option = new Option(createTestOptionProps({
+    const option = createOption(createTestOptionInput({
       locationInventory: { 'loc-1': createTestInventoryCount() },
     }));
     await repo.set(option, 'biz-1');
@@ -103,7 +81,7 @@ describe('OptionRepository', () => {
   });
 
   it('set() deep-clones nested objects', async () => {
-    const option = new Option(createTestOptionProps({
+    const option = createOption(createTestOptionInput({
       linkedObjects: { square: { linkedObjectId: 'sq-1' } },
       locationPrices: { 'loc-1': 300 },
     }));
@@ -115,7 +93,7 @@ describe('OptionRepository', () => {
   });
 
   it('set() runs transaction', async () => {
-    const option = new Option(createTestOptionProps());
+    const option = createOption(createTestOptionInput());
     await repo.set(option, 'biz-1');
     expect(mockDb.runTransaction).toHaveBeenCalledTimes(1);
     expect(mockTransaction.set).toHaveBeenCalledTimes(1);
@@ -123,7 +101,7 @@ describe('OptionRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Option(createTestOptionProps({
+    const original = createOption(createTestOptionInput({
       Id: 'opt-rt', name: 'Round Trip', price: 999, sku: 'RT-SKU', gtin: 'RT-GTIN',
       imageUrls: ['rt.jpg'], imageGsls: ['gs://rt'],
       locationPrices: { 'loc-1': 1000 },

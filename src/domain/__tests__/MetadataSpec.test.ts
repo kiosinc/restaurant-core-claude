@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MetaLinkDeclaration, MetadataSpec, MetadataProjection } from '../MetadataSpec';
+import { MetaLinkDeclaration, MetadataSpec } from '../MetadataSpec';
 
 describe('MetadataSpec', () => {
   it('MetaLinkDeclaration shape', () => {
@@ -41,15 +41,4 @@ describe('MetadataSpec', () => {
     ]);
   });
 
-  it('MetadataProjection implementation', () => {
-    class TestProjection implements MetadataProjection<{ summary: string }> {
-      constructor(private value: string) {}
-      metadata() {
-        return { summary: this.value };
-      }
-    }
-
-    const projection = new TestProjection('hello');
-    expect(projection.metadata()).toEqual({ summary: 'hello' });
-  });
 });

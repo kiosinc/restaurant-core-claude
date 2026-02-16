@@ -1,7 +1,8 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 
-export interface TaxRateProps extends DomainEntityProps {
+export interface TaxRate extends BaseEntity {
   name: string;
   rate: number;
   isCalculatedSubTotalPhase: boolean;
@@ -9,19 +10,23 @@ export interface TaxRateProps extends DomainEntityProps {
   linkedObjects: LinkedObjectMap;
 }
 
-export class TaxRate extends DomainEntity {
+export interface TaxRateInput {
   name: string;
   rate: number;
   isCalculatedSubTotalPhase: boolean;
   isInclusive: boolean;
-  linkedObjects: LinkedObjectMap;
+  linkedObjects?: LinkedObjectMap;
+}
 
-  constructor(props: TaxRateProps) {
-    super(props);
-    this.name = props.name;
-    this.rate = props.rate;
-    this.isCalculatedSubTotalPhase = props.isCalculatedSubTotalPhase;
-    this.isInclusive = props.isInclusive;
-    this.linkedObjects = props.linkedObjects ?? {};
-  }
+export function createTaxRate(input: TaxRateInput & Partial<BaseEntity>): TaxRate {
+  requireNonEmptyString('name', input.name);
+  requireNonNegativeNumber('rate', input.rate);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    rate: input.rate,
+    isCalculatedSubTotalPhase: input.isCalculatedSubTotalPhase,
+    isInclusive: input.isInclusive,
+    linkedObjects: input.linkedObjects ?? {},
+  };
 }

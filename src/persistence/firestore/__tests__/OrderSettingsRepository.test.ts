@@ -1,31 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { OrderSettings } from '../../../domain/roots/Orders';
+import { OrderSettings, createOrderSettings } from '../../../domain/roots/Orders';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { OrderSettingsRepository } from '../OrderSettingsRepository';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { orderSettingsConverter } from '../converters/orderSettingsConverter';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => ({ get: vi.fn() })),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedOrderSettings() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -49,11 +29,11 @@ function createFullSerializedOrderSettings() {
 }
 
 describe('OrderSettingsRepository', () => {
-  let repo: OrderSettingsRepository;
+  let repo: FirestoreRepository<OrderSettings>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    repo = new OrderSettingsRepository(new MetadataRegistry());
+    repo = new FirestoreRepository<OrderSettings>(orderSettingsConverter, new MetadataRegistry());
   });
 
   it('get() returns OrderSettings when exists', async () => {
@@ -69,7 +49,7 @@ describe('OrderSettingsRepository', () => {
   });
 
   it('set() serializes all fields', async () => {
-    const os = new OrderSettings({
+    const os = createOrderSettings({
       Id: 'orders',
       isSMSStateUpdate: true,
       isLoyaltyAccrue: false,
@@ -105,7 +85,7 @@ describe('OrderSettingsRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new OrderSettings({
+    const original = createOrderSettings({
       Id: 'orders',
       isSMSStateUpdate: false,
       isLoyaltyAccrue: true,

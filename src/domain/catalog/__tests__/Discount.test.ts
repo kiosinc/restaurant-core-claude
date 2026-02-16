@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { Discount, DiscountType } from '../Discount';
-import { createTestDiscountProps } from '../../__tests__/helpers/CatalogFixtures';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { createDiscount, DiscountType } from '../Discount';
+import { createTestDiscountInput } from '../../__tests__/helpers/CatalogFixtures';
+import { ValidationError } from '../../validation';
 
 describe('Discount (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const discount = new Discount(createTestDiscountProps({
+    const discount = createDiscount({
+      ...createTestDiscountInput(),
       Id: 'disc-1',
       name: '10% Off',
       description: 'Holiday special',
@@ -18,7 +18,7 @@ describe('Discount (domain)', () => {
       linkedObjects: { square: { linkedObjectId: 'sq-1' } },
       created: now,
       updated: now,
-    }));
+    });
 
     expect(discount.Id).toBe('disc-1');
     expect(discount.name).toBe('10% Off');
@@ -30,11 +30,6 @@ describe('Discount (domain)', () => {
     expect(discount.linkedObjects.square.linkedObjectId).toBe('sq-1');
   });
 
-  it('auto-generates UUID', () => {
-    const discount = new Discount(createTestDiscountProps());
-    expect(discount.Id).toMatch(UUID_REGEX);
-  });
-
   it('DiscountType enum has expected values', () => {
     expect(DiscountType.percentage).toBe('percentage');
     expect(DiscountType.amount).toBe('amount');
@@ -42,30 +37,32 @@ describe('Discount (domain)', () => {
   });
 
   it('defaults description to empty string', () => {
-    const discount = new Discount(createTestDiscountProps());
+    const discount = createDiscount(createTestDiscountInput());
     expect(discount.description).toBe('');
   });
 
   it('defaults couponCode to empty string', () => {
-    const discount = new Discount(createTestDiscountProps());
+    const discount = createDiscount(createTestDiscountInput());
     expect(discount.couponCode).toBe('');
   });
 
   it('defaults linkedObjects to {}', () => {
-    const discount = new Discount(createTestDiscountProps());
+    const discount = createDiscount(createTestDiscountInput());
     expect(discount.linkedObjects).toEqual({});
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const discount = new Discount(createTestDiscountProps({ created: now, updated: now, isDeleted: true }));
-    expect(discount.created).toEqual(now);
-    expect(discount.updated).toEqual(now);
-    expect(discount.isDeleted).toBe(true);
+  describe('validation', () => {
+    it('throws for empty name', () => {
+      expect(() => createDiscount(createTestDiscountInput({ name: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative value', () => {
+      expect(() => createDiscount(createTestDiscountInput({ value: -1 }))).toThrow(ValidationError);
+    });
+
+    it('allows zero value', () => {
+      expect(() => createDiscount(createTestDiscountInput({ value: 0 }))).not.toThrow();
+    });
   });
 
-  it('instantiates without Firebase', () => {
-    const discount = new Discount(createTestDiscountProps());
-    expect(discount).toBeDefined();
-  });
 });

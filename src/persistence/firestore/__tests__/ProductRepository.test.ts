@@ -1,35 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Product } from '../../../domain/catalog/Product';
+import { createProduct } from '../../../domain/catalog/Product';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { ProductRepository } from '../ProductRepository';
-import { createTestProductProps, createTestInventoryCount } from '../../../domain/__tests__/helpers/CatalogFixtures';
-import { InventoryCountState } from '../../../domain/catalog/InventoryCount';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { productConverter } from '../converters';
+import { createTestProductInput } from '../../../domain/__tests__/helpers/CatalogFixtures';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedProduct() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -47,12 +24,12 @@ function createFullSerializedProduct() {
 
 describe('ProductRepository', () => {
   let registry: MetadataRegistry;
-  let repo: ProductRepository;
+  let repo: FirestoreRepository<any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new ProductRepository(registry);
+    repo = new FirestoreRepository(productConverter, registry);
   });
 
   it('get() returns Product when exists', async () => {
@@ -72,7 +49,7 @@ describe('ProductRepository', () => {
   });
 
   it('set() serializes all fields', async () => {
-    const product = new Product(createTestProductProps({
+    const product = createProduct(createTestProductInput({
       Id: 'prod-1', name: 'Burger', caption: 'Tasty', description: 'Good',
       minPrice: 500, maxPrice: 800, variationCount: 3,
     }));
@@ -84,7 +61,7 @@ describe('ProductRepository', () => {
   });
 
   it('set() deep-clones optionSets and optionSetsSelection', async () => {
-    const product = new Product(createTestProductProps({
+    const product = createProduct(createTestProductInput({
       optionSets: { 'os-1': { name: 'Size', displayOrder: 0, displayTier: 0 } },
       optionSetsSelection: { 'os-1': { minSelection: 1, maxSelection: 1, preSelected: [], isActive: true } },
     }));
@@ -97,7 +74,7 @@ describe('ProductRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Product(createTestProductProps({
+    const original = createProduct(createTestProductInput({
       Id: 'prod-rt', name: 'Pizza', caption: 'Hot', description: 'Fresh',
       minPrice: 1000, maxPrice: 1500, variationCount: 2,
       imageUrls: ['pizza.jpg'], created: ts, updated: ts,

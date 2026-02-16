@@ -1,4 +1,5 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString } from '../validation';
 
 export interface TipOptions {
   isEnabled: boolean;
@@ -57,7 +58,7 @@ export interface FulfillmentOption {
   options: OptionConfig[];
 }
 
-export interface CheckoutOptionsProps extends DomainEntityProps {
+export interface CheckoutOptions extends BaseEntity {
   name: string;
   discounts: DiscountOptions;
   giftCards: GiftCardOptions;
@@ -66,21 +67,20 @@ export interface CheckoutOptionsProps extends DomainEntityProps {
   fulfillmentOptions: { [orderType: string]: FulfillmentOption | undefined };
 }
 
-export class CheckoutOptions extends DomainEntity {
+export function createCheckoutOptions(input: Partial<CheckoutOptions> & {
   name: string;
   discounts: DiscountOptions;
   giftCards: GiftCardOptions;
   referralCodes: ReferralCodeOptions;
-  tipOptions: TipOptions | null;
-  fulfillmentOptions: { [orderType: string]: FulfillmentOption | undefined };
-
-  constructor(props: CheckoutOptionsProps) {
-    super(props);
-    this.name = props.name;
-    this.discounts = props.discounts;
-    this.giftCards = props.giftCards;
-    this.referralCodes = props.referralCodes;
-    this.tipOptions = props.tipOptions ?? null;
-    this.fulfillmentOptions = props.fulfillmentOptions ?? {};
-  }
+}): CheckoutOptions {
+  requireNonEmptyString('name', input.name);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    discounts: input.discounts,
+    giftCards: input.giftCards,
+    referralCodes: input.referralCodes,
+    tipOptions: input.tipOptions ?? null,
+    fulfillmentOptions: input.fulfillmentOptions ?? {},
+  };
 }

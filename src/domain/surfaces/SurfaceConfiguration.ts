@@ -1,4 +1,5 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString } from '../validation';
 
 export interface CoverConfiguration {
   isCoverNoticeEnabled: boolean;
@@ -32,30 +33,27 @@ export interface TipConfiguration {
   isSmartTipsEnabled: boolean;
 }
 
-export interface SurfaceConfigurationProps extends DomainEntityProps {
-  name: string;
-  isChargeCustomerServiceFee: boolean;
-  coverConfiguration: CoverConfiguration | null;
-  tipConfiguration: TipConfiguration | null;
-  checkoutFlowConfiguration: CheckoutFlowConfiguration | null;
-  version?: string;
-}
-
-export class SurfaceConfiguration extends DomainEntity {
+export interface SurfaceConfiguration extends BaseEntity {
   name: string;
   isChargeCustomerServiceFee: boolean;
   coverConfiguration: CoverConfiguration | null;
   tipConfiguration: TipConfiguration | null;
   checkoutFlowConfiguration: CheckoutFlowConfiguration | null;
   version: string;
+}
 
-  constructor(props: SurfaceConfigurationProps) {
-    super(props);
-    this.name = props.name;
-    this.isChargeCustomerServiceFee = props.isChargeCustomerServiceFee;
-    this.coverConfiguration = props.coverConfiguration ?? null;
-    this.tipConfiguration = props.tipConfiguration ?? null;
-    this.checkoutFlowConfiguration = props.checkoutFlowConfiguration ?? null;
-    this.version = props.version ?? '0.0';
-  }
+export function createSurfaceConfiguration(input: Partial<SurfaceConfiguration> & {
+  name: string;
+  isChargeCustomerServiceFee: boolean;
+}): SurfaceConfiguration {
+  requireNonEmptyString('name', input.name);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    isChargeCustomerServiceFee: input.isChargeCustomerServiceFee,
+    coverConfiguration: input.coverConfiguration ?? null,
+    tipConfiguration: input.tipConfiguration ?? null,
+    checkoutFlowConfiguration: input.checkoutFlowConfiguration ?? null,
+    version: input.version ?? '0.0',
+  };
 }

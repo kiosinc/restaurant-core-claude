@@ -1,6 +1,6 @@
 # Migration Guide: restaurant-core to restaurant-core-claude
 
-This guide covers migrating from the legacy `@kiosinc/restaurant-core` (models with embedded persistence) to `@kiosinc/restaurant-core-claude` (domain/persistence separation).
+This guide covers migrating from the legacy `@kiosinc/restaurant-core` (models with embedded persistence) to `@kiosinc/restaurant-core-claude` (domain/persistence separation with plain interfaces and factory functions).
 
 ## 1. Update Package Reference
 
@@ -10,7 +10,7 @@ This guide covers migrating from the legacy `@kiosinc/restaurant-core` (models w
 
 # package.json
 - "@kiosinc/restaurant-core": "^x.x.x"
-+ "@kiosinc/restaurant-core-claude": "^0.0.1"
++ "@kiosinc/restaurant-core-claude": "^1.0.0"
 ```
 
 ## 2. Update Imports
@@ -30,31 +30,35 @@ const order: Domain.Orders.Order = ...;
 const business: Domain.Roots.Business = ...;
 
 // Or destructure
-const { Product, Category } = Domain.Catalog;
-const { Order, OrderSymbols } = Domain.Orders;
-const { ProductRepository, OrderRepository } = Persistence;
+const { Product, createProduct } = Domain.Catalog;
+const { Order, createOrder } = Domain.Orders;
+const { FirestoreRepository, productConverter } = Persistence;
 ```
 
 Available domain subnamespaces:
 
 | Namespace | Contents |
 |---|---|
-| `Domain.Roots` | Aggregate roots: `Business`, `BusinessProps`, `BusinessType`, `Role`, `Catalog`, `CatalogProps`, `OrderSettings`, `OrderSettingsProps`, `SurfacesRoot`, `SurfacesProps`, `LocationsRoot`, `LocationsRootProps`, `ConnectedAccountsRoot`, `ConnectedAccountsProps`, `Services`, `ServicesProps`, `Onboarding`, `OnboardingProps`, `OnboardingStage`, `OnboardingStageStatus`, `LocationMeta` |
-| `Domain.Catalog` | `Product`, `ProductProps`, `ProductMeta`, `Category`, `CategoryProps`, `CategoryMeta`, `OptionSet`, `OptionSetProps`, `OptionSetMeta`, `ProductOptionSetSetting`, `Option`, `OptionProps`, `OptionMeta`, `TaxRate`, `TaxRateProps`, `Discount`, `DiscountProps`, `DiscountType`, `ServiceCharge`, `ServiceChargeProps`, `ServiceChargeType`, `InventoryCount`, `InventoryCountState`, `LocationInventoryMap`, `defaultInventoryCount` |
-| `Domain.Orders` | `Order`, `OrderProps`, `OrderItem`, `OrderLineItem`, `OrderFulfillment`, `OrderFulfillmentContact`, `OrderPayment`, `OrderPriceAdjustmentMeta`, `OptionSetSelected`, `SelectedValue`, `OrderType`, `OrderTypeMeta`, `OrderState`, `PaymentState` |
-| `Domain.Surfaces` | `Menu`, `MenuProps`, `MenuMeta`, `MenuGroup`, `MenuGroupProps`, `MenuGroupMeta`, `SurfaceConfiguration`, `SurfaceConfigurationProps`, `CoverConfiguration`, `CheckoutFlowConfiguration`, `TipConfiguration`, `KioskConfiguration`, `KioskConfigurationProps`, `CheckoutOptions`, `CheckoutOptionsProps`, `CheckoutOptionType`, `TipOptions`, `DiscountOptions`, `GiftCardOptions`, `ReferralCodeOptions`, `ScheduleOptions`, `ContactOptions`, `ManualIdOptions`, `ManualIdConfig`, `OptionConfig`, `FulfillmentOption` |
-| `Domain.Locations` | `Location`, `LocationProps`, `LocationMeta` |
-| `Domain.ConnectedAccounts` | `Event`, `EventProps`, `Token`, `TokenProps` (abstract) |
-| `Domain.Onboarding` | `OnboardingOrder`, `OnboardingOrderProps`, `InvoiceStatus` |
+| `Domain.Roots` | Aggregate roots: `Business`, `createBusinessRoot`, `BusinessType`, `Role`, `Catalog`, `createCatalog`, `OrderSettings`, `createOrderSettings`, `SurfacesRoot`, `createSurfaces`, `LocationsRoot`, `createLocationsRoot`, `LocationMeta`, `ConnectedAccountsRoot`, `createConnectedAccounts`, `Services`, `createServices`, `Onboarding`, `OnboardingInput`, `createOnboarding`, `OnboardingStage`, `OnboardingStageStatus`, `DEFAULT_ONBOARDING_STATUS` |
+| `Domain.Catalog` | `Product`, `ProductInput`, `ProductMeta`, `createProduct`, `productMeta`, `Category`, `CategoryInput`, `CategoryMeta`, `createCategory`, `categoryMeta`, `OptionSet`, `OptionSetInput`, `OptionSetMeta`, `createOptionSet`, `optionSetMeta`, `ProductOptionSetSetting`, `Option`, `OptionInput`, `OptionMeta`, `createOption`, `optionMeta`, `TaxRate`, `TaxRateInput`, `createTaxRate`, `Discount`, `DiscountInput`, `DiscountType`, `createDiscount`, `ServiceCharge`, `ServiceChargeInput`, `ServiceChargeType`, `createServiceCharge`, `InventoryCount`, `InventoryCountState`, `LocationInventoryMap`, `defaultInventoryCount` |
+| `Domain.Orders` | `Order`, `OrderInput`, `createOrder`, `OrderItem`, `OrderLineItem`, `OrderFulfillment`, `OrderFulfillmentContact`, `OrderPayment`, `OrderPriceAdjustmentMeta`, `OptionSetSelected`, `SelectedValue`, `OrderType`, `OrderTypeMeta`, `OrderState`, `PaymentState` |
+| `Domain.Surfaces` | `Menu`, `MenuInput`, `MenuMeta`, `createMenu`, `menuMeta`, `MenuGroup`, `MenuGroupInput`, `MenuGroupMeta`, `createMenuGroup`, `menuGroupMeta`, `SurfaceConfiguration`, `createSurfaceConfiguration`, `CoverConfiguration`, `CheckoutFlowConfiguration`, `TipConfiguration`, `KioskConfiguration`, `createKioskConfiguration`, `CheckoutOptions`, `createCheckoutOptions`, `CheckoutOptionType`, `TipOptions`, `DiscountOptions`, `GiftCardOptions`, `ReferralCodeOptions`, `ScheduleOptions`, `ContactOptions`, `ManualIdOptions`, `ManualIdConfig`, `OptionConfig`, `FulfillmentOption` |
+| `Domain.Locations` | `Location`, `LocationInput`, `LocationMeta`, `createLocation`, `locationMeta` |
+| `Domain.ConnectedAccounts` | `Event`, `createEvent`, `eventIdentifier`, `Token`, `createToken` |
+| `Domain.Onboarding` | `OnboardingOrder`, `OnboardingOrderInput`, `InvoiceStatus`, `createOnboardingOrder` |
 | `Domain.Misc` | `Address`, `emptyAddress`, `BusinessProfile` (value objects) |
+| `Domain.Repositories` | Base `Repository<T>` interface + typed aliases for all 25 entities (e.g., `ProductRepository`, `OrderRepository`, `BusinessRepository`). `Repository<T>` is intentionally CRUD-only (get/set/update/delete). For linked-object queries, use `FirestoreRepository<T>.findByLinkedObject()` or the standalone `Persistence.linkedObjectQuery()` / `Persistence.findByLinkedObjectId()` helpers. |
+| `Domain.Services` | `CatalogCascadeService`, `FieldUpdate`, `ParentUpdate` |
 
 Top-level domain exports (no subnamespace required):
-- `Domain.DomainEntity`, `Domain.TenantEntity` — base classes
-- `Domain.LinkedObjectRef`, `Domain.LinkedObjectMap` — linked object types
-- `Domain.MetadataProjection`, `Domain.MetadataSpec`, `Domain.MetaLinkDeclaration` — metadata interfaces
+- `Domain.BaseEntity` — base interface for all entities (`Id`, `created`, `updated`, `isDeleted`)
 - `Domain.IdGenerator` — ID generation interface
+- `Domain.generateId`, `Domain.setIdGenerator`, `Domain.getIdGenerator` — ID generation functions
+- `Domain.baseEntityDefaults` — factory for base entity fields
+- `Domain.LinkedObjectRef`, `Domain.LinkedObjectMap` — linked object types
+- `Domain.MetadataSpec`, `Domain.MetaLinkDeclaration`, `Domain.createMetadataSpec` — metadata interfaces
 
-> **Naming note:** Some aggregate root classes are re-exported with a `Root` suffix to avoid collision with their child collection namespaces. The actual class names are: `SurfacesRoot` (not `Surfaces`), `LocationsRoot` (not `Locations`), `ConnectedAccountsRoot` (not `ConnectedAccounts`), and `OrderSettings` (not `Orders`).
+> **Naming note:** Some aggregate root interfaces are re-exported with a `Root` suffix to avoid collision with their child collection namespaces: `SurfacesRoot` (not `Surfaces`), `LocationsRoot` (not `Locations`), `ConnectedAccountsRoot` (not `ConnectedAccounts`), and `OrderSettings` (not `Orders`).
 
 Unchanged modules keep their original import style:
 
@@ -66,7 +70,7 @@ import { EventNotification, SemaphoreV2 } from '@kiosinc/restaurant-core-claude'
 
 ## 3. Replace Static Data Access with Repositories
 
-The biggest change: models no longer have `get()`, `find()`, `collectionRef()`, or `firestoreConverter`. All data access goes through repository instances.
+The biggest change: models no longer have `get()`, `find()`, `collectionRef()`, or `firestoreConverter`. All data access goes through `FirestoreRepository<T>` instances configured with converter configs.
 
 ### Setup (once per application)
 
@@ -74,95 +78,113 @@ The biggest change: models no longer have `get()`, `find()`, `collectionRef()`, 
 import { Domain, Persistence } from '@kiosinc/restaurant-core-claude';
 
 const {
-  MetadataRegistry,
-  LocationMetadataSpec, MenuMetadataSpec, MenuGroupMetadataSpec,
+  MetadataRegistry, FirestoreRepository,
+  locationMetadataSpec, menuMetadataSpec, menuGroupMetadataSpec,
+  productConverter, categoryConverter, optionSetConverter, optionConverter,
+  orderConverter, businessConverter, menuConverter,
+  // ... import any other converters you need
 } = Persistence;
-const { Location } = Domain.Locations;
-const { Menu, MenuGroup } = Domain.Surfaces;
 
-// 1. Create and populate the metadata registry
+// 1. Create and populate the metadata registry (string-keyed)
 const metadataRegistry = new MetadataRegistry();
-metadataRegistry.register(Location, new LocationMetadataSpec());
-metadataRegistry.register(Menu, new MenuMetadataSpec());
-metadataRegistry.register(MenuGroup, new MenuGroupMetadataSpec());
+metadataRegistry.register('location', locationMetadataSpec);
+metadataRegistry.register('menu', menuMetadataSpec);
+metadataRegistry.register('menuGroup', menuGroupMetadataSpec);
 
-// 2. Create and populate the relationship handler registry (see section 7 for details)
-const { RelationshipHandlerRegistry, ProductRelationshipHandler,
-  OptionSetRelationshipHandler, OptionRelationshipHandler } = Persistence;
-const { Product, OptionSet, Option } = Domain.Catalog;
+// 2. Create and populate the relationship handler registry (string-keyed, see section 7)
+const {
+  RelationshipHandlerRegistry,
+  ProductRelationshipHandler,
+  OptionSetRelationshipHandler,
+  OptionRelationshipHandler,
+} = Persistence;
+const { CatalogCascadeService } = Domain.Services;
+
+const cascadeService = new CatalogCascadeService();
 const relationshipRegistry = new RelationshipHandlerRegistry();
-relationshipRegistry.register(Product, new ProductRelationshipHandler());
-relationshipRegistry.register(OptionSet, new OptionSetRelationshipHandler());
-relationshipRegistry.register(Option, new OptionRelationshipHandler());
+relationshipRegistry.register('product', new ProductRelationshipHandler(cascadeService));
+relationshipRegistry.register('optionSet', new OptionSetRelationshipHandler(cascadeService));
+relationshipRegistry.register('option', new OptionRelationshipHandler(cascadeService));
 
-// 3. Create repository instances — pass the metadata registry to each
-const orderRepo = new Persistence.OrderRepository(metadataRegistry);
-const businessRepo = new Persistence.BusinessRepository(metadataRegistry);
-const menuRepo = new Persistence.MenuRepository(metadataRegistry);
-// ... etc. for any repositories your code needs
+// 3. Create repository instances — pass converter config + metadata registry
+const orderRepo = new FirestoreRepository(orderConverter, metadataRegistry);
+const businessRepo = new FirestoreRepository(businessConverter, metadataRegistry);
+const menuRepo = new FirestoreRepository(menuConverter, metadataRegistry);
+// ... etc. for any entity your code needs
 
-// 4. Catalog repos that cascade metadata need a RelationshipHandlerRegistry too (see section 7)
-const productRepo = new Persistence.ProductRepository(metadataRegistry, relationshipRegistry);
-const categoryRepo = new Persistence.CategoryRepository(metadataRegistry);
-const optionSetRepo = new Persistence.OptionSetRepository(metadataRegistry, relationshipRegistry);
-const optionRepo = new Persistence.OptionRepository(metadataRegistry, relationshipRegistry);
+// 4. Catalog repos that cascade metadata also need the relationship registry (see section 7)
+const productRepo = new FirestoreRepository(productConverter, metadataRegistry, relationshipRegistry);
+const categoryRepo = new FirestoreRepository(categoryConverter, metadataRegistry);
+const optionSetRepo = new FirestoreRepository(optionSetConverter, metadataRegistry, relationshipRegistry);
+const optionRepo = new FirestoreRepository(optionConverter, metadataRegistry, relationshipRegistry);
 ```
 
-### Complete repository list
+### Complete converter list
 
-**Aggregate root repositories:**
+Each converter is a `FirestoreRepositoryConfig<T>` object that provides `modelKey`, `collectionRef`, `toFirestore`, and `fromFirestore`. Use them with `new FirestoreRepository(converter, metadataRegistry)`.
 
-| Repository | Entity |
+**Aggregate root converters:**
+
+| Converter | Entity |
 |---|---|
-| `BusinessRepository` | `Business` |
-| `CatalogRootRepository` | `Catalog` |
-| `SurfacesRootRepository` | `SurfacesRoot` |
-| `OrderSettingsRepository` | `OrderSettings` |
-| `LocationsRootRepository` | `LocationsRoot` |
-| `ConnectedAccountsRootRepository` | `ConnectedAccountsRoot` |
-| `ServicesRepository` | `Services` |
-| `OnboardingRepository` | `Onboarding` |
+| `businessConverter` | `Business` |
+| `catalogConverter` | `Catalog` |
+| `surfacesRootConverter` | `SurfacesRoot` |
+| `orderSettingsConverter` | `OrderSettings` |
+| `locationsRootConverter` | `LocationsRoot` |
+| `connectedAccountsConverter` | `ConnectedAccountsRoot` |
+| `servicesConverter` | `Services` |
+| `onboardingConverter` | `Onboarding` |
 
-**Catalog entity repositories:**
+**Catalog entity converters:**
 
-| Repository | Entity |
+| Converter | Entity |
 |---|---|
-| `ProductRepository` | `Product` |
-| `CategoryRepository` | `Category` |
-| `OptionSetRepository` | `OptionSet` |
-| `OptionRepository` | `Option` |
-| `TaxRateRepository` | `TaxRate` |
-| `DiscountRepository` | `Discount` |
-| `ServiceChargeRepository` | `ServiceCharge` |
+| `productConverter` | `Product` |
+| `categoryConverter` | `Category` |
+| `optionSetConverter` | `OptionSet` |
+| `optionConverter` | `Option` |
+| `taxRateConverter` | `TaxRate` |
+| `discountConverter` | `Discount` |
+| `serviceChargeConverter` | `ServiceCharge` |
 
-**Surfaces entity repositories:**
+**Surfaces entity converters:**
 
-| Repository | Entity |
+| Converter | Entity |
 |---|---|
-| `MenuRepository` | `Menu` |
-| `MenuGroupRepository` | `MenuGroup` |
-| `SurfaceConfigurationRepository` | `SurfaceConfiguration` |
-| `KioskConfigurationRepository` | `KioskConfiguration` |
-| `CheckoutOptionsRepository` | `CheckoutOptions` |
+| `menuConverter` | `Menu` |
+| `menuGroupConverter` | `MenuGroup` |
+| `surfaceConfigurationConverter` | `SurfaceConfiguration` |
+| `kioskConfigurationConverter` | `KioskConfiguration` |
+| `checkoutOptionsConverter` | `CheckoutOptions` |
 
-**Other entity repositories:**
+**Other entity converters:**
 
-| Repository | Entity | Notes |
-|---|---|---|
-| `LocationRepository` | `Location` | |
-| `OrderRepository` | `Order` | |
-| `EventRepository` | `Event` | Extra method: `findByProviderAndType(businessId, provider, type)` |
-| `TokenRepository` | `Token` | |
-| `OnboardingOrderRepository` | `OnboardingOrder` | |
+| Converter | Entity |
+|---|---|
+| `locationConverter` | `Location` |
+| `orderConverter` | `Order` |
+| `eventConverter` | `Event` |
+| `tokenConverter` | `Token` |
+| `onboardingOrderConverter` | `OnboardingOrder` |
 
-All repositories implement the `Repository<T>` interface:
+All `FirestoreRepository<T>` instances share the same interface:
 
 ```typescript
-interface Repository<T extends DomainEntity> {
+class FirestoreRepository<T extends BaseEntity> implements Repository<T> {
+  constructor(
+    cfg: FirestoreRepositoryConfig<T>,
+    metadataRegistry: MetadataRegistry,
+    relationshipHandlerRegistry?: RelationshipHandlerRegistry,
+  );
+
+  // Repository<T> interface (CRUD)
   get(businessId: string, id: string): Promise<T | null>;
   set(entity: T, businessId: string): Promise<void>;
   update(entity: T, businessId: string): Promise<void>;
   delete(businessId: string, id: string): Promise<void>;
+
+  // Concrete-only — not part of Repository<T> (only entities with linkedObjects support this)
   findByLinkedObject(businessId: string, linkedObjectId: string, provider: string): Promise<T | null>;
 }
 ```
@@ -183,7 +205,7 @@ const product = await productRepo.get(businessId, productId);
 
 ### Reading aggregate root documents
 
-Aggregate roots are singleton documents per business. Use the same `get()` pattern, but the document ID is determined by the root's collection path (typically the businessId itself or a fixed key):
+Aggregate roots are singleton documents per business. Use the same `get()` pattern, but the document ID is the root's **fixed collection name** (e.g., `'surfaces'`, `'catalog'`), not the businessId. The `businessId` is only used to resolve the parent collection path.
 
 ```typescript
 // OLD
@@ -193,9 +215,24 @@ const snapshot = await Surfaces.docRef(businessId)
 const surfaces = snapshot.data();
 
 // NEW
-const surfacesRepo = new Persistence.SurfacesRootRepository(metadataRegistry);
-const surfaces = await surfacesRepo.get(businessId, businessId);
+const surfacesRepo = new FirestoreRepository(surfacesRootConverter, metadataRegistry);
+const surfaces = await surfacesRepo.get(businessId, 'surfaces');
 ```
+
+The fixed document IDs for each aggregate root are:
+
+| Root | Document ID | Firestore path |
+|------|-------------|----------------|
+| `Business` | `businessId` | `businesses/{businessId}` |
+| `Catalog` | `'catalog'` | `businesses/{bid}/public/catalog` |
+| `SurfacesRoot` | `'surfaces'` | `businesses/{bid}/public/surfaces` |
+| `LocationsRoot` | `'locations'` | `businesses/{bid}/public/locations` |
+| `OrderSettings` | `'orders'` | `businesses/{bid}/private/orders` |
+| `ConnectedAccountsRoot` | `'connectedAccounts'` | `businesses/{bid}/private/connectedAccounts` |
+| `Services` | `'services'` | `businesses/{bid}/private/services` |
+| `Onboarding` | `'onboarding'` | `businesses/{bid}/private/onboarding` |
+
+> **Note:** `Business` is the only root where the document ID equals the `businessId`. All other roots use fixed string keys matching `Paths.CollectionNames.*`.
 
 ### Writing entities
 
@@ -214,7 +251,7 @@ await productRepo.update(product, businessId); // lightweight partial update (no
 > - **`set()`** runs inside a Firestore transaction. It writes the entity document *and* automatically writes metadata denormalization to parent documents (via `MetadataRegistry`). Use `set()` when creating entities or when the change should propagate metadata to parent documents (e.g., updating a Location should update `LocationMeta` in the `LocationsRoot`).
 > - **`update()`** is a bare `docRef.update()` — no transaction, no metadata writes. Use it for lightweight field updates where metadata propagation is not needed (e.g., toggling a flag that isn't part of any metadata projection).
 >
-> If you use `update()` on an entity whose fields are included in a `MetadataProjection`, the parent document's denormalized copy will become stale until the next `set()` call.
+> If you use `update()` on an entity whose fields are included in a metadata spec, the parent document's denormalized copy will become stale until the next `set()` call.
 
 ### Deleting entities
 
@@ -228,7 +265,7 @@ await productRepo.delete(businessId, productId); // also cleans up metadata link
 
 ### Listing all entities in a collection
 
-The `Repository<T>` interface does not include a `list()` or `getAll()` method. To fetch all entities in a collection, use `PathResolver` to get the collection reference and query Firestore directly:
+`FirestoreRepository<T>` does not include a `list()` or `getAll()` method. To fetch all entities in a collection, use `PathResolver` to get the collection reference and query Firestore directly:
 
 ```typescript
 // OLD
@@ -248,7 +285,11 @@ const activeProducts = await PathResolver.productsCollection(businessId)
   .get();
 ```
 
-> **Note:** Collection-level reads bypass the repository layer entirely — no `fromFirestore` conversion or `dateify` is applied. You'll receive raw Firestore `DocumentData`. If you need typed domain objects, apply the conversion yourself or add a custom query method to the relevant repository subclass.
+> **Note:** Collection-level reads bypass the repository layer entirely — no `fromFirestore` conversion or `dateify` is applied. You'll receive raw Firestore `DocumentData`. If you need typed domain objects, apply the converter yourself:
+> ```typescript
+> const snapshot = await PathResolver.productsCollection(businessId).get();
+> const products = snapshot.docs.map(doc => productConverter.fromFirestore(doc.data(), doc.id, businessId));
+> ```
 
 ### Querying by linked object (Square sync)
 
@@ -275,13 +316,21 @@ const query = linkedObjectQuery(squareItemId, 'square', collectionRef);
 const entity = await findByLinkedObjectId(squareItemId, 'square', collectionRef, converter);
 ```
 
-### EventRepository: extra query method
+### Event lookup by provider and type
 
-`EventRepository` has an additional method not on the base `Repository<T>` interface:
+In the legacy library, `EventRepository` had a `findByProviderAndType()` method. Since there are no longer named repository subclasses, use the `eventIdentifier()` function with a standard `get()` call instead:
 
 ```typescript
+// OLD
 const eventRepo = new Persistence.EventRepository(metadataRegistry);
 const event = await eventRepo.findByProviderAndType(businessId, 'square', 'catalog');
+
+// NEW
+import { Domain, Persistence } from '@kiosinc/restaurant-core-claude';
+const { eventIdentifier } = Domain.ConnectedAccounts;
+
+const eventRepo = new Persistence.FirestoreRepository(Persistence.eventConverter, metadataRegistry);
+const event = await eventRepo.get(businessId, eventIdentifier('square', 'catalog'));
 ```
 
 ## 4. Replace Collection Path References with PathResolver
@@ -360,10 +409,10 @@ Complete PathResolver methods:
 
 ## 5. Update Model Construction
 
-Models now use props interfaces instead of positional constructor parameters.
+Models are now plain interfaces with factory functions instead of classes with constructors. Each model has a `create*()` function and an `*Input` interface for required construction fields.
 
 ```typescript
-// OLD — positional parameters
+// OLD — class constructor with positional parameters
 const product = new Product(
   'Widget',           // name
   'A fine widget',    // caption
@@ -380,90 +429,106 @@ const product = new Product(
   {},                 // linkedObjects
 );
 
-// NEW — props interface
-const product = new Product({
+// NEW — factory function with input interface
+import { Domain } from '@kiosinc/restaurant-core-claude';
+const { createProduct } = Domain.Catalog;
+
+const product = createProduct({
   name: 'Widget',
   caption: 'A fine widget',
-  description: '',
-  imageUrls: [],
-  imageGsls: [],
-  optionSets: {},
-  optionSetsSelection: {},
   minPrice: 0,
   maxPrice: 0,
   variationCount: 0,
-  locationInventory: {},
   isActive: true,
-  linkedObjects: {},
 });
 ```
 
-This applies to **all** entity classes. Each class has a corresponding `*Props` interface exported alongside it (e.g., `ProductProps`, `CategoryProps`, `OrderProps`, `BusinessProps`). All props interfaces extend `DomainEntityProps`, which provides optional `Id`, `created`, `updated`, and `isDeleted` fields.
+Factory functions accept `*Input & Partial<BaseEntity>`. Optional fields have sensible defaults (empty strings, empty arrays/objects, `null`). Base entity fields (`Id`, `created`, `updated`, `isDeleted`) are auto-generated if not provided.
+
+Complete factory function list:
+
+| Old | New | Input Type |
+|---|---|---|
+| `new Product(...)` | `createProduct(input)` | `ProductInput & Partial<BaseEntity>` |
+| `new Category(...)` | `createCategory(input)` | `CategoryInput & Partial<BaseEntity>` |
+| `new OptionSet(...)` | `createOptionSet(input)` | `OptionSetInput & Partial<BaseEntity>` |
+| `new Option(...)` | `createOption(input)` | `OptionInput & Partial<BaseEntity>` |
+| `new TaxRate(...)` | `createTaxRate(input)` | `TaxRateInput & Partial<BaseEntity>` |
+| `new Discount(...)` | `createDiscount(input)` | `DiscountInput & Partial<BaseEntity>` |
+| `new ServiceCharge(...)` | `createServiceCharge(input)` | `ServiceChargeInput & Partial<BaseEntity>` |
+| `new Order(...)` | `createOrder(input)` | `OrderInput & Partial<BaseEntity>` |
+| `new Location(...)` | `createLocation(input)` | `LocationInput & Partial<BaseEntity>` |
+| `new Menu(...)` | `createMenu(input)` | `MenuInput & Partial<BaseEntity>` |
+| `new MenuGroup(...)` | `createMenuGroup(input)` | `MenuGroupInput & Partial<BaseEntity>` |
+| `new SurfaceConfiguration(...)` | `createSurfaceConfiguration(input)` | `SurfaceConfigurationInput & Partial<BaseEntity>` |
+| `new KioskConfiguration(...)` | `createKioskConfiguration(input)` | `Partial<KioskConfiguration>` |
+| `new CheckoutOptions(...)` | `createCheckoutOptions(input)` | `CheckoutOptionsInput & Partial<BaseEntity>` |
+| `new Event(...)` | `createEvent(input)` | `Partial<Event> & { provider, type, isSync }` |
+| `new Token(...)` | `createToken(input)` | `Partial<Token> & { createdBy, businessId, provider }` |
+| `new OnboardingOrder(...)` | `createOnboardingOrder(input)` | `OnboardingOrderInput & Partial<BaseEntity>` |
+| `new Business(...)` | `createBusinessRoot(input)` | `Partial<Business>` |
+| `new Catalog(...)` | `createCatalog(input)` | `Partial<Catalog>` |
+| `new Surfaces(...)` | `createSurfaces(input)` | `Partial<SurfacesRoot>` |
+| `new OrderSettings(...)` | `createOrderSettings(input)` | `OrderSettingsInput & Partial<BaseEntity>` |
+| `new Locations(...)` | `createLocationsRoot(input)` | `Partial<LocationsRoot>` |
+| `new ConnectedAccounts(...)` | `createConnectedAccounts(input)` | `Partial<ConnectedAccountsRoot>` |
+| `new Services(...)` | `createServices(input)` | `Partial<Services>` |
+| `new Onboarding(...)` | `createOnboarding(input)` | `OnboardingInput & Partial<BaseEntity>` |
 
 ## 6. Update Metadata Denormalization
 
-The old `metaLinks()` and `metadata()` instance methods on models are now split across two layers:
+The old `metaLinks()` and `metadata()` instance methods on models are now split into standalone functions and a persistence-layer spec:
 
-- **`MetadataProjection<T>`** (domain layer) — entities implement a `metadata()` method returning a denormalized snapshot of their key fields. This is a pure data concern with no persistence logic.
-- **`MetadataSpec<TEntity, TMeta>`** (persistence layer) — determines *where* metadata gets written (via `MetaLinkDeclaration`). Registered in a `MetadataRegistry` and invoked automatically by repositories on `set()` and `delete()`.
+- **Standalone `*Meta()` functions** (domain layer) — pure functions that extract a denormalized snapshot from an entity. No persistence logic.
+- **`MetadataSpec<TEntity, TMeta>`** (persistence layer) — determines *where* metadata gets written (via `MetaLinkDeclaration`). Registered in a `MetadataRegistry` and invoked automatically by `FirestoreRepository` on `set()` and `delete()`.
 
 ```typescript
-// OLD — embedded in model
+// OLD — embedded in model class
 class Product extends FirestoreObject {
   metadata(): ProductMeta { return { name: this.name, ... }; }
   metaLinks(businessId: string): Record<string, string> { return { ... }; }
 }
 
-// NEW — domain model only declares its metadata shape
-class Product extends DomainEntity implements MetadataProjection<ProductMeta> {
-  metadata(): ProductMeta { return { name: this.name, ... }; }
-  // No metaLinks — that's now in the persistence layer
-}
+// NEW — standalone function in domain layer
+import { Domain } from '@kiosinc/restaurant-core-claude';
+const { productMeta } = Domain.Catalog;
+const meta = productMeta(product);  // returns ProductMeta
 
-// NEW — separate spec in persistence layer
+// NEW — metadata spec in persistence layer (string-keyed registry)
 const metadataRegistry = new MetadataRegistry();
-metadataRegistry.register(Location, new LocationMetadataSpec());
-metadataRegistry.register(Menu, new MenuMetadataSpec());
-metadataRegistry.register(MenuGroup, new MenuGroupMetadataSpec());
+metadataRegistry.register('location', locationMetadataSpec);
+metadataRegistry.register('menu', menuMetadataSpec);
+metadataRegistry.register('menuGroup', menuGroupMetadataSpec);
 // Pass registry to repositories — they handle denormalization automatically on set/delete
 ```
 
-Three `MetadataSpec` implementations are provided out of the box:
+Available standalone metadata functions:
 
-| Spec | Entity | Writes metadata to |
+| Old | New | Returns |
 |---|---|---|
-| `LocationMetadataSpec` | `Location` | `LocationsRoot.locations` map |
-| `MenuMetadataSpec` | `Menu` | `SurfacesRoot.menus` map |
-| `MenuGroupMetadataSpec` | `MenuGroup` | `SurfacesRoot.menuGroups` map |
+| `product.metadata()` | `productMeta(product)` | `ProductMeta` |
+| `category.metadata()` | `categoryMeta(category)` | `CategoryMeta` |
+| `optionSet.metadata()` | `optionSetMeta(optionSet)` | `OptionSetMeta` |
+| `option.metadata()` | `optionMeta(option)` | `OptionMeta` |
+| `location.metadata()` | `locationMeta(location)` | `LocationMeta` |
+| `menu.metadata()` | `menuMeta(menu)` | `MenuMeta` |
+| `menuGroup.metadata()` | `menuGroupMeta(menuGroup)` | `MenuGroupMeta` |
 
-Other entities that implement `MetadataProjection` (Product, Category, Option, OptionSet) have their metadata cascaded through `RelationshipHandler`s instead (see section 7).
+Three `MetadataSpec` instances are provided out of the box:
+
+| Spec | Model key | Entity | Writes metadata to |
+|---|---|---|---|
+| `locationMetadataSpec` | `'location'` | `Location` | `LocationsRoot.locations` map |
+| `menuMetadataSpec` | `'menu'` | `Menu` | `SurfacesRoot.menus` map |
+| `menuGroupMetadataSpec` | `'menuGroup'` | `MenuGroup` | `SurfacesRoot.menuGroups` map |
+
+Other entities with metadata (Product, Category, Option, OptionSet) have their metadata cascaded through `RelationshipHandler`s instead (see section 7).
 
 > **Important:** If you forget to register a spec, metadata writes are silently skipped — the entity itself will still save correctly, but parent documents won't receive denormalized updates.
 
 ## 7. Relationship Handlers (Cascading Updates)
 
-In the legacy library, cascading metadata updates (e.g., updating `ProductMeta` inside a Category when a Product changes) were handled by embedded logic in model classes. These are now handled by `RelationshipHandler` implementations registered in a `RelationshipHandlerRegistry`.
-
-```typescript
-import { Persistence } from '@kiosinc/restaurant-core-claude';
-
-const {
-  RelationshipHandlerRegistry,
-  ProductRelationshipHandler,
-  OptionSetRelationshipHandler,
-  OptionRelationshipHandler,
-} = Persistence;
-```
-
-Three handlers are provided:
-
-| Handler | Trigger entity | Cascading effect |
-|---|---|---|
-| `ProductRelationshipHandler` | `Product` | Updates `ProductMeta` in parent `Category.products` map |
-| `OptionSetRelationshipHandler` | `OptionSet` | Updates `OptionSetMeta` in parent `Product.optionSets` map |
-| `OptionRelationshipHandler` | `Option` | Updates `OptionMeta` in parent `OptionSet.options` map |
-
-Setup:
+In the legacy library, cascading metadata updates (e.g., updating `ProductMeta` inside a Category when a Product changes) were handled by embedded logic in model classes. These are now handled by `RelationshipHandler` implementations registered in a `RelationshipHandlerRegistry`, with business logic delegated to `CatalogCascadeService`.
 
 ```typescript
 import { Domain, Persistence } from '@kiosinc/restaurant-core-claude';
@@ -474,27 +539,48 @@ const {
   OptionSetRelationshipHandler,
   OptionRelationshipHandler,
 } = Persistence;
-const { Product } = Domain.Catalog;
-const { OptionSet } = Domain.Catalog;
-const { Option } = Domain.Catalog;
-
-const relationshipRegistry = new RelationshipHandlerRegistry();
-relationshipRegistry.register(Product, new ProductRelationshipHandler());
-relationshipRegistry.register(OptionSet, new OptionSetRelationshipHandler());
-relationshipRegistry.register(Option, new OptionRelationshipHandler());
+const { CatalogCascadeService } = Domain.Services;
 ```
 
-`FirestoreRepository` accepts a `RelationshipHandlerRegistry` as an optional second constructor parameter. When provided, `set()` and `delete()` automatically invoke the registered handler inside the existing Firestore transaction, before the entity write and metadata writes. This ensures cascading metadata updates happen atomically with the primary entity operation.
+Three handlers are provided:
+
+| Handler | Trigger entity | Cascading effect |
+|---|---|---|
+| `ProductRelationshipHandler` | `Product` | Updates `ProductMeta` in parent `Category.products` map |
+| `OptionSetRelationshipHandler` | `OptionSet` | Updates `OptionSetMeta` in parent `Product.optionSets` map |
+| `OptionRelationshipHandler` | `Option` | Updates `OptionMeta` in parent `OptionSet.options` map |
+
+Setup (string-keyed registration — keys must match the converter's `modelKey`):
+
+```typescript
+import { Domain, Persistence } from '@kiosinc/restaurant-core-claude';
+
+const {
+  RelationshipHandlerRegistry,
+  ProductRelationshipHandler,
+  OptionSetRelationshipHandler,
+  OptionRelationshipHandler,
+} = Persistence;
+const { CatalogCascadeService } = Domain.Services;
+
+const cascadeService = new CatalogCascadeService();
+const relationshipRegistry = new RelationshipHandlerRegistry();
+relationshipRegistry.register('product', new ProductRelationshipHandler(cascadeService));
+relationshipRegistry.register('optionSet', new OptionSetRelationshipHandler(cascadeService));
+relationshipRegistry.register('option', new OptionRelationshipHandler(cascadeService));
+```
+
+`FirestoreRepository` accepts a `RelationshipHandlerRegistry` as an optional third constructor parameter. When provided, `set()` and `delete()` automatically invoke the registered handler inside the existing Firestore transaction, before the entity write and metadata writes. This ensures cascading metadata updates happen atomically with the primary entity operation.
 
 Pass the registry to the three catalog repositories that have handlers:
 
 ```typescript
-const productRepo = new ProductRepository(metadataRegistry, relationshipRegistry);
-const optionSetRepo = new OptionSetRepository(metadataRegistry, relationshipRegistry);
-const optionRepo = new OptionRepository(metadataRegistry, relationshipRegistry);
+const productRepo = new FirestoreRepository(productConverter, metadataRegistry, relationshipRegistry);
+const optionSetRepo = new FirestoreRepository(optionSetConverter, metadataRegistry, relationshipRegistry);
+const optionRepo = new FirestoreRepository(optionConverter, metadataRegistry, relationshipRegistry);
 ```
 
-The other 22 repositories do not need a handler registry — omit the second argument and they continue to work as before.
+The other 22 converters do not need a handler registry — omit the third argument and they continue to work as before.
 
 > **Behavioral note:** Because handlers run inside the same transaction as the entity write and metadata writes, a handler failure (e.g., a queried parent document doesn't exist) will roll back the entire transaction, including the primary entity write. This is intentional — it ensures atomic consistency — but it is a change from the pre-handler behavior where `set()` could only fail on the entity write or metadata denormalization.
 
@@ -523,7 +609,7 @@ product.linkedObjects = linkedObjects;
 
 The legacy `LinkedObjectSync` export (an alias for `LinkedObjectUtilities`) has been removed. Its query/sync utility functions are replaced by:
 
-- **`Repository.findByLinkedObject()`** — the standard way to look up an entity by linked object ID (see section 3, "Querying by linked object")
+- **`repo.findByLinkedObject()`** — the standard way to look up an entity by linked object ID (see section 3, "Querying by linked object")
 - **`Persistence.linkedObjectQuery()` / `Persistence.findByLinkedObjectId()`** — standalone helpers for custom queries beyond the repository method
 
 ```typescript
@@ -562,22 +648,36 @@ Key differences:
 - Returns `string` (businessId) instead of a `DocumentReference`
 - Creates all 8 aggregate root documents (Business, Catalog, Surfaces, LocationsRoot, OrderSettings, ConnectedAccounts, Services, Onboarding) in a single transaction
 
-## 10. Update Base Class References
+## 10. Update Base Type References
+
+All entity models are now plain interfaces extending `BaseEntity`, not classes. `instanceof` checks are no longer possible.
 
 ```typescript
-// OLD — type guards / instanceof checks
+// OLD — class-based type guards
 import { FirestoreObject, FirestoreObjectV2 } from '@kiosinc/restaurant-core';
 if (entity instanceof FirestoreObjectV2) { ... }
 
-// NEW
+// NEW — use structural type checking or discriminant properties
 import { Domain } from '@kiosinc/restaurant-core-claude';
-if (entity instanceof Domain.TenantEntity) { ... }   // has businessId
-if (entity instanceof Domain.DomainEntity) { ... }    // base type
+
+// Check if something has the BaseEntity shape
+function isBaseEntity(obj: unknown): obj is Domain.BaseEntity {
+  return typeof obj === 'object' && obj !== null && 'Id' in obj && 'created' in obj;
+}
+
+// Check if an entity has a businessId (replaces instanceof TenantEntity)
+function hasBusiness(entity: Domain.BaseEntity): entity is Domain.BaseEntity & { businessId: string } {
+  return 'businessId' in entity;
+}
 ```
 
-`FirestoreObject` and `FirestoreObjectV2` no longer exist. Use `DomainEntity` (all entities) or `TenantEntity` (entities scoped to a business) instead.
+`BaseEntity` provides four fields on all entities:
+- `Id: string` — unique identifier
+- `created: Date` — creation timestamp
+- `updated: Date` — last update timestamp
+- `isDeleted: boolean` — soft-delete flag
 
-> **Caveat:** `Order` extends `DomainEntity` (not `TenantEntity`) even though it has a `businessId` property. An `instanceof TenantEntity` check will **not** match Orders. Currently only `Location` extends `TenantEntity` among non-root entities.
+> **Note:** `DomainEntity`, `TenantEntity`, and `DomainEntityProps` no longer exist. Use `BaseEntity` and structural checks instead.
 
 ## 11. Configure ID Generation (if needed)
 
@@ -587,7 +687,7 @@ The old `FirestoreObject.autoId()` used Firebase's auto-ID. The new default is U
 import { Domain } from '@kiosinc/restaurant-core-claude';
 import { getFirestore } from 'firebase-admin/firestore';
 
-Domain.DomainEntity.setIdGenerator({
+Domain.setIdGenerator({
   generate: () => getFirestore().collection('_').doc().id,
 });
 ```
@@ -596,17 +696,19 @@ Domain.DomainEntity.setIdGenerator({
 
 ## 12. Entity-Specific Migration Notes
 
-### Token is abstract
+### Token is a plain interface
 
-`Domain.ConnectedAccounts.Token` is an abstract class and cannot be instantiated directly. Consumers must subclass it for their specific token types (e.g., Square tokens). `TokenRepository` handles persistence but its `fromFirestore` is a stub — you may need to provide a custom implementation if you're reading tokens directly.
+`Domain.ConnectedAccounts.Token` is a plain interface (not an abstract class). Create tokens with `createToken({ createdBy, businessId, provider })`. The `tokenConverter`'s `fromFirestore` is a stub — you may need to provide a custom converter if you're reading tokens directly from Firestore.
 
 ### Event composite ID
 
-`Event` IDs are auto-generated as `${provider}.${type}`, not UUID. Use `Event.identifier(provider, type)` to compute the ID when doing lookups:
+`Event` IDs are auto-generated as `${provider}.${type}`, not UUID. Use the standalone `eventIdentifier()` function to compute the ID when doing lookups:
 
 ```typescript
-const { Event } = Domain.ConnectedAccounts;
-const eventId = Event.identifier('square', 'catalog'); // "square.catalog"
+import { Domain } from '@kiosinc/restaurant-core-claude';
+const { eventIdentifier } = Domain.ConnectedAccounts;
+
+const eventId = eventIdentifier('square', 'catalog'); // "square.catalog"
 const event = await eventRepo.get(businessId, eventId);
 ```
 
@@ -628,21 +730,42 @@ const address: Domain.Misc.Address = { ...emptyAddress, city: 'Austin', state: '
 | What Changed | Old | New |
 |---|---|---|
 | Package name | `@kiosinc/restaurant-core` | `@kiosinc/restaurant-core-claude` |
+| Package version | `0.x` | `1.0.0` |
 | Registry | npm | Google Artifact Registry |
 | Import style | Flat barrel exports | `Domain.*` / `Persistence.*` namespaces |
-| Base classes | `FirestoreObject` / `FirestoreObjectV2` | `DomainEntity` / `TenantEntity` |
-| Data access | Static methods on models | Repository instances (25 repositories) |
-| Converters | `Model.firestoreConverter` | `FirestoreRepositoryConfig` in repository |
+| Base types | `FirestoreObject` / `FirestoreObjectV2` classes | `BaseEntity` interface |
+| Entity models | Classes with constructors | Interfaces with `create*()` factory functions |
+| Construction input | `*Props` interfaces | `*Input` interfaces (or `Partial<Model>`) |
+| Data access | Static methods on models | `FirestoreRepository<T>` + converter configs (25 converters) |
+| Repository pattern | 25 named repository subclasses | `Domain.Repositories.Repository<T>` interface + `FirestoreRepository<T>` implementation |
+| Converters | `Model.firestoreConverter` | Exported `*Converter` config objects |
 | Collection paths | `Model.collectionRef()` / `Model.docRef()` | `PathResolver.*` (30 methods) |
-| Metadata: shape | `metadata()` on models | `MetadataProjection<T>` interface (unchanged usage) |
+| Metadata: shape | `entity.metadata()` instance method | Standalone `*Meta()` functions |
 | Metadata: links | `metaLinks()` on models | `MetadataSpec` + `MetadataRegistry` (3 specs) |
-| Metadata: cascading | Manual updates in application code | `RelationshipHandler` + `RelationshipHandlerRegistry` (3 handlers, auto-invoked by `FirestoreRepository` — see section 7) |
+| Metadata: cascading | Manual updates in application code | `RelationshipHandler` + `RelationshipHandlerRegistry` (3 handlers) |
+| Registry keys | Class constructor keys | String keys (e.g., `'product'`, `'location'`) |
 | Linked objects | `LinkedObject` class | `LinkedObjectRef` / `LinkedObjectMap` interfaces |
-| Linked object queries | `LinkedObjectSync` utilities | `Repository.findByLinkedObject()` / `Persistence.linkedObjectQuery()` |
+| Linked object queries | `LinkedObjectSync` utilities | `repo.findByLinkedObject()` / `Persistence.linkedObjectQuery()` |
 | Business creation | `createBusiness(user, type, device, name)` | `createBusiness({ uid, device, type, name? })` |
-| Constructors | Positional parameters | Props interfaces (`*Props`) |
-| ID generation | Firebase auto-ID | UUID v4 (configurable via `IdGenerator`) |
-| Root class names | `Surfaces`, `Locations`, `Orders`, `ConnectedAccounts` | `SurfacesRoot`, `LocationsRoot`, `OrderSettings`, `ConnectedAccountsRoot` |
+| ID generation | Firebase auto-ID, `DomainEntity.setIdGenerator()` | UUID v4 default, module-level `setIdGenerator()` |
+| Type guards | `instanceof DomainEntity` / `instanceof TenantEntity` | Structural checks (`'Id' in obj`, `'businessId' in entity`) |
+| Root type names | `Surfaces`, `Locations`, `Orders`, `ConnectedAccounts` | `SurfacesRoot`, `LocationsRoot`, `OrderSettings`, `ConnectedAccountsRoot` |
+
+## Removed Exports
+
+These types/classes no longer exist:
+
+| Removed | Replacement |
+|---|---|
+| `DomainEntity` (class) | `BaseEntity` (interface) |
+| `DomainEntityProps` | `Partial<BaseEntity>` |
+| `TenantEntity` (class) | `businessId` field directly on model interface |
+| `TenantEntityProps` | N/A |
+| `MetadataProjection<T>` | Standalone `*Meta()` functions |
+| `IdGenerator` (class with static methods) | `IdGenerator` (interface) + `generateId()`, `setIdGenerator()`, `getIdGenerator()` module functions |
+| All `*Props` interfaces | `*Input` interfaces |
+| All 25 `*Repository` classes | `FirestoreRepository<T>` + `*Converter` configs |
+| `Repository` abstract interface | `Domain.Repositories.Repository<T>` (domain-layer interface, implemented by `FirestoreRepository<T>`) |
 
 ## Unchanged Modules
 

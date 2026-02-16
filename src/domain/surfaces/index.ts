@@ -1,14 +1,12 @@
-export { MenuMeta } from './MenuMeta';
-export { MenuGroupMeta } from './MenuGroupMeta';
-export { Menu, MenuProps } from './Menu';
-export { MenuGroup, MenuGroupProps } from './MenuGroup';
+export { Menu, MenuInput, MenuMeta, createMenu, menuMeta } from './Menu';
+export { MenuGroup, MenuGroupInput, MenuGroupMeta, createMenuGroup, menuGroupMeta } from './MenuGroup';
 export {
-  SurfaceConfiguration, SurfaceConfigurationProps,
+  SurfaceConfiguration, createSurfaceConfiguration,
   CoverConfiguration, CheckoutFlowConfiguration, TipConfiguration,
 } from './SurfaceConfiguration';
-export { KioskConfiguration, KioskConfigurationProps } from './KioskConfiguration';
+export { KioskConfiguration, createKioskConfiguration } from './KioskConfiguration';
 export {
-  CheckoutOptions, CheckoutOptionsProps, CheckoutOptionType,
+  CheckoutOptions, createCheckoutOptions, CheckoutOptionType,
   TipOptions, DiscountOptions, GiftCardOptions, ReferralCodeOptions,
   ScheduleOptions, ContactOptions, ManualIdOptions, ManualIdConfig,
   OptionConfig, FulfillmentOption,

@@ -1,41 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Order } from '../../../domain/orders/Order';
-import { OrderType, OrderState, PaymentState } from '../../../domain/orders/OrderSymbols';
+import { createOrder } from '../../../domain/orders/Order';
+import { OrderState } from '../../../domain/orders/OrderSymbols';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { OrderRepository } from '../OrderRepository';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { orderConverter } from '../converters/orderConverter';
 import {
-  createTestOrderProps,
+  createTestOrderInput,
   createTestFulfillment,
 } from '../../../domain/__tests__/helpers/OrderFixtures';
+import { mockTransaction, mockDocRef, mockQuery, mockCollectionRef, mockDb } from './helpers/firestoreMocks';
 
-// Mock firebase-admin/firestore
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: {
-    delete: () => '$$FIELD_DELETE$$',
-  },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedOrder() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -83,12 +58,12 @@ function createFullSerializedOrder() {
 
 describe('OrderRepository', () => {
   let registry: MetadataRegistry;
-  let repo: OrderRepository;
+  let repo: FirestoreRepository<any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new OrderRepository(registry);
+    repo = new FirestoreRepository(orderConverter, registry);
   });
 
   it('get() returns Order when doc exists', async () => {
@@ -117,7 +92,7 @@ describe('OrderRepository', () => {
 
   it('set() serializes all fields correctly', async () => {
     const ts = new Date('2024-01-15T10:00:00Z');
-    const order = new Order(createTestOrderProps({
+    const order = createOrder(createTestOrderInput({
       Id: 'order-1',
       timestamp: ts,
       created: ts,
@@ -141,7 +116,7 @@ describe('OrderRepository', () => {
     const fulfillment = createTestFulfillment({
       contact: { phoneNumber: '555', email: null, name: null },
     });
-    const order = new Order(createTestOrderProps({
+    const order = createOrder(createTestOrderInput({
       fulfillment,
       lineItems: [
         {
@@ -168,7 +143,7 @@ describe('OrderRepository', () => {
   });
 
   it('set() handles null deviceId', async () => {
-    const order = new Order(createTestOrderProps({ deviceId: null }));
+    const order = createOrder(createTestOrderInput({ deviceId: null }));
     await repo.set(order, 'biz-1');
 
     const data = mockTransaction.set.mock.calls[0][1];
@@ -176,7 +151,7 @@ describe('OrderRepository', () => {
   });
 
   it('set() defaults totalTipAmount to 0', async () => {
-    const order = new Order(createTestOrderProps({ totalTipAmount: 0 }));
+    const order = createOrder(createTestOrderInput({ totalTipAmount: 0 }));
     await repo.set(order, 'biz-1');
 
     const data = mockTransaction.set.mock.calls[0][1];
@@ -184,7 +159,7 @@ describe('OrderRepository', () => {
   });
 
   it('set() runs transaction (no metadata)', async () => {
-    const order = new Order(createTestOrderProps());
+    const order = createOrder(createTestOrderInput());
     await repo.set(order, 'biz-1');
 
     expect(mockDb.runTransaction).toHaveBeenCalledTimes(1);
@@ -194,7 +169,7 @@ describe('OrderRepository', () => {
 
   it('round-trip: toFirestore -> fromFirestore preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Order(createTestOrderProps({
+    const original = createOrder(createTestOrderInput({
       Id: 'order-rt',
       timestamp: ts,
       created: ts,

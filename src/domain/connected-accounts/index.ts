@@ -1,2 +1,2 @@
-export { Event, EventProps } from './Event';
-export { Token, TokenProps } from './Token';
+export { Event, createEvent, eventIdentifier } from './Event';
+export { Token, createToken } from './Token';

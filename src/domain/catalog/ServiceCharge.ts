@@ -1,4 +1,5 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 
 export enum ServiceChargeType {
@@ -6,7 +7,7 @@ export enum ServiceChargeType {
   amount = 'amount',
 }
 
-export interface ServiceChargeProps extends DomainEntityProps {
+export interface ServiceCharge extends BaseEntity {
   name: string;
   value: number;
   type: ServiceChargeType;
@@ -15,21 +16,25 @@ export interface ServiceChargeProps extends DomainEntityProps {
   linkedObjects: LinkedObjectMap;
 }
 
-export class ServiceCharge extends DomainEntity {
+export interface ServiceChargeInput {
   name: string;
   value: number;
   type: ServiceChargeType;
   isCalculatedSubTotalPhase: boolean;
   isTaxable: boolean;
-  linkedObjects: LinkedObjectMap;
+  linkedObjects?: LinkedObjectMap;
+}
 
-  constructor(props: ServiceChargeProps) {
-    super(props);
-    this.name = props.name;
-    this.value = props.value;
-    this.type = props.type;
-    this.isCalculatedSubTotalPhase = props.isCalculatedSubTotalPhase;
-    this.isTaxable = props.isTaxable;
-    this.linkedObjects = props.linkedObjects ?? {};
-  }
+export function createServiceCharge(input: ServiceChargeInput & Partial<BaseEntity>): ServiceCharge {
+  requireNonEmptyString('name', input.name);
+  requireNonNegativeNumber('value', input.value);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    value: input.value,
+    type: input.type,
+    isCalculatedSubTotalPhase: input.isCalculatedSubTotalPhase,
+    isTaxable: input.isTaxable,
+    linkedObjects: input.linkedObjects ?? {},
+  };
 }

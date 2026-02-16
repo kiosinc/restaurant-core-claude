@@ -1,35 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { OnboardingOrder, InvoiceStatus } from '../../../domain/onboarding/OnboardingOrder';
+import { createOnboardingOrder, InvoiceStatus } from '../../../domain/onboarding/OnboardingOrder';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { OnboardingOrderRepository } from '../OnboardingOrderRepository';
-import { createTestOnboardingOrderProps } from '../../../domain/__tests__/helpers/SurfacesFixtures';
-import { OrderState } from '../../../domain/orders/OrderSymbols';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { onboardingOrderConverter } from '../converters';
+import { createTestOnboardingOrderInput } from '../../../domain/__tests__/helpers/SurfacesFixtures';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedOnboardingOrder() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -45,12 +22,12 @@ function createFullSerializedOnboardingOrder() {
 
 describe('OnboardingOrderRepository', () => {
   let registry: MetadataRegistry;
-  let repo: OnboardingOrderRepository;
+  let repo: FirestoreRepository<any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new OnboardingOrderRepository(registry);
+    repo = new FirestoreRepository(onboardingOrderConverter, registry);
   });
 
   it('get() returns OnboardingOrder when exists', async () => {
@@ -70,7 +47,7 @@ describe('OnboardingOrderRepository', () => {
   });
 
   it('set() serializes all fields correctly', async () => {
-    const oo = new OnboardingOrder(createTestOnboardingOrderProps({
+    const oo = createOnboardingOrder(createTestOnboardingOrderInput({
       Id: 'oo-1', invoiceId: 'inv-99', totalAmount: 10000,
     }));
     await repo.set(oo, 'biz-1');
@@ -80,7 +57,7 @@ describe('OnboardingOrderRepository', () => {
   });
 
   it('set() deep-clones lineItems', async () => {
-    const oo = new OnboardingOrder(createTestOnboardingOrderProps({
+    const oo = createOnboardingOrder(createTestOnboardingOrderInput({
       lineItems: [{ Id: 'li-1', item: { productId: 'prod-1', productName: 'Item', optionSetsSelected: [], price: 100 }, quantity: 1, taxes: [], discounts: [], surcharges: [], note: null }],
     }));
     await repo.set(oo, 'biz-1');
@@ -91,7 +68,7 @@ describe('OnboardingOrderRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new OnboardingOrder(createTestOnboardingOrderProps({
+    const original = createOnboardingOrder(createTestOnboardingOrderInput({
       Id: 'oo-rt', invoiceId: 'inv-55', invoiceStatus: InvoiceStatus.open,
       totalAmount: 7500, created: ts, updated: ts,
     }));
