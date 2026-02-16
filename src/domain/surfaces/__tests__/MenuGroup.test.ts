@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { MenuGroup } from '../MenuGroup';
-import { createTestMenuGroupProps } from '../../__tests__/helpers/SurfacesFixtures';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { createMenuGroup, menuGroupMeta } from '../MenuGroup';
+import { createTestMenuGroupInput } from '../../__tests__/helpers/SurfacesFixtures';
+import { ValidationError } from '../../validation';
 
 describe('MenuGroup (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const mg = new MenuGroup(createTestMenuGroupProps({
+    const mg = createMenuGroup({
+      ...createTestMenuGroupInput(),
       Id: 'mg-1',
       name: 'Appetizers',
       displayName: 'Starters',
@@ -19,7 +19,7 @@ describe('MenuGroup (domain)', () => {
       managedBy: 'square',
       created: now,
       updated: now,
-    }));
+    });
 
     expect(mg.Id).toBe('mg-1');
     expect(mg.name).toBe('Appetizers');
@@ -32,59 +32,54 @@ describe('MenuGroup (domain)', () => {
     expect(mg.managedBy).toBe('square');
   });
 
-  it('auto-generates UUID', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps());
-    expect(mg.Id).toMatch(UUID_REGEX);
-  });
-
   it('defaults displayName to empty string', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps());
+    const mg = createMenuGroup(createTestMenuGroupInput());
     expect(mg.displayName).toBe('');
   });
 
   it('defaults products to {}', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps());
+    const mg = createMenuGroup(createTestMenuGroupInput());
     expect(mg.products).toEqual({});
   });
 
   it('defaults productDisplayOrder to []', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps());
+    const mg = createMenuGroup(createTestMenuGroupInput());
     expect(mg.productDisplayOrder).toEqual([]);
   });
 
   it('defaults parentGroup to null', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps());
+    const mg = createMenuGroup(createTestMenuGroupInput());
     expect(mg.parentGroup).toBeNull();
   });
 
   it('defaults childGroup to null', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps());
+    const mg = createMenuGroup(createTestMenuGroupInput());
     expect(mg.childGroup).toBeNull();
   });
 
   it('defaults mirrorCategoryId to null', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps());
+    const mg = createMenuGroup(createTestMenuGroupInput());
     expect(mg.mirrorCategoryId).toBeNull();
   });
 
   it('defaults managedBy to null', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps());
+    const mg = createMenuGroup(createTestMenuGroupInput());
     expect(mg.managedBy).toBeNull();
   });
 
-  it('metadata() returns MenuGroupMeta', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps({
+  it('menuGroupMeta() returns MenuGroupMeta', () => {
+    const mg = createMenuGroup(createTestMenuGroupInput({
       name: 'Entrees',
       displayName: 'Main Dishes',
     }));
-    expect(mg.metadata()).toEqual({
+    expect(menuGroupMeta(mg)).toEqual({
       name: 'Entrees',
       displayName: 'Main Dishes',
     });
   });
 
   it('products stores ProductMeta', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps({
+    const mg = createMenuGroup(createTestMenuGroupInput({
       products: {
         'prod-1': { name: 'Burger', isActive: true, imageUrls: ['burger.jpg'], imageGsls: [], minPrice: 1000, maxPrice: 1200, variationCount: 2 },
         'prod-2': { name: 'Pizza', isActive: false, imageUrls: [], imageGsls: ['gs://pizza'], minPrice: 800, maxPrice: 800, variationCount: 1 },
@@ -94,16 +89,10 @@ describe('MenuGroup (domain)', () => {
     expect(mg.products['prod-2'].isActive).toBe(false);
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const mg = new MenuGroup(createTestMenuGroupProps({ created: now, updated: now, isDeleted: true }));
-    expect(mg.created).toEqual(now);
-    expect(mg.updated).toEqual(now);
-    expect(mg.isDeleted).toBe(true);
+  describe('validation', () => {
+    it('throws for empty name', () => {
+      expect(() => createMenuGroup(createTestMenuGroupInput({ name: '' }))).toThrow(ValidationError);
+    });
   });
 
-  it('instantiates without Firebase', () => {
-    const mg = new MenuGroup(createTestMenuGroupProps());
-    expect(mg).toBeDefined();
-  });
 });

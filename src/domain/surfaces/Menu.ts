@@ -1,9 +1,26 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
-import { MetadataProjection } from '../MetadataSpec';
-import { MenuMeta } from './MenuMeta';
-import { MenuGroupMeta } from './MenuGroupMeta';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString } from '../validation';
+import { MenuGroupMeta } from './MenuGroup';
 
-export interface MenuProps extends DomainEntityProps {
+export interface MenuMeta {
+  name: string;
+  displayName: string | null;
+}
+
+export interface MenuInput {
+  name: string;
+  displayName?: string | null;
+  groups?: { [id: string]: MenuGroupMeta };
+  groupDisplayOrder?: string[];
+  coverImageGsl?: string | null;
+  coverBackgroundImageGsl?: string | null;
+  coverVideoGsl?: string | null;
+  logoImageGsl?: string | null;
+  gratuityRates?: number[];
+  managedBy?: string | null;
+}
+
+export interface Menu extends BaseEntity {
   name: string;
   displayName: string | null;
   groups: { [id: string]: MenuGroupMeta };
@@ -16,36 +33,26 @@ export interface MenuProps extends DomainEntityProps {
   managedBy: string | null;
 }
 
-export class Menu extends DomainEntity implements MetadataProjection<MenuMeta> {
-  name: string;
-  displayName: string | null;
-  groups: { [id: string]: MenuGroupMeta };
-  groupDisplayOrder: string[];
-  coverImageGsl: string | null;
-  coverBackgroundImageGsl: string | null;
-  coverVideoGsl: string | null;
-  logoImageGsl: string | null;
-  gratuityRates: number[];
-  managedBy: string | null;
+export function createMenu(input: MenuInput & Partial<BaseEntity>): Menu {
+  requireNonEmptyString('name', input.name);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    displayName: input.displayName ?? null,
+    groups: input.groups ?? {},
+    groupDisplayOrder: input.groupDisplayOrder ?? [],
+    coverImageGsl: input.coverImageGsl ?? null,
+    coverBackgroundImageGsl: input.coverBackgroundImageGsl ?? null,
+    coverVideoGsl: input.coverVideoGsl ?? null,
+    logoImageGsl: input.logoImageGsl ?? null,
+    gratuityRates: input.gratuityRates ?? [],
+    managedBy: input.managedBy ?? null,
+  };
+}
 
-  constructor(props: MenuProps) {
-    super(props);
-    this.name = props.name;
-    this.displayName = props.displayName ?? null;
-    this.groups = props.groups ?? {};
-    this.groupDisplayOrder = props.groupDisplayOrder ?? [];
-    this.coverImageGsl = props.coverImageGsl ?? null;
-    this.coverBackgroundImageGsl = props.coverBackgroundImageGsl ?? null;
-    this.coverVideoGsl = props.coverVideoGsl ?? null;
-    this.logoImageGsl = props.logoImageGsl ?? null;
-    this.gratuityRates = props.gratuityRates ?? [];
-    this.managedBy = props.managedBy ?? null;
-  }
-
-  metadata(): MenuMeta {
-    return {
-      name: this.name,
-      displayName: this.displayName,
-    };
-  }
+export function menuMeta(menu: Menu): MenuMeta {
+  return {
+    name: menu.name,
+    displayName: menu.displayName,
+  };
 }

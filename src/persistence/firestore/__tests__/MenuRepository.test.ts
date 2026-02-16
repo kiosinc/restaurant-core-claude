@@ -1,34 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Menu } from '../../../domain/surfaces/Menu';
+import { createMenu } from '../../../domain/surfaces/Menu';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { MenuRepository } from '../MenuRepository';
-import { createTestMenuProps } from '../../../domain/__tests__/helpers/SurfacesFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { menuConverter } from '../converters';
+import { createTestMenuInput } from '../../../domain/__tests__/helpers/SurfacesFixtures';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedMenu() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -46,12 +24,12 @@ function createFullSerializedMenu() {
 
 describe('MenuRepository', () => {
   let registry: MetadataRegistry;
-  let repo: MenuRepository;
+  let repo: FirestoreRepository<any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new MenuRepository(registry);
+    repo = new FirestoreRepository(menuConverter, registry);
   });
 
   it('get() returns Menu when exists', async () => {
@@ -71,11 +49,12 @@ describe('MenuRepository', () => {
   });
 
   it('set() serializes all fields correctly', async () => {
-    const menu = new Menu(createTestMenuProps({
+    const menu = createMenu({
+      ...createTestMenuInput(),
       Id: 'menu-1', name: 'Dinner',
       groups: { 'mg-1': { name: 'Entrees', displayName: null } },
       gratuityRates: [10, 15],
-    }));
+    });
     await repo.set(menu, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.name).toBe('Dinner');
@@ -84,11 +63,12 @@ describe('MenuRepository', () => {
   });
 
   it('set() deep-clones groups and groupDisplayOrder', async () => {
-    const menu = new Menu(createTestMenuProps({
+    const menu = createMenu({
+      ...createTestMenuInput(),
       groups: { 'mg-1': { name: 'Apps', displayName: null } },
       groupDisplayOrder: ['mg-1'],
       gratuityRates: [15],
-    }));
+    });
     await repo.set(menu, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.groups).not.toBe(menu.groups);
@@ -98,10 +78,11 @@ describe('MenuRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Menu(createTestMenuProps({
+    const original = createMenu({
+      ...createTestMenuInput(),
       Id: 'menu-rt', name: 'Brunch', displayName: 'Weekend',
       coverImageGsl: 'gs://brunch', created: ts, updated: ts,
-    }));
+    });
     await repo.set(original, 'biz-1');
     const serialized = mockTransaction.set.mock.calls[0][1];
     mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'menu-rt' });

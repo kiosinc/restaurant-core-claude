@@ -1,4 +1,5 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString } from '../validation';
 import { BusinessProfile } from '../misc/BusinessProfile';
 
 export enum BusinessType {
@@ -10,7 +11,7 @@ export enum Role {
   owner = 'owner',
 }
 
-export interface BusinessProps extends DomainEntityProps {
+export interface Business extends BaseEntity {
   agent: string;
   createdBy: string;
   type: BusinessType;
@@ -18,19 +19,20 @@ export interface BusinessProps extends DomainEntityProps {
   roles: { [uid: string]: Role };
 }
 
-export class Business extends DomainEntity {
+export function createBusinessRoot(input: Partial<Business> & {
   agent: string;
   createdBy: string;
   type: BusinessType;
   businessProfile: BusinessProfile;
-  roles: { [uid: string]: Role };
-
-  constructor(props: BusinessProps) {
-    super(props);
-    this.agent = props.agent;
-    this.createdBy = props.createdBy;
-    this.type = props.type;
-    this.businessProfile = props.businessProfile;
-    this.roles = props.roles ?? {};
-  }
+}): Business {
+  requireNonEmptyString('agent', input.agent);
+  requireNonEmptyString('createdBy', input.createdBy);
+  return {
+    ...baseEntityDefaults(input),
+    agent: input.agent,
+    createdBy: input.createdBy,
+    type: input.type,
+    businessProfile: input.businessProfile,
+    roles: input.roles ?? {},
+  };
 }

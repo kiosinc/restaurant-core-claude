@@ -1,14 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { SurfaceConfiguration } from '../SurfaceConfiguration';
+import { createSurfaceConfiguration } from '../SurfaceConfiguration';
 import { CoverConfiguration, CheckoutFlowConfiguration, TipConfiguration } from '../SurfaceConfiguration';
-import { createTestSurfaceConfigurationProps } from '../../__tests__/helpers/SurfacesFixtures';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { createTestSurfaceConfigurationInput } from '../../__tests__/helpers/SurfacesFixtures';
+import { ValidationError } from '../../validation';
 
 describe('SurfaceConfiguration (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const sc = new SurfaceConfiguration(createTestSurfaceConfigurationProps({
+    const sc = createSurfaceConfiguration(createTestSurfaceConfigurationInput({
       Id: 'sc-1',
       name: 'Main Config',
       isChargeCustomerServiceFee: true,
@@ -37,28 +36,23 @@ describe('SurfaceConfiguration (domain)', () => {
     expect(sc.version).toBe('1.5');
   });
 
-  it('auto-generates UUID', () => {
-    const sc = new SurfaceConfiguration(createTestSurfaceConfigurationProps());
-    expect(sc.Id).toMatch(UUID_REGEX);
-  });
-
   it('defaults coverConfiguration to null', () => {
-    const sc = new SurfaceConfiguration(createTestSurfaceConfigurationProps());
+    const sc = createSurfaceConfiguration(createTestSurfaceConfigurationInput());
     expect(sc.coverConfiguration).toBeNull();
   });
 
   it('defaults tipConfiguration to null', () => {
-    const sc = new SurfaceConfiguration(createTestSurfaceConfigurationProps());
+    const sc = createSurfaceConfiguration(createTestSurfaceConfigurationInput());
     expect(sc.tipConfiguration).toBeNull();
   });
 
   it('defaults checkoutFlowConfiguration to null', () => {
-    const sc = new SurfaceConfiguration(createTestSurfaceConfigurationProps());
+    const sc = createSurfaceConfiguration(createTestSurfaceConfigurationInput());
     expect(sc.checkoutFlowConfiguration).toBeNull();
   });
 
   it('defaults version to 0.0', () => {
-    const sc = new SurfaceConfiguration(createTestSurfaceConfigurationProps());
+    const sc = createSurfaceConfiguration(createTestSurfaceConfigurationInput());
     expect(sc.version).toBe('0.0');
   });
 
@@ -87,16 +81,10 @@ describe('SurfaceConfiguration (domain)', () => {
     expect(tip.isSmartTipsEnabled).toBe(true);
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const sc = new SurfaceConfiguration(createTestSurfaceConfigurationProps({ created: now, updated: now, isDeleted: true }));
-    expect(sc.created).toEqual(now);
-    expect(sc.updated).toEqual(now);
-    expect(sc.isDeleted).toBe(true);
+  describe('validation', () => {
+    it('throws for empty name', () => {
+      expect(() => createSurfaceConfiguration(createTestSurfaceConfigurationInput({ name: '' }))).toThrow(ValidationError);
+    });
   });
 
-  it('instantiates without Firebase', () => {
-    const sc = new SurfaceConfiguration(createTestSurfaceConfigurationProps());
-    expect(sc).toBeDefined();
-  });
 });

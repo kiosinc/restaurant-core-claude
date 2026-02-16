@@ -1,14 +1,12 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
 
-export interface ConnectedAccountsProps extends DomainEntityProps {
+export interface ConnectedAccounts extends BaseEntity {
   tokens: { [provider: string]: { [key: string]: string } };
 }
 
-export class ConnectedAccounts extends DomainEntity {
-  tokens: { [provider: string]: { [key: string]: string } };
-
-  constructor(props: ConnectedAccountsProps) {
-    super(props);
-    this.tokens = props.tokens ?? {};
-  }
+export function createConnectedAccounts(input: Partial<ConnectedAccounts>): ConnectedAccounts {
+  return {
+    ...baseEntityDefaults(input),
+    tokens: input.tokens ?? {},
+  };
 }

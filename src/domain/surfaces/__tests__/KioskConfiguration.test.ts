@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { KioskConfiguration } from '../KioskConfiguration';
-import { createTestKioskConfigurationProps } from '../../__tests__/helpers/SurfacesFixtures';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { createKioskConfiguration } from '../KioskConfiguration';
+import { createTestKioskConfigurationInput } from '../../__tests__/helpers/SurfacesFixtures';
+import { ValidationError } from '../../validation';
 
 describe('KioskConfiguration (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const kc = new KioskConfiguration(createTestKioskConfigurationProps({
+    const kc = createKioskConfiguration(createTestKioskConfigurationInput({
       Id: 'kc-1',
       name: 'Front Kiosk',
       unlockCode: '1234',
@@ -24,36 +23,25 @@ describe('KioskConfiguration (domain)', () => {
     expect(kc.version).toBe('2.0');
   });
 
-  it('auto-generates UUID', () => {
-    const kc = new KioskConfiguration(createTestKioskConfigurationProps());
-    expect(kc.Id).toMatch(UUID_REGEX);
-  });
-
   it('defaults unlockCode to null', () => {
-    const kc = new KioskConfiguration(createTestKioskConfigurationProps());
+    const kc = createKioskConfiguration(createTestKioskConfigurationInput());
     expect(kc.unlockCode).toBeNull();
   });
 
   it('defaults checkoutOptionId to null', () => {
-    const kc = new KioskConfiguration(createTestKioskConfigurationProps());
+    const kc = createKioskConfiguration(createTestKioskConfigurationInput());
     expect(kc.checkoutOptionId).toBeNull();
   });
 
   it('defaults version to 1.0', () => {
-    const kc = new KioskConfiguration(createTestKioskConfigurationProps());
+    const kc = createKioskConfiguration(createTestKioskConfigurationInput());
     expect(kc.version).toBe('1.0');
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const kc = new KioskConfiguration(createTestKioskConfigurationProps({ created: now, updated: now, isDeleted: true }));
-    expect(kc.created).toEqual(now);
-    expect(kc.updated).toEqual(now);
-    expect(kc.isDeleted).toBe(true);
+  describe('validation', () => {
+    it('throws for empty name', () => {
+      expect(() => createKioskConfiguration(createTestKioskConfigurationInput({ name: '' }))).toThrow(ValidationError);
+    });
   });
 
-  it('instantiates without Firebase', () => {
-    const kc = new KioskConfiguration(createTestKioskConfigurationProps());
-    expect(kc).toBeDefined();
-  });
 });

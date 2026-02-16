@@ -1,10 +1,10 @@
-import { DomainEntity } from '../../../domain/DomainEntity';
+import { BaseEntity } from '../../../domain/BaseEntity';
 
 /**
  * Handles cross-entity relationship updates when an entity is saved or deleted.
  * Replaces the instanceof chains in FirestoreWriter.setT()/deleteT().
  */
-export interface RelationshipHandler<T extends DomainEntity> {
+export interface RelationshipHandler<T extends BaseEntity> {
   /** Update related entities when this entity is saved */
   onSet(
     entity: T,

@@ -1,4 +1,4 @@
-import { OrderProps, OrderFulfillment } from '../../orders/Order';
+import { OrderInput, OrderFulfillment } from '../../orders/Order';
 import { OrderType } from '../../orders/OrderSymbols';
 
 export function createTestFulfillment(overrides?: Partial<OrderFulfillment>): OrderFulfillment {
@@ -12,7 +12,7 @@ export function createTestFulfillment(overrides?: Partial<OrderFulfillment>): Or
   };
 }
 
-export function createTestOrderProps(overrides?: Partial<OrderProps>): OrderProps {
+export function createTestOrderInput(overrides?: Partial<OrderInput>): OrderInput {
   return {
     businessId: 'biz-1',
     locationId: 'loc-1',
@@ -42,3 +42,4 @@ export function createTestOrderProps(overrides?: Partial<OrderProps>): OrderProp
     ...overrides,
   };
 }
+

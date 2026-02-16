@@ -1,22 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { ConnectedAccounts } from '../ConnectedAccounts';
-import { DomainEntity } from '../../DomainEntity';
+import { createConnectedAccounts } from '../ConnectedAccounts';
 
 describe('ConnectedAccounts', () => {
   it('constructs with all props', () => {
     const tokens = { square: { accessToken: 'tok-123', refreshToken: 'ref-456' } };
-    const ca = new ConnectedAccounts({ tokens });
+    const ca = createConnectedAccounts({ tokens });
     expect(ca.tokens).toEqual(tokens);
   });
 
   it('defaults tokens to {} when nullish', () => {
-    const ca = new ConnectedAccounts({ tokens: undefined as any });
+    const ca = createConnectedAccounts({});
     expect(ca.tokens).toEqual({});
   });
 
   it('instantiates without Firebase', () => {
-    const ca = new ConnectedAccounts({ tokens: {} });
-    expect(ca).toBeInstanceOf(DomainEntity);
-    expect(ca).toBeInstanceOf(ConnectedAccounts);
+    const ca = createConnectedAccounts({ tokens: {} });
+    expect(ca).toBeDefined();
+    expect(ca.Id).toBeDefined();
   });
 });

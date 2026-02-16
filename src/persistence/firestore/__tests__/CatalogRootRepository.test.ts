@@ -1,38 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Catalog } from '../../../domain/roots/Catalog';
+import { Catalog, createCatalog } from '../../../domain/roots/Catalog';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { CatalogRootRepository } from '../CatalogRootRepository';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { catalogConverter } from '../converters';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => ({ get: vi.fn() })),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 describe('CatalogRootRepository', () => {
-  let repo: CatalogRootRepository;
+  let repo: FirestoreRepository<Catalog>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    repo = new CatalogRootRepository(new MetadataRegistry());
+    repo = new FirestoreRepository<Catalog>(catalogConverter, new MetadataRegistry());
   });
 
   it('get() returns Catalog when exists', async () => {
@@ -47,7 +27,7 @@ describe('CatalogRootRepository', () => {
   });
 
   it('set() serializes base fields only', async () => {
-    const catalog = new Catalog({ Id: 'catalog' });
+    const catalog = createCatalog({ Id: 'catalog' });
     await repo.set(catalog, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data).toHaveProperty('created');
@@ -58,7 +38,7 @@ describe('CatalogRootRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Catalog({ Id: 'catalog', created: ts, updated: ts });
+    const original = createCatalog({ Id: 'catalog', created: ts, updated: ts });
     await repo.set(original, 'biz-1');
     const serialized = mockTransaction.set.mock.calls[0][1];
     mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'catalog' });

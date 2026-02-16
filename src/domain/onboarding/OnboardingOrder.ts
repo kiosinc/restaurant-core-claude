@@ -1,4 +1,5 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
 import { Address } from '../misc/Address';
 import { OrderState } from '../orders/OrderSymbols';
 import { OrderLineItem } from '../orders/Order';
@@ -11,7 +12,18 @@ export enum InvoiceStatus {
   uncollectible = 'uncollectible',
 }
 
-export interface OnboardingOrderProps extends DomainEntityProps {
+export interface OnboardingOrderInput {
+  invoiceId: string;
+  invoiceStatus: InvoiceStatus;
+  shippingTrackingNumber: string;
+  shipmentCarrier: string;
+  shipmentAddress: Address;
+  totalAmount: number;
+  orderStatus: OrderState;
+  lineItems?: OrderLineItem[];
+}
+
+export interface OnboardingOrder extends BaseEntity {
   invoiceId: string;
   invoiceStatus: InvoiceStatus;
   shippingTrackingNumber: string;
@@ -22,25 +34,18 @@ export interface OnboardingOrderProps extends DomainEntityProps {
   lineItems: OrderLineItem[];
 }
 
-export class OnboardingOrder extends DomainEntity {
-  invoiceId: string;
-  invoiceStatus: InvoiceStatus;
-  shippingTrackingNumber: string;
-  shipmentCarrier: string;
-  shipmentAddress: Address;
-  totalAmount: number;
-  orderStatus: OrderState;
-  lineItems: OrderLineItem[];
-
-  constructor(props: OnboardingOrderProps) {
-    super(props);
-    this.invoiceId = props.invoiceId;
-    this.invoiceStatus = props.invoiceStatus;
-    this.shippingTrackingNumber = props.shippingTrackingNumber;
-    this.shipmentCarrier = props.shipmentCarrier;
-    this.shipmentAddress = props.shipmentAddress;
-    this.totalAmount = props.totalAmount;
-    this.orderStatus = props.orderStatus;
-    this.lineItems = props.lineItems ?? [];
-  }
+export function createOnboardingOrder(input: OnboardingOrderInput & Partial<BaseEntity>): OnboardingOrder {
+  requireNonEmptyString('invoiceId', input.invoiceId);
+  requireNonNegativeNumber('totalAmount', input.totalAmount);
+  return {
+    ...baseEntityDefaults(input),
+    invoiceId: input.invoiceId,
+    invoiceStatus: input.invoiceStatus,
+    shippingTrackingNumber: input.shippingTrackingNumber,
+    shipmentCarrier: input.shipmentCarrier,
+    shipmentAddress: input.shipmentAddress,
+    totalAmount: input.totalAmount,
+    orderStatus: input.orderStatus,
+    lineItems: input.lineItems ?? [],
+  };
 }

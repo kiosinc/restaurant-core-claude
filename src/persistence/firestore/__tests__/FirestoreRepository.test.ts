@@ -1,61 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { DomainEntity, DomainEntityProps } from '../../../domain/DomainEntity';
+import { BaseEntity } from '../../../domain/BaseEntity';
 import { MetadataRegistry } from '../../MetadataRegistry';
 import { MetadataSpec, MetaLinkDeclaration } from '../../../domain/MetadataSpec';
 import { FirestoreRepository, FirestoreRepositoryConfig } from '../FirestoreRepository';
 import { RelationshipHandlerRegistry } from '../handlers/RelationshipHandlerRegistry';
+import { mockTransaction, mockDocRef, mockCollectionRef, mockDb } from './helpers/firestoreMocks';
 
-// Mock firebase-admin/firestore
-const mockTransaction = {
-  set: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  get: vi.fn(),
-};
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
-const mockDocRef = {
-  get: vi.fn(),
-  update: vi.fn(),
-  path: '',
-};
-
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => ({
-    get: vi.fn(),
-  })),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Add collection method to mockDocRef for PathResolver chaining
-(mockDocRef as any).collection = vi.fn(() => mockCollectionRef);
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: {
-    delete: () => '$$FIELD_DELETE$$',
-  },
-}));
-
-// Test entity
-class TestEntity extends DomainEntity {
+interface SimpleEntity extends BaseEntity {
   name: string;
-  constructor(props: DomainEntityProps & { name: string }) {
-    super(props);
-    this.name = props.name;
-  }
 }
 
-const testSpec: MetadataSpec<TestEntity, { name: string }> = {
-  getMetadata(entity: TestEntity) {
+const simpleConfig: FirestoreRepositoryConfig<SimpleEntity> = {
+  modelKey: 'simple',
+  collectionRef: (_businessId: string) => mockCollectionRef as any,
+  toFirestore: (entity: SimpleEntity) => ({ name: entity.name }),
+  fromFirestore: (data: any, id: string) => ({
+    Id: id,
+    name: data.name,
+    created: new Date(),
+    updated: new Date(),
+    isDeleted: false,
+  }),
+};
+
+const simpleSpec: MetadataSpec<SimpleEntity, { name: string }> = {
+  getMetadata(entity: SimpleEntity) {
     return { name: entity.name };
   },
-  getMetaLinks(entity: TestEntity, businessId: string): MetaLinkDeclaration[] {
+  getMetaLinks(entity: SimpleEntity, businessId: string): MetaLinkDeclaration[] {
     return [
       {
         documentPath: `businesses/${businessId}/root`,
@@ -65,26 +39,25 @@ const testSpec: MetadataSpec<TestEntity, { name: string }> = {
   },
 };
 
-// Concrete repository for testing
-class TestRepository extends FirestoreRepository<TestEntity> {
-  protected config(): FirestoreRepositoryConfig<TestEntity> {
-    return {
-      collectionRef: (_businessId: string) => mockCollectionRef as any,
-      toFirestore: (entity: TestEntity) => ({ name: entity.name }),
-      fromFirestore: (data: any, id: string, _businessId: string) =>
-        new TestEntity({ Id: id, name: data.name }),
-    };
-  }
+function makeEntity(overrides: Partial<SimpleEntity> = {}): SimpleEntity {
+  return {
+    Id: 'e1',
+    name: 'test',
+    created: new Date(),
+    updated: new Date(),
+    isDeleted: false,
+    ...overrides,
+  };
 }
 
 describe('FirestoreRepository', () => {
   let registry: MetadataRegistry;
-  let repo: TestRepository;
+  let repo: FirestoreRepository<SimpleEntity>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new TestRepository(registry);
+    repo = new FirestoreRepository<SimpleEntity>(simpleConfig, registry);
   });
 
   it('get() returns entity when exists', async () => {
@@ -108,8 +81,8 @@ describe('FirestoreRepository', () => {
   });
 
   it('set() writes doc + metadata in transaction', async () => {
-    registry.register(TestEntity, testSpec);
-    const entity = new TestEntity({ Id: 'e1', name: 'test' });
+    registry.register('simple', simpleSpec);
+    const entity = makeEntity();
 
     await repo.set(entity, 'biz-1');
 
@@ -120,7 +93,7 @@ describe('FirestoreRepository', () => {
   });
 
   it('set() works without metadata spec', async () => {
-    const entity = new TestEntity({ Id: 'e1', name: 'test' });
+    const entity = makeEntity();
 
     await repo.set(entity, 'biz-1');
 
@@ -129,17 +102,16 @@ describe('FirestoreRepository', () => {
   });
 
   it('update() writes without metadata', async () => {
-    const entity = new TestEntity({ Id: 'e1', name: 'updated' });
+    const entity = makeEntity();
 
     await repo.update(entity, 'biz-1');
 
-    expect(mockDocRef.update).toHaveBeenCalledWith({ name: 'updated' });
+    expect(mockDocRef.update).toHaveBeenCalledWith({ name: 'test' });
     expect(mockDb.runTransaction).not.toHaveBeenCalled();
   });
 
   it('delete() removes doc + cleans metadata', async () => {
-    registry.register(TestEntity, testSpec);
-    // Mock get() to return an entity for delete
+    registry.register('simple', simpleSpec);
     mockDocRef.get.mockResolvedValue({
       exists: true,
       data: () => ({ name: 'to-delete' }),
@@ -241,7 +213,7 @@ describe('FirestoreRepository', () => {
   describe('RelationshipHandler wiring', () => {
     let handlerRegistry: RelationshipHandlerRegistry;
     let mockHandler: { onSet: ReturnType<typeof vi.fn>; onDelete: ReturnType<typeof vi.fn> };
-    let repoWithHandler: TestRepository;
+    let repoWithHandler: FirestoreRepository<SimpleEntity>;
 
     beforeEach(() => {
       handlerRegistry = new RelationshipHandlerRegistry();
@@ -249,12 +221,12 @@ describe('FirestoreRepository', () => {
         onSet: vi.fn().mockResolvedValue(undefined),
         onDelete: vi.fn().mockResolvedValue(undefined),
       };
-      handlerRegistry.register(TestEntity, mockHandler);
-      repoWithHandler = new TestRepository(registry, handlerRegistry);
+      handlerRegistry.register('simple', mockHandler);
+      repoWithHandler = new FirestoreRepository<SimpleEntity>(simpleConfig, registry, handlerRegistry);
     });
 
     it('set() invokes handler.onSet() inside transaction when handler is registered', async () => {
-      const entity = new TestEntity({ Id: 'e1', name: 'test' });
+      const entity = makeEntity();
 
       await repoWithHandler.set(entity, 'biz-1');
 
@@ -264,7 +236,7 @@ describe('FirestoreRepository', () => {
     });
 
     it('set() dispatches to handler.onDelete() when entity has isDeleted=true', async () => {
-      const entity = new TestEntity({ Id: 'e1', name: 'test', isDeleted: true });
+      const entity = makeEntity({ isDeleted: true });
 
       await repoWithHandler.set(entity, 'biz-1');
 
@@ -292,16 +264,15 @@ describe('FirestoreRepository', () => {
 
     it('handler error rolls back entire transaction', async () => {
       mockHandler.onSet.mockRejectedValue(new Error('parent not found'));
-      const entity = new TestEntity({ Id: 'e1', name: 'test' });
+      const entity = makeEntity();
 
       await expect(repoWithHandler.set(entity, 'biz-1')).rejects.toThrow('parent not found');
       expect(mockTransaction.set).not.toHaveBeenCalled();
     });
 
-    it('handler t.get() is called before any transaction writes', async () => {
+    it('handler is called before any transaction writes', async () => {
       const callOrder: string[] = [];
 
-      // Track call ordering to verify reads precede writes
       mockHandler.onSet.mockImplementation(async () => {
         callOrder.push('handler');
       });
@@ -312,8 +283,8 @@ describe('FirestoreRepository', () => {
         callOrder.push('transaction.update');
       });
 
-      registry.register(TestEntity, testSpec);
-      const entity = new TestEntity({ Id: 'e1', name: 'test' });
+      registry.register('simple', simpleSpec);
+      const entity = makeEntity();
 
       await repoWithHandler.set(entity, 'biz-1');
 

@@ -1,10 +1,27 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
-import { MetadataProjection } from '../MetadataSpec';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
-import { OptionMeta } from './OptionMeta';
 import { LocationInventoryMap } from './InventoryCount';
 
-export interface OptionProps extends DomainEntityProps {
+export interface OptionMeta {
+  name: string;
+  isActive: boolean;
+}
+
+export interface OptionInput {
+  name: string;
+  price: number;
+  sku?: string | null;
+  gtin?: string | null;
+  imageUrls?: string[];
+  imageGsls?: string[];
+  locationPrices?: { [locationId: string]: number };
+  locationInventory?: LocationInventoryMap;
+  isActive: boolean;
+  linkedObjects?: LinkedObjectMap;
+}
+
+export interface Option extends BaseEntity {
   name: string;
   price: number;
   sku: string | null;
@@ -17,36 +34,27 @@ export interface OptionProps extends DomainEntityProps {
   linkedObjects: LinkedObjectMap;
 }
 
-export class Option extends DomainEntity implements MetadataProjection<OptionMeta> {
-  name: string;
-  price: number;
-  sku: string | null;
-  gtin: string | null;
-  imageUrls: string[];
-  imageGsls: string[];
-  locationPrices: { [locationId: string]: number };
-  locationInventory: LocationInventoryMap;
-  isActive: boolean;
-  linkedObjects: LinkedObjectMap;
+export function createOption(input: OptionInput & Partial<BaseEntity>): Option {
+  requireNonEmptyString('name', input.name);
+  requireNonNegativeNumber('price', input.price);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    price: input.price,
+    sku: input.sku ?? null,
+    gtin: input.gtin ?? null,
+    imageUrls: input.imageUrls ?? [],
+    imageGsls: input.imageGsls ?? [],
+    locationPrices: input.locationPrices ?? {},
+    locationInventory: input.locationInventory ?? {},
+    isActive: input.isActive,
+    linkedObjects: input.linkedObjects ?? {},
+  };
+}
 
-  constructor(props: OptionProps) {
-    super(props);
-    this.name = props.name;
-    this.price = props.price;
-    this.sku = props.sku ?? null;
-    this.gtin = props.gtin ?? null;
-    this.imageUrls = props.imageUrls ?? [];
-    this.imageGsls = props.imageGsls ?? [];
-    this.locationPrices = props.locationPrices ?? {};
-    this.locationInventory = props.locationInventory ?? {};
-    this.isActive = props.isActive;
-    this.linkedObjects = props.linkedObjects ?? {};
-  }
-
-  metadata(): OptionMeta {
-    return {
-      name: this.name,
-      isActive: this.isActive,
-    };
-  }
+export function optionMeta(option: Option): OptionMeta {
+  return {
+    name: option.name,
+    isActive: option.isActive,
+  };
 }

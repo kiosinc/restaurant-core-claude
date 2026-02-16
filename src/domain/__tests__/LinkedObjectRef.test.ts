@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { LinkedObjectRef, LinkedObjectMap } from '../LinkedObjectRef';
-import { OrderProps } from '../orders/Order';
-import { createTestOrderProps } from './helpers/OrderFixtures';
+import { OrderInput } from '../orders/Order';
+import { createTestOrderInput } from './helpers/OrderFixtures';
 
 describe('LinkedObjectRef', () => {
   it('holds linkedObjectId', () => {
@@ -25,11 +25,11 @@ describe('LinkedObjectRef', () => {
     expect(map['custom-provider'].linkedObjectId).toBe('cp-1');
   });
 
-  it('matches Order usage (assignable to OrderProps.linkedObjects value type)', () => {
+  it('matches Order usage (assignable to OrderInput.linkedObjects value type)', () => {
     const ref: LinkedObjectRef = { linkedObjectId: 'sq-order-1' };
     const linked: { [Id: string]: LinkedObjectRef } = { square: ref };
-    const props: OrderProps = createTestOrderProps({ linkedObjects: linked });
-    expect(props.linkedObjects!['square'].linkedObjectId).toBe('sq-order-1');
+    const input: OrderInput = createTestOrderInput({ linkedObjects: linked });
+    expect(input.linkedObjects!['square'].linkedObjectId).toBe('sq-order-1');
   });
 
   it('works without Firebase dependency', () => {

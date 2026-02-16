@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { Location } from '../Location';
-import { createTestLocationProps } from '../../__tests__/helpers/LocationFixtures';
+import { createLocation, locationMeta } from '../Location';
+import { createTestLocationInput } from '../../__tests__/helpers/LocationFixtures';
 import { emptyAddress } from '../../misc/Address';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { ValidationError } from '../../validation';
 
 describe('Location (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
     const address = { ...emptyAddress, addressLine1: '123 Main St', city: 'Portland' };
-    const location = new Location(createTestLocationProps({
+    const location = createLocation({
+      ...createTestLocationInput(),
       Id: 'loc-1',
       businessId: 'biz-1',
       name: 'Downtown',
@@ -30,7 +30,7 @@ describe('Location (domain)', () => {
       isAcceptsMobileOrders: true,
       created: now,
       updated: now,
-    }));
+    });
 
     expect(location.Id).toBe('loc-1');
     expect(location.businessId).toBe('biz-1');
@@ -52,33 +52,28 @@ describe('Location (domain)', () => {
     expect(location.isAcceptsMobileOrders).toBe(true);
   });
 
-  it('auto-generates UUID when no Id', () => {
-    const location = new Location(createTestLocationProps());
-    expect(location.Id).toMatch(UUID_REGEX);
-  });
-
   it('uses provided Id', () => {
-    const location = new Location(createTestLocationProps({ Id: 'loc-123' }));
+    const location = createLocation(createTestLocationInput({ Id: 'loc-123' }));
     expect(location.Id).toBe('loc-123');
   });
 
-  it('has businessId from TenantEntity', () => {
-    const location = new Location(createTestLocationProps({ businessId: 'biz-99' }));
+  it('has businessId', () => {
+    const location = createLocation(createTestLocationInput({ businessId: 'biz-99' }));
     expect(location.businessId).toBe('biz-99');
   });
 
   it('defaults isPrimary to false', () => {
-    const location = new Location(createTestLocationProps());
+    const location = createLocation(createTestLocationInput());
     expect(location.isPrimary).toBe(false);
   });
 
   it('defaults dailyOrderCounter to 0', () => {
-    const location = new Location(createTestLocationProps());
+    const location = createLocation(createTestLocationInput());
     expect(location.dailyOrderCounter).toBe(0);
   });
 
   it('defaults nullable fields to null', () => {
-    const location = new Location(createTestLocationProps());
+    const location = createLocation(createTestLocationInput());
     expect(location.formattedAddress).toBeNull();
     expect(location.displayName).toBeNull();
     expect(location.geoCoordinates).toBeNull();
@@ -91,30 +86,30 @@ describe('Location (domain)', () => {
   });
 
   it('defaults imageUrls to empty array', () => {
-    const location = new Location(createTestLocationProps());
+    const location = createLocation(createTestLocationInput());
     expect(location.imageUrls).toEqual([]);
   });
 
-  it('metadata() returns name and isActive', () => {
-    const location = new Location(createTestLocationProps({
+  it('locationMeta() returns name and isActive', () => {
+    const location = createLocation(createTestLocationInput({
       name: 'Test Location',
       isActive: false,
     }));
-    expect(location.metadata()).toEqual({
+    expect(locationMeta(location)).toEqual({
       name: 'Test Location',
       isActive: false,
     });
   });
 
-  it('metadata() reflects current field values', () => {
-    const location = new Location(createTestLocationProps({ name: 'Original', isActive: true }));
+  it('locationMeta() reflects current field values', () => {
+    const location = createLocation(createTestLocationInput({ name: 'Original', isActive: true }));
     location.name = 'Updated';
     location.isActive = false;
-    expect(location.metadata()).toEqual({ name: 'Updated', isActive: false });
+    expect(locationMeta(location)).toEqual({ name: 'Updated', isActive: false });
   });
 
   it('linkedObjects stores LinkedObjectRef', () => {
-    const location = new Location(createTestLocationProps({
+    const location = createLocation(createTestLocationInput({
       linkedObjects: {
         square: { linkedObjectId: 'sq-123' },
         system: { linkedObjectId: 'sys-456' },
@@ -122,5 +117,15 @@ describe('Location (domain)', () => {
     }));
     expect(location.linkedObjects.square.linkedObjectId).toBe('sq-123');
     expect(location.linkedObjects.system.linkedObjectId).toBe('sys-456');
+  });
+
+  describe('validation', () => {
+    it('throws for empty businessId', () => {
+      expect(() => createLocation(createTestLocationInput({ businessId: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for empty name', () => {
+      expect(() => createLocation(createTestLocationInput({ name: '' }))).toThrow(ValidationError);
+    });
   });
 });

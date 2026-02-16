@@ -1,42 +1,45 @@
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { DomainEntity } from '../../domain/DomainEntity';
-import { Repository } from '../Repository';
+import { BaseEntity } from '../../domain/BaseEntity';
 import { MetadataRegistry } from '../MetadataRegistry';
 import { RelationshipHandlerRegistry } from './handlers/RelationshipHandlerRegistry';
+import { MetaLinkDeclaration } from '../../domain/MetadataSpec';
 
-export interface FirestoreRepositoryConfig<T extends DomainEntity> {
+export interface FirestoreRepositoryConfig<T> {
+  modelKey: string;
   collectionRef(businessId: string): FirebaseFirestore.CollectionReference;
   toFirestore(entity: T): FirebaseFirestore.DocumentData;
   fromFirestore(data: FirebaseFirestore.DocumentData, id: string, businessId: string): T;
 }
 
-export abstract class FirestoreRepository<T extends DomainEntity>
-  implements Repository<T>
-{
-  constructor(
-    protected readonly metadataRegistry: MetadataRegistry,
-    protected readonly relationshipHandlerRegistry?: RelationshipHandlerRegistry,
-  ) {}
+export class FirestoreRepository<T extends BaseEntity> {
+  private readonly cfg: FirestoreRepositoryConfig<T>;
+  protected readonly metadataRegistry: MetadataRegistry;
+  protected readonly relationshipHandlerRegistry?: RelationshipHandlerRegistry;
 
-  protected abstract config(): FirestoreRepositoryConfig<T>;
+  constructor(
+    cfg: FirestoreRepositoryConfig<T>,
+    metadataRegistry: MetadataRegistry,
+    relationshipHandlerRegistry?: RelationshipHandlerRegistry,
+  ) {
+    this.cfg = cfg;
+    this.metadataRegistry = metadataRegistry;
+    this.relationshipHandlerRegistry = relationshipHandlerRegistry;
+  }
 
   async get(businessId: string, id: string): Promise<T | null> {
-    const cfg = this.config();
-    const docRef = cfg.collectionRef(businessId).doc(id);
+    const docRef = this.cfg.collectionRef(businessId).doc(id);
     const snapshot = await docRef.get();
     if (!snapshot.exists) return null;
     const data = this.dateify(snapshot.data() as Record<string, any>);
-    return cfg.fromFirestore(data, snapshot.id, businessId);
+    return this.cfg.fromFirestore(data, snapshot.id, businessId);
   }
 
   async set(entity: T, businessId: string): Promise<void> {
-    const cfg = this.config();
-    const docRef = cfg.collectionRef(businessId).doc(entity.Id);
-    const data = cfg.toFirestore(entity);
-    const metaLinks = this.metadataRegistry.getMetaLinks(entity, businessId);
-    const metadata = this.metadataRegistry.getMetadata(entity);
-
-    const handler = this.relationshipHandlerRegistry?.resolve(entity);
+    const docRef = this.cfg.collectionRef(businessId).doc(entity.Id);
+    const data = JSON.parse(JSON.stringify(this.cfg.toFirestore(entity)));
+    const metaLinks = this.resolveMetaLinks(entity, businessId);
+    const metadata = this.metadataRegistry.getMetadata(this.cfg.modelKey, entity);
+    const handler = this.resolveHandler();
 
     const db = getFirestore();
     await db.runTransaction(async (transaction) => {
@@ -56,9 +59,8 @@ export abstract class FirestoreRepository<T extends DomainEntity>
   }
 
   async update(entity: T, businessId: string): Promise<void> {
-    const cfg = this.config();
-    const docRef = cfg.collectionRef(businessId).doc(entity.Id);
-    const data = cfg.toFirestore(entity);
+    const docRef = this.cfg.collectionRef(businessId).doc(entity.Id);
+    const data = JSON.parse(JSON.stringify(this.cfg.toFirestore(entity)));
     await docRef.update(data);
   }
 
@@ -66,11 +68,9 @@ export abstract class FirestoreRepository<T extends DomainEntity>
     const entity = await this.get(businessId, id);
     if (!entity) return;
 
-    const cfg = this.config();
-    const docRef = cfg.collectionRef(businessId).doc(id);
-    const metaLinks = this.metadataRegistry.getMetaLinks(entity, businessId);
-
-    const handler = this.relationshipHandlerRegistry?.resolve(entity);
+    const docRef = this.cfg.collectionRef(businessId).doc(id);
+    const metaLinks = this.resolveMetaLinks(entity, businessId);
+    const handler = this.resolveHandler();
 
     const db = getFirestore();
     await db.runTransaction(async (transaction) => {
@@ -90,8 +90,7 @@ export abstract class FirestoreRepository<T extends DomainEntity>
     linkedObjectId: string,
     provider: string,
   ): Promise<T | null> {
-    const cfg = this.config();
-    const query = cfg
+    const query = this.cfg
       .collectionRef(businessId)
       .where(`linkedObjects.${provider}.linkedObjectId`, '==', linkedObjectId);
     const snapshot = await query.get();
@@ -103,10 +102,18 @@ export abstract class FirestoreRepository<T extends DomainEntity>
     }
     const doc = snapshot.docs[0];
     const data = this.dateify(doc.data() as Record<string, any>);
-    return cfg.fromFirestore(data, doc.id, businessId);
+    return this.cfg.fromFirestore(data, doc.id, businessId);
   }
 
-  protected dateify(object: Record<string, any>): Record<string, any> {
+  private resolveHandler() {
+    return this.relationshipHandlerRegistry?.resolve(this.cfg.modelKey) ?? null;
+  }
+
+  private resolveMetaLinks(entity: T, businessId: string): MetaLinkDeclaration[] {
+    return this.metadataRegistry.getMetaLinks(this.cfg.modelKey, entity, businessId);
+  }
+
+  private dateify(object: Record<string, any>): Record<string, any> {
     for (const key of Object.keys(object)) {
       const value = object[key];
       if (value === null || value === undefined || typeof value !== 'object') continue;

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LocationsRoot, LocationMeta } from '../Locations';
-import { DomainEntity } from '../../DomainEntity';
+import { createLocationsRoot, LocationMeta } from '../Locations';
 
 describe('LocationsRoot', () => {
   it('constructs with all props', () => {
@@ -8,25 +7,27 @@ describe('LocationsRoot', () => {
       'loc-1': { name: 'Downtown', isActive: true },
       'loc-2': { name: 'Airport', isActive: false },
     };
-    const root = new LocationsRoot({ locations });
+    const root = createLocationsRoot({ locations });
     expect(root.locations).toEqual(locations);
   });
 
   it('defaults locations to {} when nullish', () => {
-    const root = new LocationsRoot({ locations: undefined as any });
+    const root = createLocationsRoot({ locations: undefined as any });
     expect(root.locations).toEqual({});
   });
 
   it('LocationMeta interface works', () => {
     const meta: LocationMeta = { name: 'Main St', isActive: true };
-    const root = new LocationsRoot({ locations: { 'loc-1': meta } });
+    const root = createLocationsRoot({ locations: { 'loc-1': meta } });
     expect(root.locations['loc-1'].name).toBe('Main St');
     expect(root.locations['loc-1'].isActive).toBe(true);
   });
 
-  it('instantiates without Firebase', () => {
-    const root = new LocationsRoot({ locations: {} });
-    expect(root).toBeInstanceOf(DomainEntity);
-    expect(root).toBeInstanceOf(LocationsRoot);
+  it('creates plain object with BaseEntity fields', () => {
+    const root = createLocationsRoot({ locations: {} });
+    expect(root.Id).toBeDefined();
+    expect(root.created).toBeInstanceOf(Date);
+    expect(root.updated).toBeInstanceOf(Date);
+    expect(root.isDeleted).toBe(false);
   });
 });

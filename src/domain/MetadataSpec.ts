@@ -1,8 +1,3 @@
-/** Optional interface for entities that produce metadata projections */
-export interface MetadataProjection<T = Record<string, unknown>> {
-  metadata(): T;
-}
-
 /** A single denormalization target: which document, which field */
 export interface MetaLinkDeclaration {
   documentPath: string;
@@ -13,4 +8,11 @@ export interface MetaLinkDeclaration {
 export interface MetadataSpec<TEntity, TMeta> {
   getMetadata(entity: TEntity): TMeta;
   getMetaLinks(entity: TEntity, businessId: string): MetaLinkDeclaration[];
+}
+
+export function createMetadataSpec<TEntity extends { Id: string }, TMeta>(
+  metaFn: (entity: TEntity) => TMeta,
+  linkFn: (entity: TEntity, businessId: string) => MetaLinkDeclaration[],
+): MetadataSpec<TEntity, TMeta> {
+  return { getMetadata: metaFn, getMetaLinks: linkFn };
 }

@@ -1,36 +1,29 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString } from '../validation';
 
-export interface EventProps extends DomainEntityProps {
-  provider: string;
-  type: string;
-  isSync: boolean;
-  queueCap?: number;
-  queueCount?: number;
-  timestamp?: Date;
-}
-
-export class Event extends DomainEntity {
+export interface Event extends BaseEntity {
   readonly provider: string;
   readonly type: string;
   isSync: boolean;
   queueCap: number;
   queueCount: number;
   timestamp?: Date;
+}
 
-  constructor(props: EventProps) {
-    super({
-      ...props,
-      Id: props.Id ?? Event.identifier(props.provider, props.type),
-    });
-    this.provider = props.provider;
-    this.type = props.type;
-    this.isSync = props.isSync;
-    this.queueCap = props.queueCap ?? -1;
-    this.queueCount = props.queueCount ?? 0;
-    this.timestamp = props.timestamp;
-  }
+export function createEvent(input: Partial<Event> & { provider: string; type: string; isSync: boolean }): Event {
+  requireNonEmptyString('provider', input.provider);
+  requireNonEmptyString('type', input.type);
+  return {
+    ...baseEntityDefaults({ ...input, Id: input.Id ?? eventIdentifier(input.provider, input.type) }),
+    provider: input.provider,
+    type: input.type,
+    isSync: input.isSync,
+    queueCap: input.queueCap ?? -1,
+    queueCount: input.queueCount ?? 0,
+    timestamp: input.timestamp,
+  };
+}
 
-  static identifier(provider: string, type: string): string {
-    return `${provider}.${type}`;
-  }
+export function eventIdentifier(provider: string, type: string): string {
+  return `${provider}.${type}`;
 }

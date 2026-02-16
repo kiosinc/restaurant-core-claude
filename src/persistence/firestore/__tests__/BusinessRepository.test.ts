@@ -1,31 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Business, BusinessType, Role } from '../../../domain/roots/Business';
+import { Business, createBusinessRoot, BusinessType, Role } from '../../../domain/roots/Business';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { BusinessRepository } from '../BusinessRepository';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { businessConverter } from '../converters/businessConverter';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => ({ get: vi.fn() })),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createSerializedBusiness() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -40,11 +20,11 @@ function createSerializedBusiness() {
 }
 
 describe('BusinessRepository', () => {
-  let repo: BusinessRepository;
+  let repo: FirestoreRepository<Business>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    repo = new BusinessRepository(new MetadataRegistry());
+    repo = new FirestoreRepository<Business>(businessConverter, new MetadataRegistry());
   });
 
   it('get() returns Business when exists', async () => {
@@ -65,7 +45,7 @@ describe('BusinessRepository', () => {
   });
 
   it('set() serializes BusinessProfile', async () => {
-    const biz = new Business({
+    const biz = createBusinessRoot({
       Id: 'biz-1', agent: 'android', createdBy: 'uid-1',
       type: BusinessType.restaurant,
       businessProfile: { name: 'My Place', address: { line1: '123 Main', city: 'NYC', state: 'NY', postalCode: '10001', country: 'US' } },
@@ -79,7 +59,7 @@ describe('BusinessRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Business({
+    const original = createBusinessRoot({
       Id: 'biz-rt', agent: 'web', createdBy: 'uid-2',
       type: BusinessType.restaurant,
       businessProfile: { name: 'Round Trip' },

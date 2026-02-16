@@ -1,110 +1,79 @@
-import { OptionProps } from '../../catalog/Option';
-import { OptionSetProps } from '../../catalog/OptionSet';
-import { ProductProps } from '../../catalog/Product';
-import { CategoryProps } from '../../catalog/Category';
-import { TaxRateProps } from '../../catalog/TaxRate';
-import { DiscountProps, DiscountType } from '../../catalog/Discount';
-import { ServiceChargeProps, ServiceChargeType } from '../../catalog/ServiceCharge';
+import { OptionInput } from '../../catalog/Option';
+import { OptionSetInput } from '../../catalog/OptionSet';
+import { ProductInput } from '../../catalog/Product';
+import { CategoryInput } from '../../catalog/Category';
+import { TaxRateInput } from '../../catalog/TaxRate';
+import { DiscountInput, DiscountType } from '../../catalog/Discount';
+import { ServiceChargeInput, ServiceChargeType } from '../../catalog/ServiceCharge';
 import { InventoryCount, InventoryCountState } from '../../catalog/InventoryCount';
+import { BaseEntity } from '../../BaseEntity';
 
-export function createTestOptionProps(overrides?: Partial<OptionProps>): OptionProps {
+export function createTestOptionInput(overrides?: Partial<OptionInput>): OptionInput {
   return {
     name: 'Test Option',
     price: 100,
-    sku: null,
-    gtin: null,
-    imageUrls: [],
-    imageGsls: [],
-    locationPrices: {},
-    locationInventory: {},
     isActive: true,
-    linkedObjects: {},
     ...overrides,
   };
 }
 
-export function createTestOptionSetProps(overrides?: Partial<OptionSetProps>): OptionSetProps {
+export function createTestOptionSetInput(overrides?: Partial<OptionSetInput>): OptionSetInput {
   return {
     name: 'Test OptionSet',
-    options: {},
     minSelection: 0,
     maxSelection: 1,
     displayOrder: 0,
     displayTier: 0,
-    optionDisplayOrder: [],
-    preselectedOptionIds: [],
-    imageUrls: [],
-    imageGsls: [],
-    locationInventory: {},
     isActive: true,
-    linkedObjects: {},
     ...overrides,
   };
 }
 
-export function createTestProductProps(overrides?: Partial<ProductProps>): ProductProps {
+export function createTestProductInput(overrides?: Partial<ProductInput>): ProductInput {
   return {
     name: 'Test Product',
-    caption: '',
-    description: '',
-    imageUrls: [],
-    imageGsls: [],
-    optionSets: {},
-    optionSetsSelection: {},
     minPrice: 500,
     maxPrice: 500,
     variationCount: 1,
-    locationInventory: {},
     isActive: true,
-    linkedObjects: {},
     ...overrides,
   };
 }
 
-export function createTestCategoryProps(overrides?: Partial<CategoryProps>): CategoryProps {
+export function createTestCategoryInput(overrides?: Partial<CategoryInput>): CategoryInput {
   return {
     name: 'Test Category',
-    products: {},
-    productDisplayOrder: [],
-    imageUrls: [],
-    imageGsls: [],
-    linkedObjects: {},
     ...overrides,
   };
 }
 
-export function createTestTaxRateProps(overrides?: Partial<TaxRateProps>): TaxRateProps {
+export function createTestTaxRateInput(overrides?: Partial<TaxRateInput & BaseEntity>): TaxRateInput & Partial<BaseEntity> {
   return {
     name: 'Test Tax',
     rate: 0.08,
     isCalculatedSubTotalPhase: true,
     isInclusive: false,
-    linkedObjects: {},
     ...overrides,
   };
 }
 
-export function createTestDiscountProps(overrides?: Partial<DiscountProps>): DiscountProps {
+export function createTestDiscountInput(overrides?: Partial<DiscountInput & BaseEntity>): DiscountInput & Partial<BaseEntity> {
   return {
     name: 'Test Discount',
-    description: '',
-    couponCode: '',
     type: DiscountType.percentage,
     value: 10,
     isActive: true,
-    linkedObjects: {},
     ...overrides,
   };
 }
 
-export function createTestServiceChargeProps(overrides?: Partial<ServiceChargeProps>): ServiceChargeProps {
+export function createTestServiceChargeInput(overrides?: Partial<ServiceChargeInput & BaseEntity>): ServiceChargeInput & Partial<BaseEntity> {
   return {
     name: 'Test Service Charge',
     value: 200,
     type: ServiceChargeType.amount,
     isCalculatedSubTotalPhase: false,
     isTaxable: false,
-    linkedObjects: {},
     ...overrides,
   };
 }

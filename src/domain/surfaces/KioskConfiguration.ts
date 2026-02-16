@@ -1,23 +1,20 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString } from '../validation';
 
-export interface KioskConfigurationProps extends DomainEntityProps {
-  name: string;
-  unlockCode: string | null;
-  checkoutOptionId: string | null;
-  version?: string;
-}
-
-export class KioskConfiguration extends DomainEntity {
+export interface KioskConfiguration extends BaseEntity {
   name: string;
   unlockCode: string | null;
   checkoutOptionId: string | null;
   version: string;
+}
 
-  constructor(props: KioskConfigurationProps) {
-    super(props);
-    this.name = props.name;
-    this.unlockCode = props.unlockCode ?? null;
-    this.checkoutOptionId = props.checkoutOptionId ?? null;
-    this.version = props.version ?? '1.0';
-  }
+export function createKioskConfiguration(input: Partial<KioskConfiguration> & { name: string }): KioskConfiguration {
+  requireNonEmptyString('name', input.name);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    unlockCode: input.unlockCode ?? null,
+    checkoutOptionId: input.checkoutOptionId ?? null,
+    version: input.version ?? '1.0',
+  };
 }

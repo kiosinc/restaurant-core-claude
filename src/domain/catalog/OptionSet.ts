@@ -1,9 +1,14 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
-import { MetadataProjection } from '../MetadataSpec';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString, requireNonNegativeInteger, requireMinLessOrEqual } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
-import { OptionSetMeta } from './OptionSetMeta';
-import { OptionMeta } from './OptionMeta';
+import { OptionMeta } from './Option';
 import { LocationInventoryMap } from './InventoryCount';
+
+export interface OptionSetMeta {
+  name: string;
+  displayOrder: number;
+  displayTier: number;
+}
 
 export interface ProductOptionSetSetting {
   minSelection: number;
@@ -12,7 +17,23 @@ export interface ProductOptionSetSetting {
   isActive: boolean;
 }
 
-export interface OptionSetProps extends DomainEntityProps {
+export interface OptionSetInput {
+  name: string;
+  options?: { [id: string]: OptionMeta };
+  minSelection: number;
+  maxSelection: number;
+  displayOrder: number;
+  displayTier: number;
+  optionDisplayOrder?: string[];
+  preselectedOptionIds?: string[];
+  imageUrls?: string[];
+  imageGsls?: string[];
+  locationInventory?: LocationInventoryMap;
+  isActive: boolean;
+  linkedObjects?: LinkedObjectMap;
+}
+
+export interface OptionSet extends BaseEntity {
   name: string;
   options: { [id: string]: OptionMeta };
   minSelection: number;
@@ -28,43 +49,35 @@ export interface OptionSetProps extends DomainEntityProps {
   linkedObjects: LinkedObjectMap;
 }
 
-export class OptionSet extends DomainEntity implements MetadataProjection<OptionSetMeta> {
-  name: string;
-  options: { [id: string]: OptionMeta };
-  minSelection: number;
-  maxSelection: number;
-  displayOrder: number;
-  displayTier: number;
-  optionDisplayOrder: string[];
-  preselectedOptionIds: string[];
-  imageUrls: string[];
-  imageGsls: string[];
-  locationInventory: LocationInventoryMap;
-  isActive: boolean;
-  linkedObjects: LinkedObjectMap;
+export function createOptionSet(input: OptionSetInput & Partial<BaseEntity>): OptionSet {
+  requireNonEmptyString('name', input.name);
+  requireNonNegativeInteger('minSelection', input.minSelection);
+  requireNonNegativeInteger('maxSelection', input.maxSelection);
+  requireMinLessOrEqual('minSelection', input.minSelection, 'maxSelection', input.maxSelection);
+  requireNonNegativeInteger('displayOrder', input.displayOrder);
+  requireNonNegativeInteger('displayTier', input.displayTier);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    options: input.options ?? {},
+    minSelection: input.minSelection,
+    maxSelection: input.maxSelection,
+    displayOrder: input.displayOrder,
+    displayTier: input.displayTier,
+    optionDisplayOrder: input.optionDisplayOrder ?? [],
+    preselectedOptionIds: input.preselectedOptionIds ?? [],
+    imageUrls: input.imageUrls ?? [],
+    imageGsls: input.imageGsls ?? [],
+    locationInventory: input.locationInventory ?? {},
+    isActive: input.isActive,
+    linkedObjects: input.linkedObjects ?? {},
+  };
+}
 
-  constructor(props: OptionSetProps) {
-    super(props);
-    this.name = props.name;
-    this.options = props.options ?? {};
-    this.minSelection = props.minSelection;
-    this.maxSelection = props.maxSelection;
-    this.displayOrder = props.displayOrder;
-    this.displayTier = props.displayTier;
-    this.optionDisplayOrder = props.optionDisplayOrder ?? [];
-    this.preselectedOptionIds = props.preselectedOptionIds ?? [];
-    this.imageUrls = props.imageUrls ?? [];
-    this.imageGsls = props.imageGsls ?? [];
-    this.locationInventory = props.locationInventory ?? {};
-    this.isActive = props.isActive;
-    this.linkedObjects = props.linkedObjects ?? {};
-  }
-
-  metadata(): OptionSetMeta {
-    return {
-      name: this.name,
-      displayOrder: this.displayOrder,
-      displayTier: this.displayTier,
-    };
-  }
+export function optionSetMeta(optionSet: OptionSet): OptionSetMeta {
+  return {
+    name: optionSet.name,
+    displayOrder: optionSet.displayOrder,
+    displayTier: optionSet.displayTier,
+  };
 }

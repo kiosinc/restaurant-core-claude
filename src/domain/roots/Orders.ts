@@ -1,6 +1,6 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
 
-export interface OrderSettingsProps extends DomainEntityProps {
+export interface OrderSettings extends BaseEntity {
   isSMSStateUpdate: boolean;
   isLoyaltyAccrue: boolean;
   isStateAutoNewToInProgress: boolean;
@@ -19,37 +19,26 @@ export interface OrderSettingsProps extends DomainEntityProps {
 
 const DEFAULT_GRATUITY_RATES = [10, 15, 20];
 
-export class OrderSettings extends DomainEntity {
+export function createOrderSettings(input: Partial<OrderSettings> & {
   isSMSStateUpdate: boolean;
   isLoyaltyAccrue: boolean;
   isStateAutoNewToInProgress: boolean;
-  gratuityRates: number[];
-  isSquareDiscountCodeAPI: boolean;
-  isSquareAutoApplyDiscounts: boolean;
-  isSquareAutoApplyTaxes: boolean;
-  isSquareDiscountCodeAutoEnabled: boolean;
-  isKioskSessionIdleTimerOn: boolean;
-  isFreeOrdersEnabled: boolean;
-  isSingleLineItemsOnly: boolean;
-  ticketHeaderFormat: { [orderType: string]: string } | null;
-  smsReadyTextFormat: { [orderType: string]: string } | null;
-  smsReceiptTextFormat: { [orderType: string]: string } | null;
-
-  constructor(props: OrderSettingsProps) {
-    super(props);
-    this.isSMSStateUpdate = props.isSMSStateUpdate;
-    this.isLoyaltyAccrue = props.isLoyaltyAccrue;
-    this.isStateAutoNewToInProgress = props.isStateAutoNewToInProgress;
-    this.gratuityRates = props.gratuityRates ?? DEFAULT_GRATUITY_RATES;
-    this.isSquareDiscountCodeAPI = props.isSquareDiscountCodeAPI ?? false;
-    this.isSquareAutoApplyDiscounts = props.isSquareAutoApplyDiscounts ?? false;
-    this.isSquareAutoApplyTaxes = props.isSquareAutoApplyTaxes ?? true;
-    this.isSquareDiscountCodeAutoEnabled = props.isSquareDiscountCodeAutoEnabled ?? false;
-    this.isKioskSessionIdleTimerOn = props.isKioskSessionIdleTimerOn ?? true;
-    this.isFreeOrdersEnabled = props.isFreeOrdersEnabled ?? true;
-    this.isSingleLineItemsOnly = props.isSingleLineItemsOnly ?? false;
-    this.ticketHeaderFormat = props.ticketHeaderFormat ?? null;
-    this.smsReadyTextFormat = props.smsReadyTextFormat ?? null;
-    this.smsReceiptTextFormat = props.smsReceiptTextFormat ?? null;
-  }
+}): OrderSettings {
+  return {
+    ...baseEntityDefaults(input),
+    isSMSStateUpdate: input.isSMSStateUpdate,
+    isLoyaltyAccrue: input.isLoyaltyAccrue,
+    isStateAutoNewToInProgress: input.isStateAutoNewToInProgress,
+    gratuityRates: input.gratuityRates ?? DEFAULT_GRATUITY_RATES,
+    isSquareDiscountCodeAPI: input.isSquareDiscountCodeAPI ?? false,
+    isSquareAutoApplyDiscounts: input.isSquareAutoApplyDiscounts ?? false,
+    isSquareAutoApplyTaxes: input.isSquareAutoApplyTaxes ?? true,
+    isSquareDiscountCodeAutoEnabled: input.isSquareDiscountCodeAutoEnabled ?? false,
+    isKioskSessionIdleTimerOn: input.isKioskSessionIdleTimerOn ?? true,
+    isFreeOrdersEnabled: input.isFreeOrdersEnabled ?? true,
+    isSingleLineItemsOnly: input.isSingleLineItemsOnly ?? false,
+    ticketHeaderFormat: input.ticketHeaderFormat ?? null,
+    smsReadyTextFormat: input.smsReadyTextFormat ?? null,
+    smsReceiptTextFormat: input.smsReceiptTextFormat ?? null,
+  };
 }

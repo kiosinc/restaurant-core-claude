@@ -1,19 +1,15 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { LocationMeta } from '../locations/Location';
 
-export interface LocationMeta {
-  name: string;
-  isActive: boolean;
-}
-
-export interface LocationsRootProps extends DomainEntityProps {
+export interface LocationsRoot extends BaseEntity {
   locations: { [id: string]: LocationMeta };
 }
 
-export class LocationsRoot extends DomainEntity {
-  locations: { [id: string]: LocationMeta };
+export { LocationMeta };
 
-  constructor(props: LocationsRootProps) {
-    super(props);
-    this.locations = props.locations ?? {};
-  }
+export function createLocationsRoot(input?: Partial<LocationsRoot>): LocationsRoot {
+  return {
+    ...baseEntityDefaults(input),
+    locations: input?.locations ?? {},
+  };
 }

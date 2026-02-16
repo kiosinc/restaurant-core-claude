@@ -1,82 +1,66 @@
-import { MenuProps } from '../../surfaces/Menu';
-import { MenuGroupProps } from '../../surfaces/MenuGroup';
-import { SurfaceConfigurationProps } from '../../surfaces/SurfaceConfiguration';
-import { KioskConfigurationProps } from '../../surfaces/KioskConfiguration';
-import { CheckoutOptionsProps } from '../../surfaces/CheckoutOptions';
-import { TokenProps } from '../../connected-accounts/Token';
-import { OnboardingOrderProps, InvoiceStatus } from '../../onboarding/OnboardingOrder';
+import { MenuInput } from '../../surfaces/Menu';
+import { MenuGroupInput } from '../../surfaces/MenuGroup';
+import { SurfaceConfiguration } from '../../surfaces/SurfaceConfiguration';
+import { KioskConfiguration } from '../../surfaces/KioskConfiguration';
+import { CheckoutOptions } from '../../surfaces/CheckoutOptions';
+import { Token } from '../../connected-accounts/Token';
+import { OnboardingOrderInput, InvoiceStatus } from '../../onboarding/OnboardingOrder';
 import { OrderState } from '../../orders/OrderSymbols';
 import { emptyAddress } from '../../misc/Address';
 
-export function createTestMenuProps(overrides?: Partial<MenuProps>): MenuProps {
+export function createTestMenuInput(overrides?: Partial<MenuInput>): MenuInput {
   return {
     name: 'Test Menu',
-    displayName: null,
-    groups: {},
-    groupDisplayOrder: [],
-    coverImageGsl: null,
-    coverBackgroundImageGsl: null,
-    coverVideoGsl: null,
-    logoImageGsl: null,
-    gratuityRates: [],
-    managedBy: null,
     ...overrides,
   };
 }
 
-export function createTestMenuGroupProps(overrides?: Partial<MenuGroupProps>): MenuGroupProps {
+export function createTestMenuGroupInput(overrides?: Partial<MenuGroupInput>): MenuGroupInput {
   return {
     name: 'Test Menu Group',
-    displayName: null,
-    products: {},
-    productDisplayOrder: [],
-    parentGroup: null,
-    childGroup: null,
-    mirrorCategoryId: null,
-    managedBy: null,
     ...overrides,
   };
 }
 
-export function createTestSurfaceConfigurationProps(
-  overrides?: Partial<SurfaceConfigurationProps>,
-): SurfaceConfigurationProps {
+export function createTestSurfaceConfigurationInput(
+  overrides?: Partial<SurfaceConfiguration>,
+): Partial<SurfaceConfiguration> & { name: string; isChargeCustomerServiceFee: boolean } {
   return {
     name: 'Test Surface Config',
     isChargeCustomerServiceFee: false,
-    coverConfiguration: null,
-    tipConfiguration: null,
-    checkoutFlowConfiguration: null,
     ...overrides,
   };
 }
 
-export function createTestKioskConfigurationProps(
-  overrides?: Partial<KioskConfigurationProps>,
-): KioskConfigurationProps {
+export function createTestKioskConfigurationInput(
+  overrides?: Partial<KioskConfiguration>,
+): Partial<KioskConfiguration> & { name: string } {
   return {
     name: 'Test Kiosk Config',
-    unlockCode: null,
-    checkoutOptionId: null,
     ...overrides,
   };
 }
 
-export function createTestCheckoutOptionsProps(
-  overrides?: Partial<CheckoutOptionsProps>,
-): CheckoutOptionsProps {
+export function createTestCheckoutOptionsInput(
+  overrides?: Partial<CheckoutOptions>,
+): Partial<CheckoutOptions> & {
+  name: string;
+  discounts: { isEnabled: boolean };
+  giftCards: { isEnabled: boolean };
+  referralCodes: { isEnabled: boolean };
+} {
   return {
     name: 'Test Checkout Options',
     discounts: { isEnabled: false },
     giftCards: { isEnabled: false },
     referralCodes: { isEnabled: false },
-    tipOptions: null,
-    fulfillmentOptions: {},
     ...overrides,
   };
 }
 
-export function createTestTokenProps(overrides?: Partial<TokenProps>): TokenProps {
+export function createTestTokenInput(
+  overrides?: Partial<Token>,
+): Partial<Token> & { createdBy: string; businessId: string; provider: string } {
   return {
     createdBy: 'user-1',
     businessId: 'biz-1',
@@ -85,9 +69,9 @@ export function createTestTokenProps(overrides?: Partial<TokenProps>): TokenProp
   };
 }
 
-export function createTestOnboardingOrderProps(
-  overrides?: Partial<OnboardingOrderProps>,
-): OnboardingOrderProps {
+export function createTestOnboardingOrderInput(
+  overrides?: Partial<OnboardingOrderInput>,
+): OnboardingOrderInput {
   return {
     invoiceId: 'inv-1',
     invoiceStatus: InvoiceStatus.draft,
@@ -96,7 +80,6 @@ export function createTestOnboardingOrderProps(
     shipmentAddress: emptyAddress,
     totalAmount: 0,
     orderStatus: OrderState.new,
-    lineItems: [],
     ...overrides,
   };
 }

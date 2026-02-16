@@ -1,6 +1,7 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
 import { OrderState, OrderType, OrderTypeMeta, PaymentState } from './OrderSymbols';
-import { LinkedObjectRef, LinkedObjectMap } from '../LinkedObjectRef';
+import { LinkedObjectRef } from '../LinkedObjectRef';
+import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
 
 export interface SelectedValue {
   optionId: string;
@@ -59,9 +60,7 @@ export interface OrderPayment {
   receiptUrl: string | null;
 }
 
-export { LinkedObjectRef, LinkedObjectMap };
-
-export interface OrderProps extends DomainEntityProps {
+export interface OrderInput {
   businessId: string;
   locationId: string;
   menuId: string;
@@ -69,7 +68,7 @@ export interface OrderProps extends DomainEntityProps {
   channel: string;
   agent: string;
   deviceId: string | null;
-  posProvider: string;
+  posProvider?: string;
   totalAmount: number;
   totalDiscountAmount: number;
   totalTaxAmount: number;
@@ -93,7 +92,7 @@ export interface OrderProps extends DomainEntityProps {
   isAvailable?: boolean;
 }
 
-export class Order extends DomainEntity {
+export interface Order extends BaseEntity {
   readonly version: string;
   businessId: string;
   locationId: string;
@@ -123,37 +122,50 @@ export class Order extends DomainEntity {
   linkedObjects: { [Id: string]: LinkedObjectRef } | null;
   isAvailable: boolean;
   tags: string[] | null;
+}
 
-  constructor(props: OrderProps) {
-    super(props);
-    this.version = props.version ?? '3';
-    this.businessId = props.businessId;
-    this.locationId = props.locationId;
-    this.menuId = props.menuId;
-    this.timestamp = props.timestamp ?? new Date();
-    this.channel = props.channel;
-    this.agent = props.agent;
-    this.deviceId = props.deviceId;
-    this.posProvider = props.posProvider ?? 'system';
-    this.totalAmount = props.totalAmount;
-    this.totalDiscountAmount = props.totalDiscountAmount;
-    this.totalTaxAmount = props.totalTaxAmount;
-    this.totalSurchargeAmount = props.totalSurchargeAmount;
-    this.totalTipAmount = props.totalTipAmount;
-    this.customerId = props.customerId;
-    this.fulfillment = props.fulfillment;
-    this.lineItems = props.lineItems;
-    this.currency = props.currency;
-    this.taxes = props.taxes;
-    this.discounts = props.discounts;
-    this.surcharges = props.surcharges;
-    this.state = props.state ?? OrderState.new;
-    this.referralCode = props.referralCode;
-    this.source = props.source;
-    this.note = props.note;
-    this.payment = props.payment;
-    this.linkedObjects = props.linkedObjects;
-    this.isAvailable = props.isAvailable ?? true;
-    this.tags = props.tags;
-  }
+export function createOrder(input: OrderInput & Partial<BaseEntity>): Order {
+  requireNonEmptyString('businessId', input.businessId);
+  requireNonEmptyString('locationId', input.locationId);
+  requireNonEmptyString('menuId', input.menuId);
+  requireNonEmptyString('channel', input.channel);
+  requireNonEmptyString('agent', input.agent);
+  requireNonEmptyString('currency', input.currency);
+  requireNonNegativeNumber('totalAmount', input.totalAmount);
+  requireNonNegativeNumber('totalDiscountAmount', input.totalDiscountAmount);
+  requireNonNegativeNumber('totalTaxAmount', input.totalTaxAmount);
+  requireNonNegativeNumber('totalSurchargeAmount', input.totalSurchargeAmount);
+  requireNonNegativeNumber('totalTipAmount', input.totalTipAmount);
+  return {
+    ...baseEntityDefaults(input),
+    version: input.version ?? '3',
+    businessId: input.businessId,
+    locationId: input.locationId,
+    menuId: input.menuId,
+    timestamp: input.timestamp ?? new Date(),
+    channel: input.channel,
+    agent: input.agent,
+    deviceId: input.deviceId,
+    posProvider: input.posProvider ?? 'system',
+    totalAmount: input.totalAmount,
+    totalDiscountAmount: input.totalDiscountAmount,
+    totalTaxAmount: input.totalTaxAmount,
+    totalSurchargeAmount: input.totalSurchargeAmount,
+    totalTipAmount: input.totalTipAmount,
+    customerId: input.customerId,
+    fulfillment: input.fulfillment,
+    lineItems: input.lineItems,
+    currency: input.currency,
+    taxes: input.taxes,
+    discounts: input.discounts,
+    surcharges: input.surcharges,
+    state: input.state ?? OrderState.new,
+    referralCode: input.referralCode,
+    source: input.source,
+    note: input.note,
+    payment: input.payment,
+    linkedObjects: input.linkedObjects,
+    isAvailable: input.isAvailable ?? true,
+    tags: input.tags,
+  };
 }

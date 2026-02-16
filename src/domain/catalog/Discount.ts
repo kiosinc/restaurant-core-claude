@@ -1,4 +1,5 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 
 export enum DiscountType {
@@ -7,7 +8,7 @@ export enum DiscountType {
   unknown = 'unknown',
 }
 
-export interface DiscountProps extends DomainEntityProps {
+export interface Discount extends BaseEntity {
   name: string;
   description: string;
   couponCode: string;
@@ -17,23 +18,27 @@ export interface DiscountProps extends DomainEntityProps {
   linkedObjects: LinkedObjectMap;
 }
 
-export class Discount extends DomainEntity {
+export interface DiscountInput {
   name: string;
-  description: string;
-  couponCode: string;
   type: DiscountType;
   value: number;
   isActive: boolean;
-  linkedObjects: LinkedObjectMap;
+  description?: string;
+  couponCode?: string;
+  linkedObjects?: LinkedObjectMap;
+}
 
-  constructor(props: DiscountProps) {
-    super(props);
-    this.name = props.name;
-    this.description = props.description ?? '';
-    this.couponCode = props.couponCode ?? '';
-    this.type = props.type;
-    this.value = props.value;
-    this.isActive = props.isActive;
-    this.linkedObjects = props.linkedObjects ?? {};
-  }
+export function createDiscount(input: DiscountInput & Partial<BaseEntity>): Discount {
+  requireNonEmptyString('name', input.name);
+  requireNonNegativeNumber('value', input.value);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    description: input.description ?? '',
+    couponCode: input.couponCode ?? '',
+    type: input.type,
+    value: input.value,
+    isActive: input.isActive,
+    linkedObjects: input.linkedObjects ?? {},
+  };
 }
