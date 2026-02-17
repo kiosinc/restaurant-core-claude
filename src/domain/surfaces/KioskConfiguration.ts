@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString } from '../validation';
+import { requireString } from '../validation';
 
 export interface KioskConfiguration extends BaseEntity {
   name: string;
@@ -9,7 +9,7 @@ export interface KioskConfiguration extends BaseEntity {
 }
 
 export function createKioskConfiguration(input: Partial<KioskConfiguration> & { name: string }): KioskConfiguration {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   return {
     ...baseEntityDefaults(input),
     name: input.name,

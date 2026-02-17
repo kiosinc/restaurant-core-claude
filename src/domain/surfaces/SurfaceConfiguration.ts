@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString } from '../validation';
+import { requireString } from '../validation';
 
 export interface CoverConfiguration {
   isCoverNoticeEnabled: boolean;
@@ -46,7 +46,7 @@ export function createSurfaceConfiguration(input: Partial<SurfaceConfiguration> 
   name: string;
   isChargeCustomerServiceFee: boolean;
 }): SurfaceConfiguration {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   return {
     ...baseEntityDefaults(input),
     name: input.name,

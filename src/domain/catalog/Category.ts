@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString } from '../validation';
+import { requireString } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 import { ProductMeta } from './Product';
 
@@ -26,7 +26,7 @@ export interface Category extends BaseEntity {
 }
 
 export function createCategory(input: CategoryInput & Partial<BaseEntity>): Category {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   return {
     ...baseEntityDefaults(input),
     name: input.name,

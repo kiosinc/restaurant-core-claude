@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
+import { requireString, requireNonNegativeNumber } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 
 export enum ServiceChargeType {
@@ -26,7 +26,7 @@ export interface ServiceChargeInput {
 }
 
 export function createServiceCharge(input: ServiceChargeInput & Partial<BaseEntity>): ServiceCharge {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   requireNonNegativeNumber('value', input.value);
   return {
     ...baseEntityDefaults(input),

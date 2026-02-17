@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   ValidationError,
+  requireString,
   requireNonEmptyString,
   requireNonNegativeNumber,
   requireNonNegativeInteger,
+  requireNonNegativeIntegerOrNeg1,
   requireMinLessOrEqual,
 } from '../validation';
 
@@ -15,6 +17,28 @@ describe('ValidationError', () => {
     expect(err.field).toBe('name');
     expect(err.message).toContain('name');
     expect(err.message).toContain('non-empty string');
+  });
+});
+
+describe('requireString', () => {
+  it('passes for non-empty string', () => {
+    expect(() => requireString('name', 'Burger')).not.toThrow();
+  });
+
+  it('passes for empty string', () => {
+    expect(() => requireString('name', '')).not.toThrow();
+  });
+
+  it('throws for undefined', () => {
+    expect(() => requireString('name', undefined)).toThrow(ValidationError);
+  });
+
+  it('throws for null', () => {
+    expect(() => requireString('name', null)).toThrow(ValidationError);
+  });
+
+  it('throws for number', () => {
+    expect(() => requireString('name', 123)).toThrow(ValidationError);
   });
 });
 
@@ -96,6 +120,40 @@ describe('requireNonNegativeInteger', () => {
   });
 });
 
+describe('requireNonNegativeIntegerOrNeg1', () => {
+  it('passes for zero', () => {
+    expect(() => requireNonNegativeIntegerOrNeg1('sel', 0)).not.toThrow();
+  });
+
+  it('passes for positive integer', () => {
+    expect(() => requireNonNegativeIntegerOrNeg1('sel', 5)).not.toThrow();
+  });
+
+  it('passes for -1 sentinel', () => {
+    expect(() => requireNonNegativeIntegerOrNeg1('sel', -1)).not.toThrow();
+  });
+
+  it('throws for -2', () => {
+    expect(() => requireNonNegativeIntegerOrNeg1('sel', -2)).toThrow(ValidationError);
+  });
+
+  it('throws for float', () => {
+    expect(() => requireNonNegativeIntegerOrNeg1('sel', 1.5)).toThrow(ValidationError);
+  });
+
+  it('throws for NaN', () => {
+    expect(() => requireNonNegativeIntegerOrNeg1('sel', NaN)).toThrow(ValidationError);
+  });
+
+  it('throws for string', () => {
+    expect(() => requireNonNegativeIntegerOrNeg1('sel', '5')).toThrow(ValidationError);
+  });
+
+  it('throws for undefined', () => {
+    expect(() => requireNonNegativeIntegerOrNeg1('sel', undefined)).toThrow(ValidationError);
+  });
+});
+
 describe('requireMinLessOrEqual', () => {
   it('passes when min < max', () => {
     expect(() => requireMinLessOrEqual('min', 0, 'max', 10)).not.toThrow();
@@ -112,5 +170,17 @@ describe('requireMinLessOrEqual', () => {
   it('error message contains both field names and values', () => {
     expect(() => requireMinLessOrEqual('minPrice', 10, 'maxPrice', 5))
       .toThrow(/minPrice.*maxPrice/);
+  });
+
+  it('passes when min is -1 sentinel (no constraint)', () => {
+    expect(() => requireMinLessOrEqual('min', -1, 'max', 5)).not.toThrow();
+  });
+
+  it('passes when max is -1 sentinel (unlimited)', () => {
+    expect(() => requireMinLessOrEqual('min', 5, 'max', -1)).not.toThrow();
+  });
+
+  it('passes when both are -1 sentinel', () => {
+    expect(() => requireMinLessOrEqual('min', -1, 'max', -1)).not.toThrow();
   });
 });

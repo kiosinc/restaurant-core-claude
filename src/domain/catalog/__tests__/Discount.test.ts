@@ -52,8 +52,9 @@ describe('Discount (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createDiscount(createTestDiscountInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const discount = createDiscount(createTestDiscountInput({ name: '' }));
+      expect(discount.name).toBe('');
     });
 
     it('throws for negative value', () => {

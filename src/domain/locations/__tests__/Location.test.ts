@@ -124,8 +124,9 @@ describe('Location (domain)', () => {
       expect(() => createLocation(createTestLocationInput({ businessId: '' }))).toThrow(ValidationError);
     });
 
-    it('throws for empty name', () => {
-      expect(() => createLocation(createTestLocationInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const location = createLocation(createTestLocationInput({ name: '' }));
+      expect(location.name).toBe('');
     });
   });
 });

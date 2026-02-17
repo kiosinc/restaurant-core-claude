@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString } from '../validation';
+import { requireString } from '../validation';
 
 export interface TipOptions {
   isEnabled: boolean;
@@ -73,7 +73,7 @@ export function createCheckoutOptions(input: Partial<CheckoutOptions> & {
   giftCards: GiftCardOptions;
   referralCodes: ReferralCodeOptions;
 }): CheckoutOptions {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   return {
     ...baseEntityDefaults(input),
     name: input.name,

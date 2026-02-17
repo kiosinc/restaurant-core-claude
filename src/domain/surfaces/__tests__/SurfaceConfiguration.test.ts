@@ -82,8 +82,9 @@ describe('SurfaceConfiguration (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createSurfaceConfiguration(createTestSurfaceConfigurationInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const sc = createSurfaceConfiguration(createTestSurfaceConfigurationInput({ name: '' }));
+      expect(sc.name).toBe('');
     });
   });
 

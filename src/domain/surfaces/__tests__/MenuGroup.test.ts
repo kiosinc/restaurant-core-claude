@@ -90,8 +90,9 @@ describe('MenuGroup (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createMenuGroup(createTestMenuGroupInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const mg = createMenuGroup(createTestMenuGroupInput({ name: '' }));
+      expect(mg.name).toBe('');
     });
   });
 

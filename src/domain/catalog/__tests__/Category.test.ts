@@ -65,8 +65,9 @@ describe('Category (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createCategory(createTestCategoryInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const category = createCategory(createTestCategoryInput({ name: '' }));
+      expect(category.name).toBe('');
     });
   });
 

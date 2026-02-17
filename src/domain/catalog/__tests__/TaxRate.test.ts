@@ -37,8 +37,9 @@ describe('TaxRate (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createTaxRate({ ...createTestTaxRateInput(), name: '' })).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const taxRate = createTaxRate({ ...createTestTaxRateInput(), name: '' });
+      expect(taxRate.name).toBe('');
     });
 
     it('throws for negative rate', () => {

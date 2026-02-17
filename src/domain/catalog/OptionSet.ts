@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString, requireNonNegativeInteger, requireMinLessOrEqual } from '../validation';
+import { requireString, requireNonNegativeInteger, requireNonNegativeIntegerOrNeg1, requireMinLessOrEqual } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 import { OptionMeta } from './Option';
 import { LocationInventoryMap } from './InventoryCount';
@@ -50,9 +50,9 @@ export interface OptionSet extends BaseEntity {
 }
 
 export function createOptionSet(input: OptionSetInput & Partial<BaseEntity>): OptionSet {
-  requireNonEmptyString('name', input.name);
-  requireNonNegativeInteger('minSelection', input.minSelection);
-  requireNonNegativeInteger('maxSelection', input.maxSelection);
+  requireString('name', input.name);
+  requireNonNegativeIntegerOrNeg1('minSelection', input.minSelection);
+  requireNonNegativeIntegerOrNeg1('maxSelection', input.maxSelection);
   requireMinLessOrEqual('minSelection', input.minSelection, 'maxSelection', input.maxSelection);
   requireNonNegativeInteger('displayOrder', input.displayOrder);
   requireNonNegativeInteger('displayTier', input.displayTier);

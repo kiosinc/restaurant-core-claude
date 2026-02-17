@@ -93,8 +93,9 @@ describe('Option (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createOption(createTestOptionInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const option = createOption(createTestOptionInput({ name: '' }));
+      expect(option.name).toBe('');
     });
 
     it('throws for negative price', () => {

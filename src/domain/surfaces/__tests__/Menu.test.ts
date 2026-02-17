@@ -93,8 +93,9 @@ describe('Menu (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createMenu(createTestMenuInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const menu = createMenu(createTestMenuInput({ name: '' }));
+      expect(menu.name).toBe('');
     });
   });
 

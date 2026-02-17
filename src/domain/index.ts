@@ -1,5 +1,5 @@
 export { BaseEntity, generateId, baseEntityDefaults } from './BaseEntity';
-export { ValidationError, requireNonEmptyString, requireNonNegativeNumber, requireNonNegativeInteger, requireMinLessOrEqual } from './validation';
+export { ValidationError, requireString, requireNonEmptyString, requireNonNegativeNumber, requireNonNegativeInteger, requireNonNegativeIntegerOrNeg1, requireMinLessOrEqual } from './validation';
 export { MetaLinkDeclaration, MetadataSpec, createMetadataSpec } from './MetadataSpec';
 export { LinkedObjectRef, LinkedObjectMap } from './LinkedObjectRef';
 export * as Catalog from './catalog';
