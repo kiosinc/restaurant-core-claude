@@ -39,8 +39,9 @@ describe('ServiceCharge (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createServiceCharge(createTestServiceChargeInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const sc = createServiceCharge(createTestServiceChargeInput({ name: '' }));
+      expect(sc.name).toBe('');
     });
 
     it('throws for negative value', () => {

@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
+import { requireString, requireNonNegativeNumber } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 
 export enum DiscountType {
@@ -29,7 +29,7 @@ export interface DiscountInput {
 }
 
 export function createDiscount(input: DiscountInput & Partial<BaseEntity>): Discount {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   requireNonNegativeNumber('value', input.value);
   return {
     ...baseEntityDefaults(input),

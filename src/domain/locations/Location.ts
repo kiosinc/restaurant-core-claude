@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString } from '../validation';
+import { requireString, requireNonEmptyString } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 import { Address } from '../misc/Address';
 import { BusinessHours } from '../../utils/schedule';
@@ -52,7 +52,7 @@ export interface Location extends BaseEntity {
 
 export function createLocation(input: LocationInput & Partial<BaseEntity>): Location {
   requireNonEmptyString('businessId', input.businessId);
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   return {
     ...baseEntityDefaults(input),
     businessId: input.businessId,

@@ -39,8 +39,9 @@ describe('KioskConfiguration (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createKioskConfiguration(createTestKioskConfigurationInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const kc = createKioskConfiguration(createTestKioskConfigurationInput({ name: '' }));
+      expect(kc.name).toBe('');
     });
   });
 

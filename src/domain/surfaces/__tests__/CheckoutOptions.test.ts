@@ -75,8 +75,9 @@ describe('CheckoutOptions (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createCheckoutOptions(createTestCheckoutOptionsInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const co = createCheckoutOptions(createTestCheckoutOptionsInput({ name: '' }));
+      expect(co.name).toBe('');
     });
   });
 

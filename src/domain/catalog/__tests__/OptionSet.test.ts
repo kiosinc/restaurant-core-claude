@@ -95,16 +95,25 @@ describe('OptionSet (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createOptionSet(createTestOptionSetInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const os = createOptionSet(createTestOptionSetInput({ name: '' }));
+      expect(os.name).toBe('');
     });
 
-    it('throws for negative minSelection', () => {
-      expect(() => createOptionSet(createTestOptionSetInput({ minSelection: -1 }))).toThrow(ValidationError);
+    it('allows -1 sentinel for minSelection', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ minSelection: -1, maxSelection: -1 }))).not.toThrow();
     });
 
-    it('throws for negative maxSelection', () => {
-      expect(() => createOptionSet(createTestOptionSetInput({ maxSelection: -1, minSelection: -2 }))).toThrow(ValidationError);
+    it('throws for minSelection < -1', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ minSelection: -2 }))).toThrow(ValidationError);
+    });
+
+    it('allows -1 sentinel for maxSelection', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ maxSelection: -1 }))).not.toThrow();
+    });
+
+    it('throws for maxSelection < -1', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ maxSelection: -2 }))).toThrow(ValidationError);
     });
 
     it('throws when minSelection > maxSelection', () => {

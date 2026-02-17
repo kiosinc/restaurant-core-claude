@@ -122,8 +122,9 @@ describe('Product (domain)', () => {
   });
 
   describe('validation', () => {
-    it('throws for empty name', () => {
-      expect(() => createProduct(createTestProductInput({ name: '' }))).toThrow(ValidationError);
+    it('allows empty name', () => {
+      const product = createProduct(createTestProductInput({ name: '' }));
+      expect(product.name).toBe('');
     });
 
     it('throws for negative minPrice', () => {

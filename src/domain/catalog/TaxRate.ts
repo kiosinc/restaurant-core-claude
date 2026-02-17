@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
+import { requireString, requireNonNegativeNumber } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 
 export interface TaxRate extends BaseEntity {
@@ -19,7 +19,7 @@ export interface TaxRateInput {
 }
 
 export function createTaxRate(input: TaxRateInput & Partial<BaseEntity>): TaxRate {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   requireNonNegativeNumber('rate', input.rate);
   return {
     ...baseEntityDefaults(input),

@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString, requireNonNegativeNumber, requireNonNegativeInteger, requireMinLessOrEqual } from '../validation';
+import { requireString, requireNonNegativeNumber, requireNonNegativeInteger, requireMinLessOrEqual } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 import { ProductOptionSetSetting, OptionSetMeta } from './OptionSet';
 import { LocationInventoryMap } from './InventoryCount';
@@ -47,7 +47,7 @@ export interface Product extends BaseEntity {
 }
 
 export function createProduct(input: ProductInput & Partial<BaseEntity>): Product {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   requireNonNegativeNumber('minPrice', input.minPrice);
   requireNonNegativeNumber('maxPrice', input.maxPrice);
   requireMinLessOrEqual('minPrice', input.minPrice, 'maxPrice', input.maxPrice);

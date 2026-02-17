@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString } from '../validation';
+import { requireString } from '../validation';
 import { ProductMeta } from '../catalog/Product';
 
 export interface MenuGroupMeta {
@@ -30,7 +30,7 @@ export interface MenuGroup extends BaseEntity {
 }
 
 export function createMenuGroup(input: MenuGroupInput & Partial<BaseEntity>): MenuGroup {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   return {
     ...baseEntityDefaults(input),
     name: input.name,

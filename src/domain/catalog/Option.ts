@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireNonEmptyString, requireNonNegativeNumber } from '../validation';
+import { requireString, requireNonNegativeNumber } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 import { LocationInventoryMap } from './InventoryCount';
 
@@ -35,7 +35,7 @@ export interface Option extends BaseEntity {
 }
 
 export function createOption(input: OptionInput & Partial<BaseEntity>): Option {
-  requireNonEmptyString('name', input.name);
+  requireString('name', input.name);
   requireNonNegativeNumber('price', input.price);
   return {
     ...baseEntityDefaults(input),
