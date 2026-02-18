@@ -22,4 +22,6 @@ export * as Reports from './reports';
 
 // RTDB modules — not migrated, kept as-is
 export { default as EventNotification } from './restaurant/connected-accounts/EventNotification';
+
+// Firestore-based distributed lock
 export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';

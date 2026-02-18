@@ -116,4 +116,14 @@ describe('PathResolver', () => {
     PathResolver.onboardingOrdersCollection('biz-1');
     expect(lastPath).toBe('businesses/biz-1/private/onboarding/onboardingOrders');
   });
+
+  it('varsDoc returns correct path', () => {
+    PathResolver.varsDoc('biz-1');
+    expect(lastPath).toBe('businesses/biz-1/private/vars');
+  });
+
+  it('semaphoresCollection returns correct path', () => {
+    PathResolver.semaphoresCollection('biz-1');
+    expect(lastPath).toBe('businesses/biz-1/private/vars/semaphores');
+  });
 });

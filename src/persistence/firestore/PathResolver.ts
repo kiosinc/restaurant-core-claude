@@ -65,6 +65,10 @@ export class PathResolver {
     return this.privateCollection(businessId).doc(Paths.CollectionNames.onboarding);
   }
 
+  static varsDoc(businessId: string): FirebaseFirestore.DocumentReference {
+    return this.privateCollection(businessId).doc(Paths.CollectionNames.vars);
+  }
+
   // Child collection helpers
   static productsCollection(businessId: string): FirebaseFirestore.CollectionReference {
     return this.catalogDoc(businessId).collection(Paths.CollectionNames.products);
@@ -132,5 +136,9 @@ export class PathResolver {
 
   static onboardingOrdersCollection(businessId: string): FirebaseFirestore.CollectionReference {
     return this.onboardingDoc(businessId).collection(Paths.CollectionNames.onboardingOrders);
+  }
+
+  static semaphoresCollection(businessId: string): FirebaseFirestore.CollectionReference {
+    return this.varsDoc(businessId).collection(Paths.CollectionNames.semaphores);
   }
 }

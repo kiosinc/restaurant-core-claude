@@ -1,5 +1,5 @@
-import * as firebase from 'firebase-admin/database';
-
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { PathResolver } from '../../persistence/firestore/PathResolver';
 
 export default class Semaphore {
   isAvailable: boolean;
@@ -22,7 +22,6 @@ export default class Semaphore {
     isDeleted?: boolean,
     Id?: string,
   ) {
-    // super(created, updated, isDeleted, Id ?? type);
     const now = new Date();
 
     this.created = created ?? now;
@@ -34,69 +33,64 @@ export default class Semaphore {
   }
 
   static ref(businessId: string, type: string) {
-    const path = `/businesses/${businessId}/private/vars/semaphores/${type}`;
-
-    return firebase.getDatabase().ref(path);
+    return PathResolver.semaphoresCollection(businessId).doc(type);
   }
 
   static async lock(
     businessId: string,
     type: string,
   ) {
-    // Run transaction to get, and set isAvailable to false if it is free -- return true
-    // Otherwise don't update -- return false
-    const result = await Semaphore.ref(businessId, type).transaction((data) => {
-      const sema = data !== null ? Semaphore.firebaseConverter.fromData(data, type)
-        : new Semaphore(type, true);
+    const docRef = Semaphore.ref(businessId, type);
+    let acquired = false;
 
-      if (!sema.isAvailable) {
-        return undefined;
+    await getFirestore().runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(docRef);
+
+      if (snapshot.exists) {
+        const current = snapshot.data()!;
+        if (!current.isAvailable) return; // Lock held — no write, acquired stays false
       }
 
-      // Lock semaphore
-      sema.isAvailable = false;
-      sema.updated = new Date();
-      return Semaphore.firebaseConverter.toFirebase(sema);
-    }, (error, success, data) => {
-      if (error) {
-        throw error;
+      const data: Record<string, any> = {
+        isAvailable: false,
+        updated: FieldValue.serverTimestamp(),
+        isDeleted: false,
+      };
+      if (!snapshot.exists) {
+        data.created = FieldValue.serverTimestamp();
       }
-      if (!data) {
-        throw new Error(`${businessId} semaphore ${type} did not return data`);
-      }
+      transaction.set(docRef, data, { merge: true });
+      acquired = true;
     });
 
-    return result.committed;
+    return acquired;
   }
 
   static async release(
     businessId: string,
     type: string,
   ) {
-    // Run transaction to get, and set isAvailable to true if it is locked -- return true
-    // Otherwise don't update -- return false
-    const result = await Semaphore.ref(businessId, type).transaction((data) => {
-      const sema = data !== null ? Semaphore.firebaseConverter.fromData(data, type)
-        : new Semaphore(type, true);
+    const docRef = Semaphore.ref(businessId, type);
 
-      // Release semaphore
-      sema.isAvailable = true;
-      sema.updated = new Date();
-      return Semaphore.firebaseConverter.toFirebase(sema);
-    }, (error, success, data) => {
-      if (error) {
-        throw error;
+    await getFirestore().runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(docRef);
+
+      const data: Record<string, any> = {
+        isAvailable: true,
+        updated: FieldValue.serverTimestamp(),
+        isDeleted: false,
+      };
+      if (!snapshot.exists) {
+        data.created = FieldValue.serverTimestamp();
       }
-      if (!data) {
-        throw new Error(`${businessId} semaphore ${type} did not return data`);
-      }
+      transaction.set(docRef, data, { merge: true });
     });
 
-    return result.committed;
+    return true;
   }
 
-  static firebaseConverter = {
-    toFirebase(semaphore: Semaphore): any {
+  static firestoreConverter = {
+    toFirestore(semaphore: Semaphore): any {
       return {
         isAvailable: semaphore.isAvailable,
         created: semaphore.created.toISOString(),
@@ -104,12 +98,12 @@ export default class Semaphore {
         isDeleted: semaphore.isDeleted,
       };
     },
-    fromData(data: any, type: string): Semaphore {
+    fromFirestore(data: any, type: string): Semaphore {
       return new Semaphore(
         type,
         data.isAvailable,
-        new Date(data.created),
-        new Date(data.updated),
+        data.created?.toDate ? data.created.toDate() : new Date(data.created),
+        data.updated?.toDate ? data.updated.toDate() : new Date(data.updated),
         data.isDeleted,
       );
     },
