@@ -41,14 +41,13 @@ export default class Semaphore {
     type: string,
   ) {
     const docRef = Semaphore.ref(businessId, type);
-    let acquired = false;
 
-    await getFirestore().runTransaction(async (transaction) => {
+    const acquired = await getFirestore().runTransaction(async (transaction) => {
       const snapshot = await transaction.get(docRef);
 
       if (snapshot.exists) {
         const current = snapshot.data()!;
-        if (!current.isAvailable) return; // Lock held — no write, acquired stays false
+        if (!current.isAvailable) return false;
       }
 
       const data: Record<string, any> = {
@@ -60,7 +59,7 @@ export default class Semaphore {
         data.created = FieldValue.serverTimestamp();
       }
       transaction.set(docRef, data, { merge: true });
-      acquired = true;
+      return true;
     });
 
     return acquired;
@@ -74,6 +73,8 @@ export default class Semaphore {
 
     await getFirestore().runTransaction(async (transaction) => {
       const snapshot = await transaction.get(docRef);
+
+      if (snapshot.exists && snapshot.data()!.isAvailable) return;
 
       const data: Record<string, any> = {
         isAvailable: true,
