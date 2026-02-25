@@ -1,12 +1,10 @@
-import { createMetadataSpec } from '../../domain/MetadataSpec';
 import { Location, LocationMeta, locationMeta } from '../../domain/locations/Location';
 import { PathResolver } from './PathResolver';
-import * as Paths from '../../firestore-core/Paths';
+import { CollectionNames } from '../../firestore-core/Paths';
+import { createRootMetadataSpec } from './createRootMetadataSpec';
 
-export const locationMetadataSpec = createMetadataSpec<Location, LocationMeta>(
+export const locationMetadataSpec = createRootMetadataSpec<Location, LocationMeta>(
   locationMeta,
-  (entity, businessId) => [{
-    documentPath: PathResolver.locationsDoc(businessId).path,
-    fieldPath: `${Paths.CollectionNames.locations}.${entity.Id}`,
-  }],
+  (businessId) => PathResolver.locationsDoc(businessId),
+  CollectionNames.locations,
 );

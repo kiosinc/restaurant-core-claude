@@ -63,7 +63,7 @@ export class DailyKeyMetricReportV2 {
   }
 
   static locationReportPathV1(businessId: string, date: Date, locationId: string) {
-    // TODO: localization of date
+    // ISO date used intentionally for consistent, timezone-independent path keys
     const dateSplit = date.toISOString().split('T')[0].split('-');
     const year = dateSplit[0];
     const month = dateSplit[1];

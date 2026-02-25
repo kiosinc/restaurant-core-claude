@@ -6,10 +6,8 @@ export default class Semaphore {
 
   readonly Id: string;
 
-  // TODO   make optional
   readonly created: Date;
 
-  // TODO   make optional
   updated: Date;
 
   protected isDeleted: boolean;

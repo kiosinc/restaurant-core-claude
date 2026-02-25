@@ -1,12 +1,10 @@
-import { createMetadataSpec } from '../../domain/MetadataSpec';
 import { MenuGroup, MenuGroupMeta, menuGroupMeta } from '../../domain/surfaces/MenuGroup';
 import { PathResolver } from './PathResolver';
-import * as Paths from '../../firestore-core/Paths';
+import { CollectionNames } from '../../firestore-core/Paths';
+import { createRootMetadataSpec } from './createRootMetadataSpec';
 
-export const menuGroupMetadataSpec = createMetadataSpec<MenuGroup, MenuGroupMeta>(
+export const menuGroupMetadataSpec = createRootMetadataSpec<MenuGroup, MenuGroupMeta>(
   menuGroupMeta,
-  (entity, businessId) => [{
-    documentPath: PathResolver.surfacesDoc(businessId).path,
-    fieldPath: `${Paths.CollectionNames.menuGroups}.${entity.Id}`,
-  }],
+  (businessId) => PathResolver.surfacesDoc(businessId),
+  CollectionNames.menuGroups,
 );

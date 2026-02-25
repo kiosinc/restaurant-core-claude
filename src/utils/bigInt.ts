@@ -4,9 +4,7 @@ export const bigIntConverter = {
       ? BigInt(value)
       : value));
   },
-  // TODO: insert
-  // Number.MIN_SAFE_INTEGER
-  // Number.MAX_SAFE_INTEGER
+  // Note: does not validate safe integer bounds
   fromBigInt(object: any) {
     if (typeof object === 'object') {
       return JSON.parse(JSON.stringify(object, (key, value) => (typeof value === 'bigint'
