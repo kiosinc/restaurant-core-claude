@@ -2,6 +2,31 @@ import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
 import { requireString } from '../validation';
 import { MenuGroupMeta } from './MenuGroup';
 
+export interface MenuProductMeta {
+  isActive: boolean;
+  name: string;
+  imageGsls: string[];
+  minPrice: number;
+  variationCount: number;
+  description: string;
+}
+
+export interface MenuCollectionMeta {
+  name: string;
+  displayName: string;
+  imageGsls: string[];
+  videoGsls: string[];
+  isUserInteractionEnabled: boolean;
+  type: string;
+  hyperlink: string;
+}
+
+export interface MenuAsset {
+  assetType: 'product' | 'group' | 'collection' | 'htmlText';
+  assetId: string;
+  configuration?: any;
+}
+
 export interface MenuMeta {
   name: string;
   displayName: string | null;
@@ -18,6 +43,11 @@ export interface MenuInput {
   logoImageGsl?: string | null;
   gratuityRates?: number[];
   managedBy?: string | null;
+  collections?: { [id: string]: MenuCollectionMeta };
+  menuAssets?: { [id: string]: MenuAsset };
+  menuAssetDisplayOrder?: string[];
+  version?: string;
+  products?: { [id: string]: MenuProductMeta };
 }
 
 export interface Menu extends BaseEntity {
@@ -31,6 +61,11 @@ export interface Menu extends BaseEntity {
   logoImageGsl: string | null;
   gratuityRates: number[];
   managedBy: string | null;
+  collections?: { [id: string]: MenuCollectionMeta };
+  menuAssets?: { [id: string]: MenuAsset };
+  menuAssetDisplayOrder?: string[];
+  version?: string;
+  products?: { [id: string]: MenuProductMeta };
 }
 
 export function createMenu(input: MenuInput & Partial<BaseEntity>): Menu {
@@ -47,6 +82,11 @@ export function createMenu(input: MenuInput & Partial<BaseEntity>): Menu {
     logoImageGsl: input.logoImageGsl ?? null,
     gratuityRates: input.gratuityRates ?? [],
     managedBy: input.managedBy ?? null,
+    collections: input.collections,
+    menuAssets: input.menuAssets,
+    menuAssetDisplayOrder: input.menuAssetDisplayOrder,
+    version: input.version,
+    products: input.products,
   };
 }
 

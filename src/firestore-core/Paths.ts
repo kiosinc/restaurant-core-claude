@@ -30,8 +30,10 @@ export enum CollectionNames {
   kioskConfigurations = 'kioskConfigurations',
   surfaceConfigurations = 'surfaceConfigurations',
   checkoutOptions = 'checkoutOptions',
+  collections = 'collections',
   services = 'services',
   semaphores = 'semaphores',
+  inventory = 'inventory',
 
   orders = 'orders',
   locations = 'locations',

@@ -5,6 +5,7 @@ export interface BaseEntity {
   readonly created: Date;
   updated: Date;
   readonly isDeleted: boolean;
+  syncTraceId?: string;
 }
 
 export function generateId(): string {
@@ -18,5 +19,6 @@ export function baseEntityDefaults(input?: Partial<BaseEntity>): BaseEntity {
     created: input?.created ?? now,
     updated: input?.updated ?? now,
     isDeleted: input?.isDeleted ?? false,
+    ...(input?.syncTraceId !== undefined ? { syncTraceId: input.syncTraceId } : {}),
   };
 }

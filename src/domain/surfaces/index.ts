@@ -1,4 +1,4 @@
-export { Menu, MenuInput, MenuMeta, createMenu, menuMeta } from './Menu';
+export { Menu, MenuInput, MenuMeta, MenuProductMeta, MenuCollectionMeta, MenuAsset, createMenu, menuMeta } from './Menu';
 export { MenuGroup, MenuGroupInput, MenuGroupMeta, createMenuGroup, menuGroupMeta } from './MenuGroup';
 export {
   SurfaceConfiguration, createSurfaceConfiguration,
