@@ -118,6 +118,18 @@ export class PathResolver {
     return this.surfacesDoc(businessId).collection(Paths.CollectionNames.checkoutOptions);
   }
 
+  static collectionsCollection(businessId: string): FirebaseFirestore.CollectionReference {
+    return this.surfacesDoc(businessId).collection(Paths.CollectionNames.collections);
+  }
+
+  static inventoryRootDoc(businessId: string): FirebaseFirestore.DocumentReference {
+    return this.publicCollection(businessId).doc(Paths.CollectionNames.inventory);
+  }
+
+  static availabilityDoc(businessId: string, locationId: string): FirebaseFirestore.DocumentReference {
+    return this.inventoryRootDoc(businessId).collection(Paths.CollectionNames.inventory).doc(locationId);
+  }
+
   static locationsCollection(businessId: string): FirebaseFirestore.CollectionReference {
     return this.locationsDoc(businessId).collection(Paths.CollectionNames.locations);
   }

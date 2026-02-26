@@ -1,10 +1,15 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
 import { requireString } from '../validation';
 import { ProductMeta } from '../catalog/Product';
+import type { MenuProductMeta } from './Menu';
 
 export interface MenuGroupMeta {
   name: string;
   displayName: string | null;
+  imageGsls?: string[];
+  productDisplayOrder?: string[];
+  mirrorCategoryId?: string | null;
+  products?: { [id: string]: MenuProductMeta };
 }
 
 export interface MenuGroupInput {
