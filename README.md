@@ -188,6 +188,61 @@ Three levels of automatic denormalization happen inside transactions:
 
 Models that sync with external systems (Square POS) carry a `linkedObjects: LinkedObjectMap` field keyed by provider name. The `Event` model drives sync via a queue (`queueCap`/`queueCount`) that triggers Google Cloud Tasks.
 
+### Entity Relationships
+
+```mermaid
+erDiagram
+    Business ||--o{ Catalog : "public/"
+    Business ||--o{ Surfaces : "public/"
+    Business ||--o{ LocationsRoot : "public/"
+    Business ||--o{ OrderSettings : "private/"
+    Business ||--o{ ConnectedAccounts : "private/"
+    Business ||--o{ Services : "private/"
+    Business ||--o{ Onboarding : "private/"
+    Business {
+        string agent
+        string createdBy
+        BusinessType type
+        BusinessProfile businessProfile
+        map roles
+    }
+
+    Catalog ||--o{ Category : contains
+    Catalog ||--o{ Product : contains
+    Catalog ||--o{ OptionSet : contains
+    Catalog ||--o{ Option : contains
+    Catalog ||--o{ TaxRate : contains
+    Catalog ||--o{ Discount : contains
+    Catalog ||--o{ ServiceCharge : contains
+
+    Category ||--o{ Product : "products (ProductMeta)"
+    Product ||--o{ OptionSet : "optionSets (OptionSetMeta)"
+    OptionSet ||--o{ Option : "options (OptionMeta)"
+
+    Surfaces ||--o{ Menu : "menus (MenuMeta)"
+    Surfaces ||--o{ MenuGroup : "menuGroups (MenuGroupMeta)"
+    Surfaces ||--o{ KioskConfiguration : contains
+    Surfaces ||--o{ SurfaceConfiguration : contains
+    Surfaces ||--o{ CheckoutOptions : contains
+
+    Menu ||--o{ MenuGroup : "groups (MenuGroupMeta)"
+    MenuGroup ||--o{ Product : "products (ProductMeta)"
+    MenuGroup o|--o| Category : mirrorCategoryId
+
+    LocationsRoot ||--o{ Location : "locations (LocationMeta)"
+
+    OrderSettings ||--o{ Order : contains
+    Order }o--|| Location : locationId
+    Order }o--|| Menu : menuId
+
+    ConnectedAccounts ||--o{ Event : contains
+    ConnectedAccounts ||--o{ Token : contains
+
+    Onboarding ||--o{ OnboardingOrder : contains
+
+    KioskConfiguration }o--o| CheckoutOptions : checkoutOptionId
+```
+
 ### Exports
 
 The library uses namespace-style barrel exports:
