@@ -31,13 +31,14 @@ After adding or changing dependencies in `package.json`, always run `rm -rf node
 
 ### Domain Structure
 
-All business logic lives under `src/restaurant/` organized by subdomain:
-- **roots/** — Aggregate root classes (Business, Catalog, Orders, Surfaces, Locations, ConnectedAccounts) that manage Firestore sub-collections
+All business logic lives under `src/domain/` organized by subdomain:
+- **roots/** — Aggregate root interfaces (Business, Catalog, Orders, Surfaces, Locations, ConnectedAccounts, Services, Onboarding)
 - **catalog/** — Products, Categories, OptionSets, Options, TaxRates, Discounts, ServiceCharges, InventoryCount
-- **orders/** — OrderV3 (current order format), OrderSymbols (state enums)
-- **surfaces/** — Menu, MenuGroup, KioskConfiguration, CheckoutOptions
+- **orders/** — Order, OrderSymbols (state enums)
+- **surfaces/** — Menu, MenuGroup, KioskConfiguration, CheckoutOptions, SurfaceConfiguration
 - **locations/** — Location model with location-specific settings
 - **connected-accounts/** — External integrations (Square POS), Event queue, Tokens
+- **services/** — CatalogCascadeService (denormalization cascade), MenuRebuildService (menu rebuild from catalog), AvailabilityService (per-location product/option availability), FeatureFlagService (cached feature flags)
 
 Supporting modules:
 - **src/firestore-core/** — Base persistence classes and Firestore path constants
@@ -47,17 +48,17 @@ Supporting modules:
 
 ### Key Patterns
 
-**Base classes:** Domain models extend `FirestoreObject` (v1) or `FirestoreObjectV2` (v2). V2 adds generic CRUD helpers and `businessId` support. Newer models use V2; older ones still use V1.
+**Domain models:** Every domain model is a TypeScript interface extending `BaseEntity`, paired with a `create*()` factory function. No class inheritance — pure data + factory functions.
 
-**Firestore converters:** Every model has a static `firestoreConverter` with `toFirestore()` and `fromFirestore()` methods for serialization.
+**Firestore converters:** Converters live in `src/persistence/firestore/converters/` using `createConverter<T>()` with optional `FieldTransform` overrides for model-specific serialization (e.g., Timestamps, legacy field aliases).
 
-**Static factory methods:** Models expose static `get()`, `find()`, and `collectionRef()` methods for data access. Most operations require a `businessId` for multi-tenancy.
+**Persistence:** `FirestoreRepository<T>` is a generic, non-subclassed repository instantiated with a config. Provides `get()`, `set()`, `delete()`, and `findByLinkedObject()`. Path resolution is centralized in `PathResolver`.
 
-**Metadata system:** `*Meta` classes (ProductMeta, CategoryMeta, etc.) track cross-document relationships via `metaLinks()` and `metadata()` methods on domain objects.
+**Metadata system:** `*Meta` interfaces (ProductMeta, CategoryMeta, etc.) track cross-document relationships. `MetadataSpec` declarations define how entity metadata propagates to parent/root documents during transactional saves.
 
 **LinkedObject:** Cross-collection references with external provider tracking (for Square POS sync).
 
-**Event queue:** `Event` class manages sync state with `queueCap`, `queueCount`, and `isSync` properties. Events trigger Google Cloud Tasks via `createHttpTask()`.
+**Event queue:** `Event` model manages sync state with `queueCap`, `queueCount`, and `isSync` properties. Events trigger Google Cloud Tasks via `createHttpTask()`.
 
 **Collection paths:** `src/firestore-core/Paths.ts` centralizes all Firestore collection name constants.
 

@@ -32,13 +32,13 @@ src/
 ├── domain/                    # Pure TypeScript domain models (no Firebase imports)
 │   ├── catalog/               #   Product, Category, OptionSet, Option, TaxRate, Discount, ServiceCharge
 │   ├── orders/                #   Order, OrderSymbols (state enums)
-│   ├── surfaces/              #   Menu, MenuGroup, KioskConfiguration, CheckoutOptions, SurfaceConfiguration
+│   ├── surfaces/              #   Menu, MenuGroup, KioskConfiguration, CheckoutOptions, SurfaceConfiguration, MenuProductMeta, MenuCollectionMeta, MenuAsset
 │   ├── locations/             #   Location
 │   ├── connected-accounts/    #   Event, Token
 │   ├── roots/                 #   Business, Catalog, Surfaces, Locations, Orders, ConnectedAccounts, Services, Onboarding
 │   ├── onboarding/            #   OnboardingOrder
 │   ├── misc/                  #   Address, BusinessProfile (value objects)
-│   ├── services/              #   CatalogCascadeService (pure domain logic)
+│   ├── services/              #   CatalogCascadeService, MenuRebuildService, AvailabilityService, FeatureFlagService
 │   ├── BaseEntity.ts          #   Base interface for all domain models
 │   ├── MetadataSpec.ts        #   Denormalization contract
 │   ├── LinkedObjectRef.ts     #   External provider cross-references
@@ -111,6 +111,7 @@ interface BaseEntity {
   readonly created: Date;
   updated: Date;
   readonly isDeleted: boolean;
+  syncTraceId?: string;
 }
 ```
 
@@ -148,7 +149,10 @@ Each business has 8 singleton root documents that hold denormalized maps of thei
 │   ├── /menuGroups/{id}
 │   ├── /kioskConfigurations/{id}
 │   ├── /surfaceConfigurations/{id}
-│   └── /checkoutOptions/{id}
+│   ├── /checkoutOptions/{id}
+│   └── /collections/{id}
+├── /public/inventory
+│   └── /inventory/{locationId}         (availability per location)
 ├── /public/locations
 │   └── /locations/{id}
 ├── /private/connectedAccounts
