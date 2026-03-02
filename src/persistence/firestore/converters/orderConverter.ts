@@ -10,7 +10,7 @@ export const orderConverter = createConverter<Order>(
     toFirestore: (order) => ({ timestamp: order.timestamp.toISOString() }),
     fromFirestore: (data) => ({
       timestamp: new Date(data.timestamp),
-      totalTipAmount: data.totalTipAmount ?? 0,
+      totalTipAmount: Number(data.totalTipAmount ?? 0),
       referralCode: data.referralCode ?? null,
       source: data.source ?? null,
       tags: data.tags ?? null,

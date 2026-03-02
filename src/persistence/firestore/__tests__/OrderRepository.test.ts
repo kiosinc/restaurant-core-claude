@@ -255,6 +255,19 @@ describe('OrderRepository', () => {
     expect(result!.totalTipAmount).toBe(0);
   });
 
+  it('fromFirestore coerces string totalTipAmount to number', async () => {
+    const serialized = createFullSerializedOrder();
+    (serialized as any).totalTipAmount = '100';
+    mockDocRef.get.mockResolvedValue({
+      exists: true,
+      data: () => serialized,
+      id: 'order-1',
+    });
+
+    const result = await repo.get('biz-1', 'order-1');
+    expect(result!.totalTipAmount).toBe(100);
+  });
+
   it('findByLinkedObject() queries correct field path', async () => {
     mockQuery.get.mockResolvedValue({
       docs: [{
