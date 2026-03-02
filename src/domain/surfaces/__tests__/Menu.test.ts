@@ -81,6 +81,31 @@ describe('Menu (domain)', () => {
     expect(menu.managedBy).toBeNull();
   });
 
+  it('defaults collections to {}', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.collections).toEqual({});
+  });
+
+  it('defaults menuAssets to {}', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.menuAssets).toEqual({});
+  });
+
+  it('defaults menuAssetDisplayOrder to []', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.menuAssetDisplayOrder).toEqual([]);
+  });
+
+  it('defaults version to null', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.version).toBeNull();
+  });
+
+  it('defaults products to {}', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.products).toEqual({});
+  });
+
   it('menuMeta() returns MenuMeta', () => {
     const menu = createMenu(createTestMenuInput({
       name: 'Dinner',
