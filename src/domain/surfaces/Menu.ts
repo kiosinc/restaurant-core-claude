@@ -61,11 +61,11 @@ export interface Menu extends BaseEntity {
   logoImageGsl: string | null;
   gratuityRates: number[];
   managedBy: string | null;
-  collections?: { [id: string]: MenuCollectionMeta };
-  menuAssets?: { [id: string]: MenuAsset };
-  menuAssetDisplayOrder?: string[];
-  version?: string;
-  products?: { [id: string]: MenuProductMeta };
+  collections: { [id: string]: MenuCollectionMeta };
+  menuAssets: { [id: string]: MenuAsset };
+  menuAssetDisplayOrder: string[];
+  version: string | null;
+  products: { [id: string]: MenuProductMeta };
 }
 
 export function createMenu(input: MenuInput & Partial<BaseEntity>): Menu {
@@ -82,11 +82,11 @@ export function createMenu(input: MenuInput & Partial<BaseEntity>): Menu {
     logoImageGsl: input.logoImageGsl ?? null,
     gratuityRates: input.gratuityRates ?? [],
     managedBy: input.managedBy ?? null,
-    collections: input.collections,
-    menuAssets: input.menuAssets,
-    menuAssetDisplayOrder: input.menuAssetDisplayOrder,
-    version: input.version,
-    products: input.products,
+    collections: input.collections ?? {},
+    menuAssets: input.menuAssets ?? {},
+    menuAssetDisplayOrder: input.menuAssetDisplayOrder ?? [],
+    version: input.version ?? null,
+    products: input.products ?? {},
   };
 }
 
