@@ -123,7 +123,7 @@ describe('PathResolver', () => {
   });
 
   it('semaphoresCollection returns correct path', () => {
-    PathResolver.semaphoresCollection('biz-1');
-    expect(lastPath).toBe('businesses/biz-1/private/vars/semaphores');
+    PathResolver.semaphoresCollection();
+    expect(lastPath).toBe('semaphores');
   });
 });

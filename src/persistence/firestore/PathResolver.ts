@@ -150,7 +150,7 @@ export class PathResolver {
     return this.onboardingDoc(businessId).collection(Paths.CollectionNames.onboardingOrders);
   }
 
-  static semaphoresCollection(businessId: string): FirebaseFirestore.CollectionReference {
-    return this.varsDoc(businessId).collection(Paths.CollectionNames.semaphores);
+  static semaphoresCollection(): FirebaseFirestore.CollectionReference {
+    return this.db().collection(Paths.CollectionNames.semaphores);
   }
 }

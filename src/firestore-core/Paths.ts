@@ -32,7 +32,6 @@ export enum CollectionNames {
   checkoutOptions = 'checkoutOptions',
   collections = 'collections',
   services = 'services',
-  semaphores = 'semaphores',
   inventory = 'inventory',
 
   orders = 'orders',
@@ -40,4 +39,6 @@ export enum CollectionNames {
 
   onboarding = 'onboarding',
   onboardingOrders = 'onboardingOrders',
+
+  semaphores = 'semaphores',
 }
