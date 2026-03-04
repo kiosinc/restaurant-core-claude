@@ -31,7 +31,7 @@ export default class Semaphore {
   }
 
   static ref(businessId: string, type: string) {
-    return PathResolver.semaphoresCollection(businessId).doc(type);
+    return PathResolver.semaphoresCollection().doc(`${businessId}_${type}`);
   }
 
   static async lock(

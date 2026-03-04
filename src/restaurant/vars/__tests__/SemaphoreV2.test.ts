@@ -8,7 +8,7 @@ const mockTransaction = {
 };
 
 const mockDocRef = {
-  path: 'businesses/biz-1/private/vars/semaphores/catalog',
+  path: 'semaphores/biz-1_catalog',
 };
 
 const mockCollectionRef = {
@@ -41,8 +41,8 @@ describe('SemaphoreV2', () => {
   describe('ref()', () => {
     it('constructs correct Firestore path via PathResolver', () => {
       Semaphore.ref('biz-1', 'catalog');
-      expect(PathResolver.semaphoresCollection).toHaveBeenCalledWith('biz-1');
-      expect(mockCollectionRef.doc).toHaveBeenCalledWith('catalog');
+      expect(PathResolver.semaphoresCollection).toHaveBeenCalledWith();
+      expect(mockCollectionRef.doc).toHaveBeenCalledWith('biz-1_catalog');
     });
   });
 
