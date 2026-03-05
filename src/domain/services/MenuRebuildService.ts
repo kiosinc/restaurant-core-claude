@@ -39,7 +39,7 @@ function extractAssetIdsByType(
   type: MenuAsset['assetType'],
 ): string[] {
   return Object.values(menuAssets)
-    .filter((asset) => asset.assetType === type)
+    .filter((asset) => asset.assetType === type && asset.assetId)
     .map((asset) => asset.assetId);
 }
 
@@ -94,7 +94,7 @@ async function resolveMenuIds(
     const groupDocs = await batchGetDocs(db, menuGroupsRef, [...allGroupIds]);
     const groupProductMap = new Map<string, string[]>();
     for (const g of groupDocs) {
-      groupProductMap.set(g.id, g.data.productDisplayOrder ?? []);
+      groupProductMap.set(g.id, (g.data.productDisplayOrder ?? []).filter((pid: string) => pid));
     }
 
     // Check containment
@@ -133,12 +133,12 @@ function materializeGroups(
   for (const group of menuGroups) {
     if (group.data.isDeleted) continue;
 
-    let productDisplayOrder: string[] = group.data.productDisplayOrder ?? [];
+    let productDisplayOrder: string[] = (group.data.productDisplayOrder ?? []).filter((pid: string) => pid);
     const mirrorCatId = group.data.mirrorCategoryId;
     if (mirrorCatId) {
       const cat = categoryMap.get(mirrorCatId);
       if (cat && !cat.data.isDeleted) {
-        productDisplayOrder = cat.data.productDisplayOrder ?? [];
+        productDisplayOrder = (cat.data.productDisplayOrder ?? []).filter((pid: string) => pid);
       }
     }
 
@@ -212,7 +212,7 @@ async function rebuildSingleMenu(
   const mirrorCategoryIds = new Set<string>();
   for (const group of menuGroups) {
     if (group.data.isDeleted) continue;
-    const displayOrder: string[] = group.data.productDisplayOrder ?? [];
+    const displayOrder: string[] = (group.data.productDisplayOrder ?? []).filter((pid: string) => pid);
     for (const pid of displayOrder) allProductIds.add(pid);
     if (group.data.mirrorCategoryId) mirrorCategoryIds.add(group.data.mirrorCategoryId);
   }
@@ -268,9 +268,10 @@ async function batchGetDocs(
   collectionRef: FirebaseFirestore.CollectionReference,
   ids: string[],
 ): Promise<DocData[]> {
-  if (ids.length === 0) return [];
+  const validIds = ids.filter((id) => id);
+  if (validIds.length === 0) return [];
 
-  const refs = ids.map((id) => collectionRef.doc(id));
+  const refs = validIds.map((id) => collectionRef.doc(id));
   const snapshots = await db.getAll(...refs);
 
   return snapshots
