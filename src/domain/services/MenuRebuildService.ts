@@ -38,9 +38,9 @@ function extractAssetIdsByType(
   menuAssets: Record<string, MenuAsset>,
   type: MenuAsset['assetType'],
 ): string[] {
-  return Object.values(menuAssets)
-    .filter((asset) => asset.assetType === type && asset.assetId)
-    .map((asset) => asset.assetId);
+  return Object.entries(menuAssets)
+    .filter(([, asset]) => asset.assetType === type)
+    .map(([id]) => id);
 }
 
 export async function rebuildMenus(businessId: string, scope?: RebuildScope): Promise<void> {
