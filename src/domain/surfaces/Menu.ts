@@ -23,7 +23,6 @@ export interface MenuCollectionMeta {
 
 export interface MenuAsset {
   assetType: 'product' | 'group' | 'collection' | 'htmlText';
-  assetId: string;
   configuration?: any;
 }
 

@@ -353,14 +353,48 @@ describe('MenuRebuildService', () => {
           isDeleted: false, created: new Date(), updated: new Date(), version: '1.0',
           groupDisplayOrder: ['g1'],
           groups: { g1: { name: 'Deleted Group', displayName: 'X' } },
-          menuAssets: { a1: { assetType: 'group', assetId: 'g1' } },
-          menuAssetDisplayOrder: ['a1'],
+          menuAssets: { g1: { assetType: 'group' } },
+          menuAssetDisplayOrder: ['g1'],
         },
       }]);
 
       await rebuildMenus(BUSINESS_ID);
       expect(transactionSets).toHaveLength(1);
       expect(transactionSets[0].data.groups).toEqual({});
+    });
+
+    it('includes menu group added without legacy assetId field', async () => {
+      registerCollection(MENU_GROUPS_PATH, [
+        ...menuGroups,
+        {
+          id: 'new-group',
+          data: {
+            name: 'New Group', displayName: 'New', isDeleted: false,
+            productDisplayOrder: ['ozil5WuJ4qeSGhwcusPS'],
+            imageGsls: [], mirrorCategoryId: null,
+          },
+        },
+      ]);
+      registerCollection(MENUS_PATH, [
+        ...menus,
+        {
+          id: 'testMenu',
+          data: {
+            name: 'Test', displayName: null, coverImageGsl: null, coverBackgroundImageGsl: null,
+            coverVideoGsl: null, logoImageGsl: null, gratuityRates: [], managedBy: null,
+            isDeleted: false, created: new Date(), updated: new Date(), version: '1.0',
+            groupDisplayOrder: ['new-group'],
+            groups: { 'new-group': { name: 'New Group', displayName: 'New' } },
+            menuAssets: { 'new-group': { assetType: 'group' } },
+            menuAssetDisplayOrder: ['new-group'],
+          },
+        },
+      ]);
+
+      await rebuildMenus(BUSINESS_ID, { menuIds: ['testMenu'] });
+      expect(transactionSets).toHaveLength(1);
+      expect(transactionSets[0].data.groups['new-group']).toBeDefined();
+      expect(transactionSets[0].data.groups['new-group'].name).toBe('New Group');
     });
 
     it('scope union: combining changedProductIds and changedCollectionIds', async () => {
