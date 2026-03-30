@@ -1,6 +1,3 @@
-/**
- * Models for report tasking
- */
 export class ReportTaskEvent {
   businessId: string;
 
@@ -10,13 +7,13 @@ export class ReportTaskEvent {
 
   createdAt: string;
 
-  data: any;
+  data: object;
 
   constructor(businessId: string,
     type: string,
     idempotentKey: string,
     createdAt: Date,
-    data: any = {}) {
+    data: object = {}) {
     this.businessId = businessId;
     this.type = type;
     this.idempotentKey = idempotentKey;

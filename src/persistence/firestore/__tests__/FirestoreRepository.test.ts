@@ -112,7 +112,7 @@ describe('FirestoreRepository', () => {
 
   it('delete() removes doc + cleans metadata', async () => {
     registry.register('simple', simpleSpec);
-    mockDocRef.get.mockResolvedValue({
+    mockTransaction.get.mockResolvedValue({
       exists: true,
       data: () => ({ name: 'to-delete' }),
       id: 'del-1',
@@ -127,11 +127,12 @@ describe('FirestoreRepository', () => {
   });
 
   it('delete() no-op when missing', async () => {
-    mockDocRef.get.mockResolvedValue({ exists: false });
+    mockTransaction.get.mockResolvedValue({ exists: false });
 
     await repo.delete('biz-1', 'missing');
 
-    expect(mockDb.runTransaction).not.toHaveBeenCalled();
+    expect(mockDb.runTransaction).toHaveBeenCalled();
+    expect(mockTransaction.delete).not.toHaveBeenCalled();
   });
 
   it('findByLinkedObject() returns entity', async () => {
@@ -246,7 +247,7 @@ describe('FirestoreRepository', () => {
     });
 
     it('delete() invokes handler.onDelete() inside transaction when handler is registered', async () => {
-      mockDocRef.get.mockResolvedValue({
+      mockTransaction.get.mockResolvedValue({
         exists: true,
         data: () => ({ name: 'to-delete' }),
         id: 'del-1',

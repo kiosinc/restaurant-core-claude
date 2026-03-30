@@ -3,13 +3,14 @@ import { BaseEntity } from '../../../domain/BaseEntity';
 import { baseFieldsToFirestore, baseFieldsFromFirestore } from './baseFields';
 
 export interface FieldTransform<T> {
-  toFirestore?: (entity: T) => Record<string, any>;
-  fromFirestore?: (data: FirebaseFirestore.DocumentData, businessId: string) => Record<string, any>;
+  toFirestore?: (entity: T) => Record<string, unknown>;
+  fromFirestore?: (data: FirebaseFirestore.DocumentData, businessId: string) => Record<string, unknown>;
 }
 
 export function createConverter<T extends BaseEntity>(
   modelKey: string,
   collectionRef: (businessId: string) => FirebaseFirestore.CollectionReference,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Each model has a different input type; Firestore data is untyped at read time
   createFn: (input: any) => T,
   fieldTransform?: FieldTransform<T>,
 ): FirestoreRepositoryConfig<T> {

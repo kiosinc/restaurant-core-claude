@@ -5,7 +5,7 @@ import { RelationshipHandler } from './RelationshipHandler';
 
 export interface CascadeHandlerConfig<T extends BaseEntity> {
   parentCollection: (businessId: string) => FirebaseFirestore.CollectionReference;
-  parentQuery: (entity: T) => [field: string, op: FirebaseFirestore.WhereFilterOp, value: any];
+  parentQuery: (entity: T) => [field: string, op: FirebaseFirestore.WhereFilterOp, value: unknown];
   onSaved: (entity: T, parentIds: string[]) => ParentUpdate[];
   onDeleted: (entity: T, parentIds: string[]) => ParentUpdate[];
 }
@@ -35,7 +35,7 @@ export class CascadeRelationshipHandler<T extends BaseEntity> implements Relatio
     transaction: FirebaseFirestore.Transaction,
   ): void {
     for (const { parentId, update } of updates) {
-      const data: Record<string, any> = {
+      const data: Record<string, unknown> = {
         ...update.fieldsToSet,
         ...Object.fromEntries(update.fieldsToDelete.map((f) => [f, FieldValue.delete()])),
         ...Object.fromEntries(Object.entries(update.arrayFieldRemovals).map(([f, v]) => [f, FieldValue.arrayRemove(v)])),

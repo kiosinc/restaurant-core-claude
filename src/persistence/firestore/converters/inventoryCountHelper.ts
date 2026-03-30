@@ -1,10 +1,16 @@
 import { InventoryCount, InventoryCountState, LocationInventoryMap, defaultInventoryCount }
   from '../../../domain/catalog/InventoryCount';
 
+/** Firestore-persisted state values (lowercase, no camelCase). */
+const InventoryCountFirestoreState = {
+  inStock: 'instock',
+  soldOut: 'soldout',
+} as const;
+
 export function inventoryCountToFirestore(inventory: InventoryCount): FirebaseFirestore.DocumentData {
   const data: Record<string, unknown> = {
     count: inventory.count,
-    state: inventory.state === InventoryCountState.inStock ? 'instock' : 'soldout',
+    state: inventory.state === InventoryCountState.inStock ? InventoryCountFirestoreState.inStock : InventoryCountFirestoreState.soldOut,
     isAvailable: inventory.isAvailable,
   };
   if (inventory.timestamp) {
@@ -13,11 +19,11 @@ export function inventoryCountToFirestore(inventory: InventoryCount): FirebaseFi
   return data;
 }
 
-export function inventoryCountFromFirestore(data: any): InventoryCount {
+export function inventoryCountFromFirestore(data: FirebaseFirestore.DocumentData): InventoryCount {
   if (!data) return defaultInventoryCount();
   return {
     count: data.count ?? -1,
-    state: data.state === 'soldout' ? InventoryCountState.soldOut : InventoryCountState.inStock,
+    state: data.state === InventoryCountFirestoreState.soldOut ? InventoryCountState.soldOut : InventoryCountState.inStock,
     isAvailable: data.isAvailable ?? true,
     timestamp: data.timestamp ? new Date(data.timestamp) : undefined,
   };
@@ -34,7 +40,7 @@ export function locationInventoryToFirestore(
 }
 
 export function locationInventoryFromFirestore(
-  data: any,
+  data: FirebaseFirestore.DocumentData,
 ): LocationInventoryMap {
   if (!data) return {};
   const result: LocationInventoryMap = {};

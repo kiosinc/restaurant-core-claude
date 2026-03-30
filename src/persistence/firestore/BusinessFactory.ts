@@ -68,7 +68,8 @@ export async function createBusiness(input: CreateBusinessInput): Promise<string
   await getFirestore().runTransaction(async (t) => {
     // Feature list
     const featureListQuery = getFirestore().doc(FEATURELIST_PATH);
-    const featureList = await t.get(featureListQuery).then((d) => d.data());
+    const featureListSnap = await t.get(featureListQuery);
+    const featureList = featureListSnap.data();
 
     t.set(PathResolver.businessDoc(businessId), businessConverter.toFirestore(business));
     t.set(PathResolver.catalogDoc(businessId), catalogConverter.toFirestore(catalog));

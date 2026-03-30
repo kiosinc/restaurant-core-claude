@@ -53,17 +53,21 @@ export async function setOptionAvailability(
   );
 }
 
+function prefixKeys(prefix: string, entries: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [id, value] of Object.entries(entries)) {
+    result[`${prefix}.${id}`] = value;
+  }
+  return result;
+}
+
 export async function setProductAvailabilityBatch(
   businessId: string,
   locationId: string,
   products: { [pid: string]: ProductAvailability },
 ): Promise<void> {
   const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  const updates: Record<string, ProductAvailability> = {};
-  for (const [pid, avail] of Object.entries(products)) {
-    updates[`products.${pid}`] = avail;
-  }
-  await docRef.set(updates, { merge: true });
+  await docRef.set(prefixKeys('products', products), { merge: true });
 }
 
 export async function updateAvailability(
@@ -74,19 +78,12 @@ export async function updateAvailability(
     options?: { [oid: string]: OptionAvailability };
   },
 ): Promise<void> {
-  const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  const dotUpdates: Record<string, ProductAvailability | OptionAvailability> = {};
-  if (updates.products) {
-    for (const [pid, avail] of Object.entries(updates.products)) {
-      dotUpdates[`products.${pid}`] = avail;
-    }
-  }
-  if (updates.options) {
-    for (const [oid, avail] of Object.entries(updates.options)) {
-      dotUpdates[`options.${oid}`] = avail;
-    }
-  }
+  const dotUpdates: Record<string, unknown> = {
+    ...(updates.products ? prefixKeys('products', updates.products) : {}),
+    ...(updates.options ? prefixKeys('options', updates.options) : {}),
+  };
   if (Object.keys(dotUpdates).length > 0) {
+    const docRef = PathResolver.availabilityDoc(businessId, locationId);
     await docRef.set(dotUpdates, { merge: true });
   }
 }

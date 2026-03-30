@@ -1,3 +1,5 @@
+import { standardizedDate } from '../utils/dateFormat';
+
 export default class LocationKeyMetricReport {
   created: Date;
 
@@ -32,9 +34,9 @@ export default class LocationKeyMetricReport {
     this.updated = updated ?? now;
   }
 
-  public static initFromDataSnapshot(snap: any) {
+  public static initFromDataSnapshot(snap: FirebaseFirestore.DocumentData) {
     const now = new Date();
-    const obj = new LocationKeyMetricReport(
+    return new LocationKeyMetricReport(
       snap.businessId,
       snap.locationId,
       snap.firstOrderDate ?? null,
@@ -43,22 +45,13 @@ export default class LocationKeyMetricReport {
       snap.created ? new Date(snap.created) : now,
       snap.updated ? new Date(snap.updated) : now,
     );
-
-    return obj;
   }
 
   static locationReportPath(businessId: string, locationId: string) {
-    const path = `locationKeyMetrics/${locationId}`;
-
-    return path;
+    return `locationKeyMetrics/${locationId}`;
   }
 
   static standardizedDate(date: Date) {
-    const dateSplit = date.toISOString().split('T')[0].split('-');
-    const year = dateSplit[0];
-    const month = `00${dateSplit[1]}`.slice(-2);
-    const day = `00${dateSplit[2]}`.slice(-2);
-
-    return `${year}/${month}/${day}`;
+    return standardizedDate(date);
   }
 }

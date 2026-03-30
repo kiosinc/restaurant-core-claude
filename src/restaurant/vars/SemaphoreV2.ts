@@ -48,7 +48,7 @@ export default class Semaphore {
         if (!current.isAvailable) return false;
       }
 
-      const data: Record<string, any> = {
+      const data: Record<string, unknown> = {
         isAvailable: false,
         updated: FieldValue.serverTimestamp(),
         isDeleted: false,
@@ -74,7 +74,7 @@ export default class Semaphore {
 
       if (snapshot.exists && snapshot.data()!.isAvailable) return;
 
-      const data: Record<string, any> = {
+      const data: Record<string, unknown> = {
         isAvailable: true,
         updated: FieldValue.serverTimestamp(),
         isDeleted: false,
@@ -89,7 +89,7 @@ export default class Semaphore {
   }
 
   static firestoreConverter = {
-    toFirestore(semaphore: Semaphore): any {
+    toFirestore(semaphore: Semaphore): FirebaseFirestore.DocumentData {
       return {
         isAvailable: semaphore.isAvailable,
         created: semaphore.created.toISOString(),
@@ -97,7 +97,7 @@ export default class Semaphore {
         isDeleted: semaphore.isDeleted,
       };
     },
-    fromFirestore(data: any, type: string): Semaphore {
+    fromFirestore(data: FirebaseFirestore.DocumentData, type: string): Semaphore {
       return new Semaphore(
         type,
         data.isAvailable,

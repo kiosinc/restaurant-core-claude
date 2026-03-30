@@ -23,8 +23,8 @@ interface MaterializedMenuDoc {
   logoImageGsl: string | null;
   gratuityRates: number[];
   managedBy: string | null;
-  created: any;
-  updated: any;
+  created: FirebaseFirestore.Timestamp;
+  updated: FirebaseFirestore.Timestamp;
   isDeleted: boolean;
   groups: Record<string, MenuGroupMeta>;
   groupDisplayOrder: string[];
@@ -32,6 +32,11 @@ interface MaterializedMenuDoc {
   menuAssets: Record<string, MenuAsset>;
   menuAssetDisplayOrder: string[];
   version?: string;
+}
+
+/** Filters out empty-string IDs from a Firestore productDisplayOrder array. */
+function validProductIds(displayOrder: unknown): string[] {
+  return ((displayOrder as string[] | undefined) ?? []).filter((pid: string) => pid);
 }
 
 function extractAssetIdsByType(
@@ -94,7 +99,7 @@ async function resolveMenuIds(
     const groupDocs = await batchGetDocs(db, menuGroupsRef, [...allGroupIds]);
     const groupProductMap = new Map<string, string[]>();
     for (const g of groupDocs) {
-      groupProductMap.set(g.id, (g.data.productDisplayOrder ?? []).filter((pid: string) => pid));
+      groupProductMap.set(g.id, validProductIds(g.data.productDisplayOrder));
     }
 
     // Check containment
@@ -133,12 +138,12 @@ function materializeGroups(
   for (const group of menuGroups) {
     if (group.data.isDeleted) continue;
 
-    let productDisplayOrder: string[] = (group.data.productDisplayOrder ?? []).filter((pid: string) => pid);
+    let productDisplayOrder = validProductIds(group.data.productDisplayOrder);
     const mirrorCatId = group.data.mirrorCategoryId;
     if (mirrorCatId) {
       const cat = categoryMap.get(mirrorCatId);
       if (cat && !cat.data.isDeleted) {
-        productDisplayOrder = (cat.data.productDisplayOrder ?? []).filter((pid: string) => pid);
+        productDisplayOrder = validProductIds(cat.data.productDisplayOrder);
       }
     }
 
@@ -212,7 +217,7 @@ async function rebuildSingleMenu(
   const mirrorCategoryIds = new Set<string>();
   for (const group of menuGroups) {
     if (group.data.isDeleted) continue;
-    const displayOrder: string[] = (group.data.productDisplayOrder ?? []).filter((pid: string) => pid);
+    const displayOrder = validProductIds(group.data.productDisplayOrder);
     for (const pid of displayOrder) allProductIds.add(pid);
     if (group.data.mirrorCategoryId) mirrorCategoryIds.add(group.data.mirrorCategoryId);
   }

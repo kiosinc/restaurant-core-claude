@@ -32,9 +32,9 @@ describe('MenuGroup (domain)', () => {
     expect(mg.managedBy).toBe('square');
   });
 
-  it('defaults displayName to empty string', () => {
+  it('defaults displayName to null', () => {
     const mg = createMenuGroup(createTestMenuGroupInput());
-    expect(mg.displayName).toBe('');
+    expect(mg.displayName).toBeNull();
   });
 
   it('defaults products to {}', () => {

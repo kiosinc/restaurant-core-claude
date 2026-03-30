@@ -16,6 +16,7 @@ export interface ParentUpdate {
 
 export interface CascadeSpec {
   mapField: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Each spec uses a different entity subtype (Product, OptionSet, Option)
   metaFn: (entity: any) => object;
   /** Additional map fields to delete alongside the main mapField entry (e.g. 'optionSetsSelection') */
   additionalDeleteFields?: string[];

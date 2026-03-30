@@ -30,7 +30,7 @@ export class FirestoreRepository<T extends BaseEntity> {
     const docRef = this.cfg.collectionRef(businessId).doc(id);
     const snapshot = await docRef.get();
     if (!snapshot.exists) return null;
-    const data = this.dateify(snapshot.data() as Record<string, any>);
+    const data = this.dateify(snapshot.data() as Record<string, unknown>);
     return this.cfg.fromFirestore(data, snapshot.id, businessId);
   }
 
@@ -65,15 +65,18 @@ export class FirestoreRepository<T extends BaseEntity> {
   }
 
   async delete(businessId: string, id: string): Promise<void> {
-    const entity = await this.get(businessId, id);
-    if (!entity) return;
-
     const docRef = this.cfg.collectionRef(businessId).doc(id);
-    const metaLinks = this.resolveMetaLinks(entity, businessId);
     const handler = this.resolveHandler();
 
     const db = getFirestore();
     await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(docRef);
+      if (!snapshot.exists) return;
+
+      const data = this.dateify(snapshot.data() as Record<string, unknown>);
+      const entity = this.cfg.fromFirestore(data, snapshot.id, businessId);
+      const metaLinks = this.resolveMetaLinks(entity, businessId);
+
       if (handler) {
         await handler.onDelete(entity, businessId, transaction);
       }
@@ -101,7 +104,7 @@ export class FirestoreRepository<T extends BaseEntity> {
       );
     }
     const doc = snapshot.docs[0];
-    const data = this.dateify(doc.data() as Record<string, any>);
+    const data = this.dateify(doc.data() as Record<string, unknown>);
     return this.cfg.fromFirestore(data, doc.id, businessId);
   }
 
@@ -113,14 +116,15 @@ export class FirestoreRepository<T extends BaseEntity> {
     return this.metadataRegistry.getMetaLinks(this.cfg.modelKey, entity, businessId);
   }
 
-  private dateify(object: Record<string, any>): Record<string, any> {
+  private dateify(object: Record<string, unknown>): Record<string, unknown> {
     for (const key of Object.keys(object)) {
       const value = object[key];
       if (value === null || value === undefined || typeof value !== 'object') continue;
-      if (typeof value.toDate === 'function') {
-        object[key] = value.toDate();
+      const record = value as Record<string, unknown>;
+      if (typeof record.toDate === 'function') {
+        object[key] = (record as unknown as { toDate(): Date }).toDate();
       } else {
-        this.dateify(value);
+        this.dateify(record);
       }
     }
     return object;

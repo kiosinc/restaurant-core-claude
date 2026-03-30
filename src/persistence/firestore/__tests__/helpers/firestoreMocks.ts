@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-export const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
+export const mockTransaction = { get: vi.fn(), set: vi.fn(), update: vi.fn(), delete: vi.fn() };
 export const mockDocRef: Record<string, any> = { get: vi.fn(), update: vi.fn(), path: 'mocked/path' };
 export const mockQuery = { get: vi.fn() };
 export const mockCollectionRef = {

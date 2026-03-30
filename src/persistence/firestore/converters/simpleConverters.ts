@@ -1,5 +1,6 @@
 import { createConverter, FieldTransform } from './converterFactory';
 import { locationInventoryToFirestore, locationInventoryFromFirestore } from './inventoryCountHelper';
+import { LocationInventoryMap } from '../../../domain/catalog/InventoryCount';
 import { PathResolver } from '../PathResolver';
 
 import { Catalog, createCatalog } from '../../../domain/roots/Catalog';
@@ -22,7 +23,7 @@ import { CheckoutOptions, createCheckoutOptions } from '../../../domain/surfaces
 import { OnboardingOrder, createOnboardingOrder } from '../../../domain/onboarding/OnboardingOrder';
 
 // Shared field transform for entities with locationInventory
-const inventoryTransform: FieldTransform<{ locationInventory: any }> = {
+const inventoryTransform: FieldTransform<{ locationInventory: LocationInventoryMap }> = {
   toFirestore: (entity) => ({ locationInventory: locationInventoryToFirestore(entity.locationInventory) }),
   fromFirestore: (data) => ({ locationInventory: locationInventoryFromFirestore(data.locationInventory) }),
 };

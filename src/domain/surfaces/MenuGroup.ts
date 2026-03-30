@@ -39,7 +39,7 @@ export function createMenuGroup(input: MenuGroupInput & Partial<BaseEntity>): Me
   return {
     ...baseEntityDefaults(input),
     name: input.name,
-    displayName: input.displayName ?? '',
+    displayName: input.displayName ?? null,
     products: input.products ?? {},
     productDisplayOrder: input.productDisplayOrder ?? [],
     parentGroup: input.parentGroup ?? null,
