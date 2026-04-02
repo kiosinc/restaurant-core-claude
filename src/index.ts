@@ -25,3 +25,4 @@ export { default as EventNotification } from './restaurant/connected-accounts/Ev
 
 // Firestore-based distributed lock
 export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';
+export type { LockOptions } from './restaurant/vars/SemaphoreV2';
