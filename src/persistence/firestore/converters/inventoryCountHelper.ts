@@ -1,5 +1,6 @@
 import { InventoryCount, InventoryCountState, LocationInventoryMap, defaultInventoryCount }
   from '../../../domain/catalog/InventoryCount';
+import { toDateSafe } from './baseFields';
 
 /** Firestore-persisted state values (lowercase, no camelCase). */
 const InventoryCountFirestoreState = {
@@ -25,7 +26,7 @@ export function inventoryCountFromFirestore(data: FirebaseFirestore.DocumentData
     count: data.count ?? -1,
     state: data.state === InventoryCountFirestoreState.soldOut ? InventoryCountState.soldOut : InventoryCountState.inStock,
     isAvailable: data.isAvailable ?? true,
-    timestamp: data.timestamp ? new Date(data.timestamp) : undefined,
+    timestamp: data.timestamp ? toDateSafe(data.timestamp) : undefined,
   };
 }
 

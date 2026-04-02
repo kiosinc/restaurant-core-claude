@@ -1,6 +1,7 @@
 import { createConverter } from './converterFactory';
 import { Order, createOrder } from '../../../domain/orders/Order';
 import { PathResolver } from '../PathResolver';
+import { toDateSafe } from './baseFields';
 
 export const orderConverter = createConverter<Order>(
   'order',
@@ -9,7 +10,7 @@ export const orderConverter = createConverter<Order>(
   {
     toFirestore: (order) => ({ timestamp: order.timestamp.toISOString() }),
     fromFirestore: (data) => ({
-      timestamp: new Date(data.timestamp),
+      timestamp: toDateSafe(data.timestamp),
       totalTipAmount: Number(data.totalTipAmount ?? 0),
       referralCode: data.referralCode ?? null,
       source: data.source ?? null,
