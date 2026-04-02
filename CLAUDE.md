@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`@kiosinc/restaurant-core` is a TypeScript NPM library providing domain models and APIs for multi-location restaurant management. Built on Firebase/Firestore and Google Cloud infrastructure. Published as a CommonJS package with TypeScript declarations.
+`@kiosinc/restaurant-core-claude` is a TypeScript NPM library providing domain models and APIs for multi-location restaurant management. Built on Firebase/Firestore and Google Cloud infrastructure. Published as a CommonJS package with TypeScript declarations.
 
 ## Build Commands
 
@@ -44,7 +44,7 @@ Supporting modules:
 - **src/firestore-core/** — Base persistence classes and Firestore path constants
 - **src/user/** — Express authentication middleware, JWT Claims, User model
 - **src/reports/** — Daily metrics and location reports
-- **src/utils/** — Google Cloud Tasks client, scheduling, geo, bigInt helpers
+- **src/utils/** — Google Cloud Tasks client, scheduling, geo, bigInt helpers, dateFormat (shared date utility)
 
 ### Key Patterns
 
@@ -68,4 +68,4 @@ Supporting modules:
 
 ## Dependencies
 
-All runtime dependencies (firebase-admin, @google-cloud/tasks, express, etc.) are in `devDependencies` because this is a library — consumers provide these as peer dependencies.
+Runtime dependencies (firebase-admin, @google-cloud/tasks, express, etc.) are declared as `peerDependencies` — consumers must provide them. Matching versions are also in `devDependencies` for local development and testing.
