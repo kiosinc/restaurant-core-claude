@@ -121,4 +121,9 @@ export function resetMockFirestore() {
   transactionSets.length = 0;
   docStores.clear();
   Object.keys(collectionPaths).forEach((key) => delete collectionPaths[key]);
+
+  // Restore default implementations that may have been overridden by individual tests
+  mockDb.runTransaction.mockImplementation(async (fn: (t: any) => Promise<void>) => {
+    await fn(mockTransaction);
+  });
 }

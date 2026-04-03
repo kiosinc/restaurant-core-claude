@@ -48,6 +48,8 @@ function extractAssetIdsByType(
     .map(([id]) => id);
 }
 
+const MAX_REBUILD_RETRIES = 3;
+
 export async function rebuildMenus(businessId: string, scope?: RebuildScope): Promise<void> {
   const db = getFirestore();
   const menusRef = PathResolver.menusCollection(businessId);
@@ -192,14 +194,41 @@ function materializeCollections(
   return result;
 }
 
-async function rebuildSingleMenu(
+function menuAssetsEqual(
+  a: Record<string, MenuAsset>,
+  b: Record<string, MenuAsset>,
+): boolean {
+  const keysA = Object.keys(a).sort();
+  const keysB = Object.keys(b).sort();
+  if (keysA.length !== keysB.length) return false;
+  for (let i = 0; i < keysA.length; i++) {
+    if (keysA[i] !== keysB[i]) return false;
+    const assetA = a[keysA[i]];
+    const assetB = b[keysB[i]];
+    if (assetA.assetType !== assetB.assetType) return false;
+    const configA = assetA.configuration;
+    const configB = assetB.configuration;
+    if (configA === undefined && configB === undefined) continue;
+    if (configA === undefined || configB === undefined) return false;
+    if (JSON.stringify(configA) !== JSON.stringify(configB)) return false;
+  }
+  return true;
+}
+
+type AttemptResult = {
+  success: true;
+} | {
+  success: false;
+  freshData: FirebaseFirestore.DocumentData;
+};
+
+async function attemptRebuild(
   db: FirebaseFirestore.Firestore,
   businessId: string,
   menu: DocData,
-): Promise<void> {
+): Promise<AttemptResult> {
   // Phase A: Bulk reads (outside transaction)
   const menuAssets: Record<string, MenuAsset> = menu.data.menuAssets ?? {};
-  const menuAssetDisplayOrder: string[] = menu.data.menuAssetDisplayOrder ?? [];
 
   const groupIds = extractAssetIdsByType(menuAssets, 'group');
   const collectionIds = extractAssetIdsByType(menuAssets, 'collection');
@@ -237,9 +266,18 @@ async function rebuildSingleMenu(
 
   // Phase B: Atomic write (inside transaction)
   const menuDocRef = PathResolver.menusCollection(businessId).doc(menu.id);
+  let freshData: FirebaseFirestore.DocumentData | undefined;
+
   await db.runTransaction(async (t) => {
     const freshMenuSnap = await t.get(menuDocRef);
     const existingData = freshMenuSnap.data() ?? {};
+
+    // Detect TOCTOU divergence: menuAssets changed between bulk read and transaction
+    const freshMenuAssets: Record<string, MenuAsset> = existingData.menuAssets ?? {};
+    if (!menuAssetsEqual(menuAssets, freshMenuAssets)) {
+      freshData = existingData;
+      return; // Skip write; transaction commits as read-only
+    }
 
     const merged: MaterializedMenuDoc = {
       // Preserve structural fields
@@ -259,13 +297,41 @@ async function rebuildSingleMenu(
       groups: materializedGroups,
       groupDisplayOrder: existingData.groupDisplayOrder ?? [],
       collections: materializedCollections,
-      menuAssets,
-      menuAssetDisplayOrder,
-      version: menu.data.version ?? existingData.version,
+      menuAssets: existingData.menuAssets ?? {},
+      menuAssetDisplayOrder: existingData.menuAssetDisplayOrder ?? [],
+      version: existingData.version ?? menu.data.version,
     };
 
     t.set(menuDocRef, merged);
   });
+
+  if (freshData) {
+    return { success: false, freshData };
+  }
+  return { success: true };
+}
+
+async function rebuildSingleMenu(
+  db: FirebaseFirestore.Firestore,
+  businessId: string,
+  menu: DocData,
+): Promise<void> {
+  let currentMenu = menu;
+
+  for (let attempt = 1; attempt <= MAX_REBUILD_RETRIES; attempt++) {
+    const result = await attemptRebuild(db, businessId, currentMenu);
+    if (result.success) return;
+
+    console.warn(
+      `[MenuRebuildService] TOCTOU retry for menu ${currentMenu.id}, attempt ${attempt}/${MAX_REBUILD_RETRIES}`,
+    );
+
+    currentMenu = { id: currentMenu.id, data: result.freshData };
+  }
+
+  throw new Error(
+    `[MenuRebuildService] Failed to rebuild menu ${menu.id} after ${MAX_REBUILD_RETRIES} retries: menuAssets kept changing`,
+  );
 }
 
 async function batchGetDocs(
