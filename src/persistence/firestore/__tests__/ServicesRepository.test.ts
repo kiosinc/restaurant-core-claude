@@ -1,38 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Services } from '../../../domain/roots/Services';
+import { Services, createServices } from '../../../domain/roots/Services';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { ServicesRepository } from '../ServicesRepository';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { servicesConverter } from '../converters';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => ({ get: vi.fn() })),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 describe('ServicesRepository', () => {
-  let repo: ServicesRepository;
+  let repo: FirestoreRepository<Services>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    repo = new ServicesRepository(new MetadataRegistry());
+    repo = new FirestoreRepository<Services>(servicesConverter, new MetadataRegistry());
   });
 
   it('get() returns Services when exists', async () => {
@@ -49,7 +29,7 @@ describe('ServicesRepository', () => {
   });
 
   it('set() serializes all fields', async () => {
-    const svc = new Services({ Id: 'services', kioskFeeRate: 3.0, experiments: { beta: false } });
+    const svc = createServices({ Id: 'services', kioskFeeRate: 3.0, experiments: { beta: false } });
     await repo.set(svc, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.kioskFeeRate).toBe(3.0);
@@ -58,7 +38,7 @@ describe('ServicesRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Services({
+    const original = createServices({
       Id: 'services', kioskFeeRate: 1.0,
       experiments: { feature1: true, feature2: false },
       created: ts, updated: ts,

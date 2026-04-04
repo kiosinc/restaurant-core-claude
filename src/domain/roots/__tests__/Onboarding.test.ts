@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
-  Onboarding, OnboardingStage, OnboardingStageStatus, DEFAULT_ONBOARDING_STATUS,
+  createOnboarding, OnboardingStage, OnboardingStageStatus,
 } from '../Onboarding';
-import { DomainEntity } from '../../DomainEntity';
 
 describe('Onboarding', () => {
   it('constructs with all props', () => {
     const status = { [OnboardingStage.createBusiness]: OnboardingStageStatus.complete };
-    const ob = new Onboarding({
+    const ob = createOnboarding({
       stripeCustomerId: 'cus_123',
       onboardingStatus: status,
       onboardingOrderId: 'order-1',
@@ -20,7 +19,7 @@ describe('Onboarding', () => {
   });
 
   it('defaults onboardingStatus to DEFAULT_ONBOARDING_STATUS', () => {
-    const ob = new Onboarding({
+    const ob = createOnboarding({
       stripeCustomerId: null,
       onboardingStatus: null,
       onboardingOrderId: null,
@@ -58,7 +57,7 @@ describe('Onboarding', () => {
   });
 
   it('defaults stripeCustomerId to null', () => {
-    const ob = new Onboarding({
+    const ob = createOnboarding({
       stripeCustomerId: undefined as any,
       onboardingStatus: null,
       onboardingOrderId: null,
@@ -68,7 +67,7 @@ describe('Onboarding', () => {
   });
 
   it('defaults onboardingOrderId to null', () => {
-    const ob = new Onboarding({
+    const ob = createOnboarding({
       stripeCustomerId: null,
       onboardingStatus: null,
       onboardingOrderId: undefined as any,
@@ -78,7 +77,7 @@ describe('Onboarding', () => {
   });
 
   it('defaults menuCategories to null', () => {
-    const ob = new Onboarding({
+    const ob = createOnboarding({
       stripeCustomerId: null,
       onboardingStatus: null,
       onboardingOrderId: null,
@@ -87,14 +86,16 @@ describe('Onboarding', () => {
     expect(ob.menuCategories).toBeNull();
   });
 
-  it('instantiates without Firebase', () => {
-    const ob = new Onboarding({
+  it('creates plain object with BaseEntity fields', () => {
+    const ob = createOnboarding({
       stripeCustomerId: null,
       onboardingStatus: null,
       onboardingOrderId: null,
       menuCategories: null,
     });
-    expect(ob).toBeInstanceOf(DomainEntity);
-    expect(ob).toBeInstanceOf(Onboarding);
+    expect(ob.Id).toBeDefined();
+    expect(ob.created).toBeInstanceOf(Date);
+    expect(ob.updated).toBeInstanceOf(Date);
+    expect(ob.isDeleted).toBe(false);
   });
 });

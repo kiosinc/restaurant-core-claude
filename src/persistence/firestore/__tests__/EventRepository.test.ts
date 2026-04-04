@@ -1,46 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Event } from '../../../domain/connected-accounts/Event';
+import { Event, createEvent, eventIdentifier } from '../../../domain/connected-accounts/Event';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { EventRepository } from '../EventRepository';
-import { createTestEventProps } from '../../../domain/__tests__/helpers/EventFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { eventConverter } from '../converters/eventConverter';
+import { createTestEventInput } from '../../../domain/__tests__/helpers/EventFixtures';
+import { mockTransaction, mockDocRef, mockCollectionRef, mockDb } from './helpers/firestoreMocks';
 
-// Mock firebase-admin/firestore
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: {
-    delete: () => '$$FIELD_DELETE$$',
-  },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 describe('EventRepository', () => {
   let registry: MetadataRegistry;
-  let repo: EventRepository;
+  let repo: FirestoreRepository<Event>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new EventRepository(registry);
+    repo = new FirestoreRepository<Event>(eventConverter, registry);
   });
 
   it('get() returns Event when doc exists', async () => {
@@ -48,15 +23,9 @@ describe('EventRepository', () => {
     mockDocRef.get.mockResolvedValue({
       exists: true,
       data: () => ({
-        provider: 'square',
-        type: 'catalog',
-        isSync: true,
-        queueCap: 5,
-        queueCount: 3,
-        timestamp: ts,
-        created: ts,
-        updated: ts,
-        isDeleted: false,
+        provider: 'square', type: 'catalog', isSync: true,
+        queueCap: 5, queueCount: 3, timestamp: ts,
+        created: ts, updated: ts, isDeleted: false,
       }),
       id: 'square.catalog',
     });
@@ -79,9 +48,8 @@ describe('EventRepository', () => {
   });
 
   it('set() calls toFirestore with correct data', async () => {
-    const event = new Event(createTestEventProps({
-      queueCap: 5,
-      queueCount: 3,
+    const event = createEvent(createTestEventInput({
+      queueCap: 5, queueCount: 3,
       timestamp: new Date('2024-01-15T10:00:00Z'),
       created: new Date('2024-01-01T00:00:00Z'),
       updated: new Date('2024-01-01T00:00:00Z'),
@@ -100,79 +68,66 @@ describe('EventRepository', () => {
 
   it('set() serializes timestamp as ISO string', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const event = new Event(createTestEventProps({ timestamp: ts }));
-
+    const event = createEvent(createTestEventInput({ timestamp: ts }));
     await repo.set(event, 'biz-1');
     expect(mockTransaction.set.mock.calls[0][1].timestamp).toBe('2024-06-01T12:00:00.000Z');
   });
 
   it('set() serializes empty timestamp as empty string', async () => {
-    const event = new Event(createTestEventProps());
-
+    const event = createEvent(createTestEventInput());
     await repo.set(event, 'biz-1');
     expect(mockTransaction.set.mock.calls[0][1].timestamp).toBe('');
   });
 
   it('set() runs transaction (no metadata)', async () => {
-    const event = new Event(createTestEventProps());
+    const event = createEvent(createTestEventInput());
     await repo.set(event, 'biz-1');
-
     expect(mockDb.runTransaction).toHaveBeenCalledTimes(1);
     expect(mockTransaction.set).toHaveBeenCalledTimes(1);
     expect(mockTransaction.update).not.toHaveBeenCalled();
   });
 
-  it('findByProviderAndType() delegates to get', async () => {
+  it('findByProviderAndType via eventIdentifier + get', async () => {
     mockDocRef.get.mockResolvedValue({
       exists: true,
       data: () => ({
-        provider: 'square',
-        type: 'catalog',
-        isSync: true,
-        queueCap: -1,
-        queueCount: 0,
-        timestamp: '',
-        created: '2024-01-01T00:00:00.000Z',
-        updated: '2024-01-01T00:00:00.000Z',
+        provider: 'square', type: 'catalog', isSync: true,
+        queueCap: -1, queueCount: 0, timestamp: '',
+        created: '2024-01-01T00:00:00.000Z', updated: '2024-01-01T00:00:00.000Z',
         isDeleted: false,
       }),
       id: 'square.catalog',
     });
 
-    const result = await repo.findByProviderAndType('biz-1', 'square', 'catalog');
+    const id = eventIdentifier('square', 'catalog');
+    const result = await repo.get('biz-1', id);
 
     expect(mockCollectionRef.doc).toHaveBeenCalledWith('square.catalog');
     expect(result).not.toBeNull();
     expect(result!.provider).toBe('square');
   });
 
-  it('findByProviderAndType() returns null when not found', async () => {
+  it('findByProviderAndType returns null when not found', async () => {
     mockDocRef.get.mockResolvedValue({ exists: false });
-
-    const result = await repo.findByProviderAndType('biz-1', 'square', 'nonexistent');
+    const id = eventIdentifier('square', 'nonexistent');
+    const result = await repo.get('biz-1', id);
     expect(result).toBeNull();
   });
 
   it('round-trip: toFirestore -> fromFirestore preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Event(createTestEventProps({
-      queueCap: 10,
-      queueCount: 7,
-      timestamp: ts,
+    const original = createEvent(createTestEventInput({
+      queueCap: 10, queueCount: 7, timestamp: ts,
       Id: 'square.catalog',
       created: new Date('2024-01-01T00:00:00Z'),
       updated: new Date('2024-01-02T00:00:00Z'),
     }));
 
-    // Capture toFirestore output via set
     await repo.set(original, 'biz-1');
     const serialized = mockTransaction.set.mock.calls[0][1];
 
-    // Feed it back through get (fromFirestore)
     mockDocRef.get.mockResolvedValue({
-      exists: true,
-      data: () => serialized,
-      id: 'square.catalog',
+      exists: true, data: () => serialized, id: 'square.catalog',
     });
     const restored = await repo.get('biz-1', 'square.catalog');
 
@@ -189,17 +144,12 @@ describe('EventRepository', () => {
     mockDocRef.get.mockResolvedValue({
       exists: true,
       data: () => ({
-        provider: 'square',
-        type: 'catalog',
-        isSync: true,
-        timestamp: '',
-        created: '2024-01-01T00:00:00.000Z',
-        updated: '2024-01-01T00:00:00.000Z',
-        isDeleted: false,
+        provider: 'square', type: 'catalog', isSync: true,
+        timestamp: '', created: '2024-01-01T00:00:00.000Z',
+        updated: '2024-01-01T00:00:00.000Z', isDeleted: false,
       }),
       id: 'square.catalog',
     });
-
     const result = await repo.get('biz-1', 'square.catalog');
     expect(result!.queueCap).toBe(-1);
   });
@@ -208,18 +158,12 @@ describe('EventRepository', () => {
     mockDocRef.get.mockResolvedValue({
       exists: true,
       data: () => ({
-        provider: 'square',
-        type: 'catalog',
-        isSync: true,
-        queueCap: 5,
-        timestamp: '',
-        created: '2024-01-01T00:00:00.000Z',
-        updated: '2024-01-01T00:00:00.000Z',
-        isDeleted: false,
+        provider: 'square', type: 'catalog', isSync: true,
+        queueCap: 5, timestamp: '', created: '2024-01-01T00:00:00.000Z',
+        updated: '2024-01-01T00:00:00.000Z', isDeleted: false,
       }),
       id: 'square.catalog',
     });
-
     const result = await repo.get('biz-1', 'square.catalog');
     expect(result!.queueCount).toBe(0);
   });

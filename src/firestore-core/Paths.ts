@@ -1,12 +1,12 @@
 /** Constant path and collectionstrings used for firestore doc tree */
-export const enum Environment {
+export enum Environment {
   public = 'public',
   private = 'private',
   sandbox = 'sandbox',
   featurelist = 'featurelist'
 }
 
-export const enum CollectionNames {
+export enum CollectionNames {
   businesses = 'businesses',
 
   connectedAccounts = 'connectedAccounts',
@@ -30,12 +30,15 @@ export const enum CollectionNames {
   kioskConfigurations = 'kioskConfigurations',
   surfaceConfigurations = 'surfaceConfigurations',
   checkoutOptions = 'checkoutOptions',
+  collections = 'collections',
   services = 'services',
-  semaphores = 'semaphores',
+  inventory = 'inventory',
 
   orders = 'orders',
   locations = 'locations',
 
   onboarding = 'onboarding',
   onboardingOrders = 'onboardingOrders',
+
+  semaphores = 'semaphores',
 }

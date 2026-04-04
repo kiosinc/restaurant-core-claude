@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { Location } from '../../../domain/locations/Location';
-import { LocationMetadataSpec } from '../LocationMetadataSpec';
-import { createTestLocationProps } from '../../../domain/__tests__/helpers/LocationFixtures';
+import { createLocation } from '../../../domain/locations/Location';
+import { locationMetadataSpec } from '../LocationMetadataSpec';
+import { createTestLocationInput } from '../../../domain/__tests__/helpers/LocationFixtures';
 
 // Mock firebase-admin/firestore with proper chain for PathResolver
 // PathResolver does: db.collection('businesses').doc(businessId).collection('public').doc('locations')
@@ -37,10 +37,10 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 describe('LocationMetadataSpec', () => {
-  const spec = new LocationMetadataSpec();
+  const spec = locationMetadataSpec;
 
   it('getMetadata() returns name and isActive', () => {
-    const location = new Location(createTestLocationProps({
+    const location = createLocation(createTestLocationInput({
       name: 'Downtown',
       isActive: true,
     }));
@@ -50,7 +50,7 @@ describe('LocationMetadataSpec', () => {
   });
 
   it('getMetadata() reflects inactive location', () => {
-    const location = new Location(createTestLocationProps({
+    const location = createLocation(createTestLocationInput({
       name: 'Closed Branch',
       isActive: false,
     }));
@@ -60,7 +60,7 @@ describe('LocationMetadataSpec', () => {
   });
 
   it('getMetaLinks() returns correct document path and field path', () => {
-    const location = new Location(createTestLocationProps({
+    const location = createLocation(createTestLocationInput({
       Id: 'loc-42',
       businessId: 'biz-1',
     }));
@@ -72,7 +72,7 @@ describe('LocationMetadataSpec', () => {
   });
 
   it('getMetaLinks() uses provided businessId', () => {
-    const location = new Location(createTestLocationProps({ Id: 'loc-1' }));
+    const location = createLocation(createTestLocationInput({ Id: 'loc-1' }));
 
     const links = spec.getMetaLinks(location, 'biz-other');
     expect(links[0].documentPath).toBe('businesses/biz-other/public/locations');

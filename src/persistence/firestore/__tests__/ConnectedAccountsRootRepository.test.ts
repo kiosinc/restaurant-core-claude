@@ -1,38 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConnectedAccounts } from '../../../domain/roots/ConnectedAccounts';
+import { ConnectedAccounts, createConnectedAccounts } from '../../../domain/roots/ConnectedAccounts';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { ConnectedAccountsRootRepository } from '../ConnectedAccountsRootRepository';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { connectedAccountsConverter } from '../converters';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => ({ get: vi.fn() })),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 describe('ConnectedAccountsRootRepository', () => {
-  let repo: ConnectedAccountsRootRepository;
+  let repo: FirestoreRepository<ConnectedAccounts>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    repo = new ConnectedAccountsRootRepository(new MetadataRegistry());
+    repo = new FirestoreRepository<ConnectedAccounts>(connectedAccountsConverter, new MetadataRegistry());
   });
 
   it('get() returns ConnectedAccounts when exists', async () => {
@@ -49,7 +29,7 @@ describe('ConnectedAccountsRootRepository', () => {
 
   it('set() deep-clones tokens', async () => {
     const tokens = { square: { accessToken: 'tok-2' } };
-    const ca = new ConnectedAccounts({ Id: 'connectedAccounts', tokens });
+    const ca = createConnectedAccounts({ Id: 'connectedAccounts', tokens });
     await repo.set(ca, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.tokens).toEqual(tokens);
@@ -58,7 +38,7 @@ describe('ConnectedAccountsRootRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new ConnectedAccounts({
+    const original = createConnectedAccounts({
       Id: 'connectedAccounts',
       tokens: { stripe: { key: 'sk_test' } },
       created: ts, updated: ts,

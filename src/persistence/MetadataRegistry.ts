@@ -1,46 +1,30 @@
 import { MetadataSpec, MetaLinkDeclaration } from '../domain/MetadataSpec';
-import { DomainEntity } from '../domain/DomainEntity';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Constructor = new (...args: any[]) => any;
 
 export class MetadataRegistry {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private specs = new Map<Constructor, MetadataSpec<any, any>>();
+  private specs = new Map<string, MetadataSpec<any, any>>();
 
-  register<T extends DomainEntity, TMeta>(
-    entityClass: new (...args: any[]) => T,
+  register<T, TMeta>(
+    key: string,
     spec: MetadataSpec<T, TMeta>,
   ): void {
-    this.specs.set(entityClass, spec);
+    this.specs.set(key, spec);
   }
 
-  resolve<T extends DomainEntity>(entity: T): MetadataSpec<T, unknown> | null {
-    let proto = Object.getPrototypeOf(entity);
-    while (proto !== null) {
-      const spec = this.specs.get(proto.constructor);
-      if (spec) {
-        return spec as MetadataSpec<T, unknown>;
-      }
-      proto = Object.getPrototypeOf(proto);
-    }
-    return null;
+  resolve(key: string): MetadataSpec<any, any> | null {
+    return this.specs.get(key) ?? null;
   }
 
-  getMetaLinks<T extends DomainEntity>(entity: T, businessId: string): MetaLinkDeclaration[] {
-    const spec = this.resolve(entity);
+  getMetaLinks<T>(key: string, entity: T, businessId: string): MetaLinkDeclaration[] {
+    const spec = this.resolve(key);
     if (!spec) return [];
     return spec.getMetaLinks(entity, businessId);
   }
 
-  getMetadata<T extends DomainEntity>(entity: T): unknown | null {
-    const spec = this.resolve(entity);
+  getMetadata<T>(key: string, entity: T): unknown | null {
+    const spec = this.resolve(key);
     if (!spec) return null;
     return spec.getMetadata(entity);
-  }
-
-  has(entityClass: new (...args: any[]) => DomainEntity): boolean {
-    return this.specs.has(entityClass);
   }
 
   clear(): void {

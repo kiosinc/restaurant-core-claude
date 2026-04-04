@@ -1,15 +1,10 @@
 /** Constant strings */
-export const enum Provider {
+export enum Provider {
   square = 'square',
   system = 'system',
 }
 
-export const enum Role {
-  sysadmin = 'sysadmin',
-  owner = 'owner',
-}
-
-export const enum Semaphore {
+export enum Semaphore {
   catalogUpdate = 'catalogUpdate',
   locationUpdate = 'locationUpdate',
 }

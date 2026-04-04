@@ -1,19 +1,10 @@
-import { MetadataSpec, MetaLinkDeclaration } from '../../domain/MetadataSpec';
-import { Location, LocationMeta } from '../../domain/locations/Location';
+import { Location, LocationMeta, locationMeta } from '../../domain/locations/Location';
 import { PathResolver } from './PathResolver';
-import * as Paths from '../../firestore-core/Paths';
+import { CollectionNames } from '../../firestore-core/Paths';
+import { createRootMetadataSpec } from './createRootMetadataSpec';
 
-export class LocationMetadataSpec implements MetadataSpec<Location, LocationMeta> {
-  getMetadata(entity: Location): LocationMeta {
-    return entity.metadata();
-  }
-
-  getMetaLinks(entity: Location, businessId: string): MetaLinkDeclaration[] {
-    return [
-      {
-        documentPath: PathResolver.locationsDoc(businessId).path,
-        fieldPath: `${Paths.CollectionNames.locations}.${entity.Id}`,
-      },
-    ];
-  }
-}
+export const locationMetadataSpec = createRootMetadataSpec<Location, LocationMeta>(
+  locationMeta,
+  (businessId) => PathResolver.locationsDoc(businessId),
+  CollectionNames.locations,
+);

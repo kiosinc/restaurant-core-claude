@@ -1,16 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { OnboardingOrder, InvoiceStatus } from '../OnboardingOrder';
-import { createTestOnboardingOrderProps } from '../../__tests__/helpers/SurfacesFixtures';
+import { createOnboardingOrder, InvoiceStatus } from '../OnboardingOrder';
+import { createTestOnboardingOrderInput } from '../../__tests__/helpers/SurfacesFixtures';
 import { OrderState } from '../../orders/OrderSymbols';
-import { emptyAddress } from '../../misc/Address';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { ValidationError } from '../../validation';
 
 describe('OnboardingOrder (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
     const addr = { addressLine1: '123 Main St', addressLine2: '', city: 'LA', state: 'CA', zip: '90001', country: 'US' };
-    const oo = new OnboardingOrder(createTestOnboardingOrderProps({
+    const oo = createOnboardingOrder(createTestOnboardingOrderInput({
       Id: 'oo-1',
       invoiceId: 'inv-42',
       invoiceStatus: InvoiceStatus.paid,
@@ -43,11 +41,6 @@ describe('OnboardingOrder (domain)', () => {
     expect(oo.lineItems).toHaveLength(1);
   });
 
-  it('auto-generates UUID', () => {
-    const oo = new OnboardingOrder(createTestOnboardingOrderProps());
-    expect(oo.Id).toMatch(UUID_REGEX);
-  });
-
   it('InvoiceStatus enum has expected values', () => {
     expect(InvoiceStatus.draft).toBe('draft');
     expect(InvoiceStatus.open).toBe('open');
@@ -57,32 +50,34 @@ describe('OnboardingOrder (domain)', () => {
   });
 
   it('defaults lineItems to []', () => {
-    const oo = new OnboardingOrder(createTestOnboardingOrderProps());
+    const oo = createOnboardingOrder(createTestOnboardingOrderInput());
     expect(oo.lineItems).toEqual([]);
   });
 
   it('stores Address', () => {
     const addr = { addressLine1: '456 Oak Ave', addressLine2: 'Suite B', city: 'SF', state: 'CA', zip: '94102', country: 'US' };
-    const oo = new OnboardingOrder(createTestOnboardingOrderProps({ shipmentAddress: addr }));
+    const oo = createOnboardingOrder(createTestOnboardingOrderInput({ shipmentAddress: addr }));
     expect(oo.shipmentAddress.addressLine1).toBe('456 Oak Ave');
     expect(oo.shipmentAddress.city).toBe('SF');
   });
 
   it('stores OrderState', () => {
-    const oo = new OnboardingOrder(createTestOnboardingOrderProps({ orderStatus: OrderState.inProgress }));
+    const oo = createOnboardingOrder(createTestOnboardingOrderInput({ orderStatus: OrderState.inProgress }));
     expect(oo.orderStatus).toBe(OrderState.inProgress);
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const oo = new OnboardingOrder(createTestOnboardingOrderProps({ created: now, updated: now, isDeleted: true }));
-    expect(oo.created).toEqual(now);
-    expect(oo.updated).toEqual(now);
-    expect(oo.isDeleted).toBe(true);
+  describe('validation', () => {
+    it('throws for empty invoiceId', () => {
+      expect(() => createOnboardingOrder(createTestOnboardingOrderInput({ invoiceId: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative totalAmount', () => {
+      expect(() => createOnboardingOrder(createTestOnboardingOrderInput({ totalAmount: -1 }))).toThrow(ValidationError);
+    });
+
+    it('allows zero totalAmount', () => {
+      expect(() => createOnboardingOrder(createTestOnboardingOrderInput({ totalAmount: 0 }))).not.toThrow();
+    });
   });
 
-  it('instantiates without Firebase', () => {
-    const oo = new OnboardingOrder(createTestOnboardingOrderProps());
-    expect(oo).toBeDefined();
-  });
 });

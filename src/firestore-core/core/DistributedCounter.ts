@@ -23,22 +23,22 @@ function getShardId () {
   return uuidv4()
 }
 
-async function schedule (func: any) {
+async function schedule (func: () => unknown) {
   return new Promise((resolve) => {
-    setTimeout(async () => {
-      const result = func()
-      resolve(result)
+    setTimeout(() => {
+      resolve(func())
     }, 0)
   })
 }
 
 export default class Counter {
-  shards: any
-  notifyPromise: any
-  doc: FirebaseFirestore.DocumentReference
-  field: string
-  db: FirebaseFirestore.Firestore
-  shardId: any
+  private shards: Record<string, number>
+  private notifyPromise: Promise<unknown> | null
+  private readonly doc: FirebaseFirestore.DocumentReference
+  private readonly field: string
+  private readonly db: FirebaseFirestore.Firestore
+  private readonly shardId: string
+  private unsubscribeFns: (() => void)[]
 
   /**
    * Constructs a sharded counter object that references to a field
@@ -54,14 +54,15 @@ export default class Counter {
     this.field = field
     this.db = doc.firestore
     this.shardId = getShardId()
+    this.unsubscribeFns = []
 
     const shardsRef = doc.collection(SHARD_COLLECTION_ID)
     this.shards[doc.path] = 0
     this.shards[shardsRef.doc(this.shardId).path] = 0
-    this.shards[shardsRef.doc(`\t${this.shardId.substr(0, 4)}`).path] = 0
-    this.shards[shardsRef.doc(`\t\t${this.shardId.substr(0, 3)}`).path] = 0
-    this.shards[shardsRef.doc(`\t\t\t${this.shardId.substr(0, 2)}`).path] = 0
-    this.shards[shardsRef.doc(`\t\t\t\t${this.shardId.substr(0, 1)}`).path] = 0
+    this.shards[shardsRef.doc(`\t${this.shardId.slice(0, 4)}`).path] = 0
+    this.shards[shardsRef.doc(`\t\t${this.shardId.slice(0, 3)}`).path] = 0
+    this.shards[shardsRef.doc(`\t\t\t${this.shardId.slice(0, 2)}`).path] = 0
+    this.shards[shardsRef.doc(`\t\t\t\t${this.shardId.slice(0, 1)}`).path] = 0
   }
 
   /**
@@ -85,13 +86,14 @@ export default class Counter {
    * All local increments to this counter will be immediately visible in the
    * snapshot.
    */
-  onSnapshot (observable: any) {
+  onSnapshot (observable: (snapshot: { exists: boolean; data: () => number }) => void) {
+    this.unsubscribe()
     Object.keys(this.shards).forEach((path) => {
-      this.db.doc(path).onSnapshot((snap: any) => {
+      const unsub = this.db.doc(path).onSnapshot((snap) => {
         this.shards[snap.ref.path] = snap.get(this.field) || 0
         if (this.notifyPromise !== null) return
         this.notifyPromise = schedule(() => {
-          const sum = Object.values(this.shards).reduce((a: any, b: any) => a + b, 0)
+          const sum = Object.values(this.shards).reduce((a, b) => a + b, 0)
           observable({
             exists: true,
             data: () => sum,
@@ -99,7 +101,13 @@ export default class Counter {
           this.notifyPromise = null
         })
       })
+      this.unsubscribeFns.push(unsub)
     })
+  }
+
+  unsubscribe () {
+    for (const unsub of this.unsubscribeFns) unsub()
+    this.unsubscribeFns = []
   }
 
   /**
@@ -110,11 +118,13 @@ export default class Counter {
    * counter.incrementBy(1);
    */
   incrementBy(val: number) {
-    const increment: any = admin.firestore.FieldValue.increment(val);
+    const increment = admin.firestore.FieldValue.increment(val);
+    // Builds nested object like { field: { sub: FieldValue } } for dotted field paths
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- FieldValue is the leaf; intermediate steps are Records
     const update = this.field
       .split('.')
       .reverse()
-      .reduce((value, name) => ({ [name]: value }), increment);
+      .reduce<any>((value, name) => ({ [name]: value }), increment);
     return this.doc
       .collection(SHARD_COLLECTION_ID)
       .doc(this.shardId)

@@ -1,13 +1,11 @@
 export const bigIntConverter = {
-  toBigInt(object: any) {
+  toBigInt(object: unknown) {
     return JSON.parse(JSON.stringify(object), (key, value) => (typeof value === 'number'
       ? BigInt(value)
       : value));
   },
-  // TODO: insert
-  // Number.MIN_SAFE_INTEGER
-  // Number.MAX_SAFE_INTEGER
-  fromBigInt(object: any) {
+  // Note: does not validate safe integer bounds
+  fromBigInt(object: unknown) {
     if (typeof object === 'object') {
       return JSON.parse(JSON.stringify(object, (key, value) => (typeof value === 'bigint'
         ? Number(value.toString())

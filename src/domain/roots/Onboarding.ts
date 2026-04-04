@@ -1,4 +1,4 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
 
 export enum OnboardingStage {
   createBusiness = 'createBusiness',
@@ -21,39 +21,30 @@ export enum OnboardingStageStatus {
   skipped = 'skipped',
 }
 
-export const DEFAULT_ONBOARDING_STATUS: { [stage in OnboardingStage]: OnboardingStageStatus } = {
-  [OnboardingStage.createBusiness]: OnboardingStageStatus.pending,
-  [OnboardingStage.squareIntegration]: OnboardingStageStatus.pending,
-  [OnboardingStage.categorySync]: OnboardingStageStatus.pending,
-  [OnboardingStage.scheduleMeeting]: OnboardingStageStatus.pending,
-  [OnboardingStage.configMenu]: OnboardingStageStatus.pending,
-  [OnboardingStage.menuCreate]: OnboardingStageStatus.pending,
-  [OnboardingStage.onboardingSync]: OnboardingStageStatus.pending,
-  [OnboardingStage.shippingInfo]: OnboardingStageStatus.pending,
-  [OnboardingStage.kioskCheckout]: OnboardingStageStatus.pending,
-  [OnboardingStage.previewKiosk]: OnboardingStageStatus.pending,
-  [OnboardingStage.kioskPurchase]: OnboardingStageStatus.pending,
-  [OnboardingStage.onboardingComplete]: OnboardingStageStatus.pending,
-};
+export const DEFAULT_ONBOARDING_STATUS = Object.fromEntries(
+  Object.values(OnboardingStage).map((stage) => [stage, OnboardingStageStatus.pending]),
+) as { [stage in OnboardingStage]: OnboardingStageStatus };
 
-export interface OnboardingProps extends DomainEntityProps {
+export interface Onboarding extends BaseEntity {
+  stripeCustomerId: string | null;
+  onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus };
+  onboardingOrderId: string | null;
+  menuCategories: string[] | null;
+}
+
+export interface OnboardingInput {
   stripeCustomerId: string | null;
   onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus } | null;
   onboardingOrderId: string | null;
   menuCategories: string[] | null;
 }
 
-export class Onboarding extends DomainEntity {
-  stripeCustomerId: string | null;
-  onboardingStatus: { [stage in OnboardingStage]?: OnboardingStageStatus };
-  onboardingOrderId: string | null;
-  menuCategories: string[] | null;
-
-  constructor(props: OnboardingProps) {
-    super(props);
-    this.stripeCustomerId = props.stripeCustomerId ?? null;
-    this.onboardingStatus = props.onboardingStatus ?? { ...DEFAULT_ONBOARDING_STATUS };
-    this.onboardingOrderId = props.onboardingOrderId ?? null;
-    this.menuCategories = props.menuCategories ?? null;
-  }
+export function createOnboarding(input: OnboardingInput & Partial<BaseEntity>): Onboarding {
+  return {
+    ...baseEntityDefaults(input),
+    stripeCustomerId: input.stripeCustomerId ?? null,
+    onboardingStatus: input.onboardingStatus ?? { ...DEFAULT_ONBOARDING_STATUS },
+    onboardingOrderId: input.onboardingOrderId ?? null,
+    menuCategories: input.menuCategories ?? null,
+  };
 }

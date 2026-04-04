@@ -1,112 +1,89 @@
 import { describe, it, expect } from 'vitest';
 import { MetadataRegistry } from '../MetadataRegistry';
-import { DomainEntity, DomainEntityProps } from '../../domain/DomainEntity';
+import { BaseEntity } from '../../domain/BaseEntity';
 import { MetadataSpec, MetaLinkDeclaration } from '../../domain/MetadataSpec';
 
-class ParentEntity extends DomainEntity {
+interface TestEntity extends BaseEntity {
   name: string;
-  constructor(props: DomainEntityProps & { name: string }) {
-    super(props);
-    this.name = props.name;
-  }
 }
 
-class ChildEntity extends ParentEntity {
-  constructor(props: DomainEntityProps & { name: string }) {
-    super(props);
-  }
-}
-
-class UnregisteredEntity extends DomainEntity {
-  constructor(props: DomainEntityProps = {}) {
-    super(props);
-  }
-}
-
-const parentSpec: MetadataSpec<ParentEntity, { name: string }> = {
-  getMetadata(entity: ParentEntity) {
+const testSpec: MetadataSpec<TestEntity, { name: string }> = {
+  getMetadata(entity: TestEntity) {
     return { name: entity.name };
   },
-  getMetaLinks(entity: ParentEntity, businessId: string): MetaLinkDeclaration[] {
+  getMetaLinks(entity: TestEntity, businessId: string): MetaLinkDeclaration[] {
     return [
       {
         documentPath: `businesses/${businessId}/root`,
-        fieldPath: `parents.${entity.Id}`,
+        fieldPath: `items.${entity.Id}`,
       },
     ];
   },
 };
 
+function makeEntity(overrides: Partial<TestEntity> = {}): TestEntity {
+  return {
+    Id: 'e1',
+    name: 'test',
+    created: new Date(),
+    updated: new Date(),
+    isDeleted: false,
+    ...overrides,
+  };
+}
+
 describe('MetadataRegistry', () => {
   it('register and resolve', () => {
     const registry = new MetadataRegistry();
-    registry.register(ParentEntity, parentSpec);
-    const entity = new ParentEntity({ name: 'test' });
-    expect(registry.resolve(entity)).toBe(parentSpec);
+    registry.register('TestEntity', testSpec);
+    expect(registry.resolve('TestEntity')).toBe(testSpec);
   });
 
   it('null for unregistered', () => {
     const registry = new MetadataRegistry();
-    const entity = new UnregisteredEntity();
-    expect(registry.resolve(entity)).toBeNull();
-  });
-
-  it('prototype chain walking', () => {
-    const registry = new MetadataRegistry();
-    registry.register(ParentEntity, parentSpec);
-    const child = new ChildEntity({ name: 'child' });
-    expect(registry.resolve(child)).toBe(parentSpec);
+    expect(registry.resolve('unknown')).toBeNull();
   });
 
   it('getMetaLinks with spec', () => {
     const registry = new MetadataRegistry();
-    registry.register(ParentEntity, parentSpec);
-    const entity = new ParentEntity({ Id: 'p1', name: 'test' });
-    const links = registry.getMetaLinks(entity, 'biz-1');
+    registry.register('TestEntity', testSpec);
+    const entity = makeEntity({ Id: 'p1' });
+    const links = registry.getMetaLinks('TestEntity', entity, 'biz-1');
     expect(links).toEqual([
-      { documentPath: 'businesses/biz-1/root', fieldPath: 'parents.p1' },
+      { documentPath: 'businesses/biz-1/root', fieldPath: 'items.p1' },
     ]);
   });
 
   it('getMetaLinks without spec', () => {
     const registry = new MetadataRegistry();
-    const entity = new UnregisteredEntity();
-    expect(registry.getMetaLinks(entity, 'biz-1')).toEqual([]);
+    const entity = makeEntity();
+    expect(registry.getMetaLinks('unknown', entity, 'biz-1')).toEqual([]);
   });
 
   it('getMetadata with spec', () => {
     const registry = new MetadataRegistry();
-    registry.register(ParentEntity, parentSpec);
-    const entity = new ParentEntity({ name: 'hello' });
-    expect(registry.getMetadata(entity)).toEqual({ name: 'hello' });
+    registry.register('TestEntity', testSpec);
+    const entity = makeEntity({ name: 'hello' });
+    expect(registry.getMetadata('TestEntity', entity)).toEqual({ name: 'hello' });
   });
 
   it('getMetadata without spec', () => {
     const registry = new MetadataRegistry();
-    const entity = new UnregisteredEntity();
-    expect(registry.getMetadata(entity)).toBeNull();
-  });
-
-  it('has() true/false', () => {
-    const registry = new MetadataRegistry();
-    expect(registry.has(ParentEntity)).toBe(false);
-    registry.register(ParentEntity, parentSpec);
-    expect(registry.has(ParentEntity)).toBe(true);
+    const entity = makeEntity();
+    expect(registry.getMetadata('unknown', entity)).toBeNull();
   });
 
   it('clear() removes all', () => {
     const registry = new MetadataRegistry();
-    registry.register(ParentEntity, parentSpec);
-    expect(registry.has(ParentEntity)).toBe(true);
+    registry.register('TestEntity', testSpec);
+    expect(registry.resolve('TestEntity')).not.toBeNull();
     registry.clear();
-    expect(registry.has(ParentEntity)).toBe(false);
+    expect(registry.resolve('TestEntity')).toBeNull();
   });
 
   it('no Firebase dependency', () => {
-    // Test passing = proof that MetadataRegistry works without Firebase
     const registry = new MetadataRegistry();
-    registry.register(ParentEntity, parentSpec);
-    const entity = new ParentEntity({ name: 'test' });
-    expect(registry.resolve(entity)).toBe(parentSpec);
+    registry.register('TestEntity', testSpec);
+    expect(registry.resolve('TestEntity')).toBe(testSpec);
   });
 });
