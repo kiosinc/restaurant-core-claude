@@ -20,6 +20,8 @@ function createProductHandler(
 export const ProductRelationshipHandler = createProductHandler((bid) => PathResolver.categoriesCollection(bid));
 export const ProductMenuGroupRelationshipHandler = createProductHandler((bid) => PathResolver.menuGroupsCollection(bid));
 
+// Consumers must register this instead of ProductRelationshipHandler to enable
+// Product → MenuGroup cascade. See kiosinc/businesses#212.
 export const ProductCompositeHandler = new CompositeCascadeRelationshipHandler<Product>([
   ProductRelationshipHandler,
   ProductMenuGroupRelationshipHandler,

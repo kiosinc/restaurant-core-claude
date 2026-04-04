@@ -4,12 +4,14 @@ export interface WriteModelFlags {
   enableMenuRebuild: boolean;
   enableAvailabilityDoc: boolean;
   writeLegacyOptionInventory: boolean;
+  useCascadeEndpoint: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
   enableMenuRebuild: true,
   enableAvailabilityDoc: true,
   writeLegacyOptionInventory: false,
+  useCascadeEndpoint: false,
 };
 
 const CACHE_TTL_MS = 60_000;
@@ -39,6 +41,7 @@ export function createFlagService() {
         enableMenuRebuild: data.enableMenuRebuild ?? DEFAULT_FLAGS.enableMenuRebuild,
         enableAvailabilityDoc: data.enableAvailabilityDoc ?? DEFAULT_FLAGS.enableAvailabilityDoc,
         writeLegacyOptionInventory: data.writeLegacyOptionInventory ?? DEFAULT_FLAGS.writeLegacyOptionInventory,
+        useCascadeEndpoint: data.useCascadeEndpoint ?? DEFAULT_FLAGS.useCascadeEndpoint,
       };
       cacheTimestamp = now;
       return cachedFlags;
