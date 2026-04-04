@@ -3,7 +3,7 @@ import { createProduct } from '../../../../domain/catalog/Product';
 import { createOptionSet } from '../../../../domain/catalog/OptionSet';
 import { createOption } from '../../../../domain/catalog/Option';
 import { createTestProductInput, createTestOptionSetInput, createTestOptionInput } from '../../../../domain/__tests__/helpers/CatalogFixtures';
-import { ProductRelationshipHandler, OptionSetRelationshipHandler, OptionRelationshipHandler } from '../catalogHandlers';
+import { ProductRelationshipHandler, ProductMenuGroupRelationshipHandler, OptionSetRelationshipHandler, OptionRelationshipHandler } from '../catalogHandlers';
 
 const mockUpdate = vi.fn();
 const mockGet = vi.fn();
@@ -118,6 +118,56 @@ describe('OptionSetRelationshipHandler', () => {
     const updateArgs = mockUpdate.mock.calls[0][1];
     expect(updateArgs['optionSets.os-1']).toBe('$$FIELD_DELETE$$');
     expect(updateArgs['optionSetsSelection.os-1']).toBe('$$FIELD_DELETE$$');
+  });
+});
+
+describe('ProductMenuGroupRelationshipHandler', () => {
+  it('queries menuGroups by productDisplayOrder array-contains', async () => {
+    const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
+    mockGet.mockResolvedValue({ docs: [] });
+
+    await ProductMenuGroupRelationshipHandler.onSet(product, 'biz-1', mockTransaction);
+
+    expect(mockWhere).toHaveBeenCalledWith('productDisplayOrder', 'array-contains', 'prod-1');
+  });
+
+  it('onSet updates ProductMeta on matching menuGroups', async () => {
+    const product = createProduct(createTestProductInput({
+      Id: 'prod-1', name: 'Burger', isActive: true,
+      imageUrls: ['b.jpg'], imageGsls: [],
+      minPrice: 500, maxPrice: 800, variationCount: 3,
+    }));
+    mockGet.mockResolvedValue({ docs: [{ id: 'mg-1' }] });
+
+    await ProductMenuGroupRelationshipHandler.onSet(product, 'biz-1', mockTransaction);
+
+    expect(mockUpdate).toHaveBeenCalledWith(mockCollectionRef.doc('mg-1'), {
+      'products.prod-1': {
+        name: 'Burger', isActive: true,
+        imageUrls: ['b.jpg'], imageGsls: [],
+        minPrice: 500, maxPrice: 800, variationCount: 3,
+      },
+    });
+  });
+
+  it('onSet no-ops when no menuGroups match', async () => {
+    const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
+    mockGet.mockResolvedValue({ docs: [] });
+
+    await ProductMenuGroupRelationshipHandler.onSet(product, 'biz-1', mockTransaction);
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('onDelete removes from menuGroup products map and productDisplayOrder', async () => {
+    const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
+    mockGet.mockResolvedValue({ docs: [{ id: 'mg-1' }] });
+
+    await ProductMenuGroupRelationshipHandler.onDelete(product, 'biz-1', mockTransaction);
+
+    const updateArgs = mockUpdate.mock.calls[0][1];
+    expect(updateArgs['products.prod-1']).toBe('$$FIELD_DELETE$$');
+    expect(updateArgs.productDisplayOrder).toBe('$$ARRAY_REMOVE:prod-1$$');
   });
 });
 

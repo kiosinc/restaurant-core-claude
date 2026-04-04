@@ -48,6 +48,30 @@ describe('CatalogCascadeService', () => {
     });
   });
 
+  describe('product saved — menuGroup parent context', () => {
+    it('productSpec generates correct updates for menuGroup parent', () => {
+      const product = createProduct(createTestProductInput({
+        Id: 'prod-1', name: 'Burger', isActive: true,
+        imageUrls: ['b.jpg'], imageGsls: [],
+        minPrice: 500, maxPrice: 800, variationCount: 3,
+      }));
+
+      const result = buildSavedUpdates(product, ['mg-1'], productSpec);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].parentId).toBe('mg-1');
+      expect(result[0].update.fieldsToSet).toEqual({
+        'products.prod-1': {
+          name: 'Burger', isActive: true,
+          imageUrls: ['b.jpg'], imageGsls: [],
+          minPrice: 500, maxPrice: 800, variationCount: 3,
+        },
+      });
+      expect(result[0].update.fieldsToDelete).toEqual([]);
+      expect(result[0].update.arrayFieldRemovals).toEqual({});
+    });
+  });
+
   describe('product deleted', () => {
     it('returns delete + arrayRemove for a single parent', () => {
       const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
