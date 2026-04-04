@@ -23,6 +23,7 @@ describe('FeatureFlagService', () => {
       enableMenuRebuild: true,
       enableAvailabilityDoc: true,
       writeLegacyOptionInventory: false,
+      useCascadeEndpoint: false,
     });
   });
 
@@ -33,6 +34,7 @@ describe('FeatureFlagService', () => {
         enableMenuRebuild: false,
         enableAvailabilityDoc: true,
         writeLegacyOptionInventory: true,
+        useCascadeEndpoint: true,
       }),
     });
 
@@ -40,6 +42,7 @@ describe('FeatureFlagService', () => {
     expect(flags.enableMenuRebuild).toBe(false);
     expect(flags.enableAvailabilityDoc).toBe(true);
     expect(flags.writeLegacyOptionInventory).toBe(true);
+    expect(flags.useCascadeEndpoint).toBe(true);
   });
 
   it('uses defaults for missing fields in doc', async () => {
@@ -52,6 +55,7 @@ describe('FeatureFlagService', () => {
     expect(flags.enableMenuRebuild).toBe(false);
     expect(flags.enableAvailabilityDoc).toBe(true);
     expect(flags.writeLegacyOptionInventory).toBe(false);
+    expect(flags.useCascadeEndpoint).toBe(false);
   });
 
   it('caches result within TTL', async () => {

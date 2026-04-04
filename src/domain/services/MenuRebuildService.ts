@@ -7,6 +7,7 @@ export interface RebuildScope {
   menuIds?: string[];
   changedProductIds?: string[];
   changedCollectionIds?: string[];
+  changedMenuGroupIds?: string[];
 }
 
 interface DocData {
@@ -67,6 +68,23 @@ export async function rebuildMenus(businessId: string, scope?: RebuildScope): Pr
   await Promise.all(menusToRebuild.map((menu) => rebuildSingleMenu(db, businessId, menu)));
 }
 
+function addMenusByAssetType(
+  allMenus: DocData[],
+  changedIds: string[] | undefined,
+  assetType: MenuAsset['assetType'],
+  result: Set<string>,
+): void {
+  if (!changedIds || changedIds.length === 0) return;
+  const changedSet = new Set(changedIds);
+  for (const menu of allMenus) {
+    const assets: Record<string, MenuAsset> = menu.data.menuAssets ?? {};
+    const ids = extractAssetIdsByType(assets, assetType);
+    if (ids.some((id) => changedSet.has(id))) {
+      result.add(menu.id);
+    }
+  }
+}
+
 async function resolveMenuIds(
   db: FirebaseFirestore.Firestore,
   businessId: string,
@@ -117,16 +135,8 @@ async function resolveMenuIds(
     }
   }
 
-  if (scope.changedCollectionIds) {
-    const changedSet = new Set(scope.changedCollectionIds);
-    for (const menu of allMenus) {
-      const assets: Record<string, MenuAsset> = menu.data.menuAssets ?? {};
-      const colIds = extractAssetIdsByType(assets, 'collection');
-      if (colIds.some((id) => changedSet.has(id))) {
-        result.add(menu.id);
-      }
-    }
-  }
+  addMenusByAssetType(allMenus, scope.changedMenuGroupIds, 'group', result);
+  addMenusByAssetType(allMenus, scope.changedCollectionIds, 'collection', result);
 
   return result;
 }
