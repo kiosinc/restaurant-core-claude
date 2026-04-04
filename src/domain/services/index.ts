@@ -8,6 +8,14 @@ export {
 } from './CatalogCascadeService';
 
 export {
+  CascadeGraphRegistry,
+  CascadeNode,
+  CascadeEdge,
+  CascadeTier,
+  createDefaultCascadeGraph,
+} from './CascadeGraphRegistry';
+
+export {
   WriteModelFlags,
   createFlagService,
   getFlags,

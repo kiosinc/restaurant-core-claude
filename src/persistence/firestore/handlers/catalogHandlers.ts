@@ -4,13 +4,28 @@ import { Option } from '../../../domain/catalog/Option';
 import { buildSavedUpdates, buildDeletedUpdates, productSpec, optionSetSpec, optionSpec } from '../../../domain/services/CatalogCascadeService';
 import { PathResolver } from '../PathResolver';
 import { CascadeRelationshipHandler } from './CascadeRelationshipHandler';
+import { CompositeCascadeRelationshipHandler } from './CompositeCascadeRelationshipHandler';
 
-export const ProductRelationshipHandler = new CascadeRelationshipHandler<Product>({
-  parentCollection: (bid) => PathResolver.categoriesCollection(bid),
-  parentQuery: (p) => ['productDisplayOrder', 'array-contains', p.Id],
-  onSaved: (entity, parentIds) => buildSavedUpdates(entity, parentIds, productSpec),
-  onDeleted: (entity, parentIds) => buildDeletedUpdates(entity, parentIds, productSpec),
-});
+function createProductHandler(
+  parentCollectionFn: (bid: string) => FirebaseFirestore.CollectionReference,
+): CascadeRelationshipHandler<Product> {
+  return new CascadeRelationshipHandler<Product>({
+    parentCollection: parentCollectionFn,
+    parentQuery: (p) => ['productDisplayOrder', 'array-contains', p.Id],
+    onSaved: (entity, parentIds) => buildSavedUpdates(entity, parentIds, productSpec),
+    onDeleted: (entity, parentIds) => buildDeletedUpdates(entity, parentIds, productSpec),
+  });
+}
+
+export const ProductRelationshipHandler = createProductHandler((bid) => PathResolver.categoriesCollection(bid));
+export const ProductMenuGroupRelationshipHandler = createProductHandler((bid) => PathResolver.menuGroupsCollection(bid));
+
+// Consumers must register this instead of ProductRelationshipHandler to enable
+// Product → MenuGroup cascade. See kiosinc/businesses#212.
+export const ProductCompositeHandler = new CompositeCascadeRelationshipHandler<Product>([
+  ProductRelationshipHandler,
+  ProductMenuGroupRelationshipHandler,
+]);
 
 export const OptionSetRelationshipHandler = new CascadeRelationshipHandler<OptionSet>({
   parentCollection: (bid) => PathResolver.productsCollection(bid),

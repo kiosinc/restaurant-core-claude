@@ -289,6 +289,45 @@ describe('MenuRebuildService', () => {
     });
   });
 
+  // ─── TC: Scoped rebuild — changedMenuGroupIds ────────────────────
+
+  describe('changedMenuGroupIds', () => {
+    it('rebuilds only the menu containing SKoGd62OfNyZqMXqsKSX', async () => {
+      await rebuildMenus(BUSINESS_ID, {
+        changedMenuGroupIds: ['SKoGd62OfNyZqMXqsKSX'],
+      });
+      expect(transactionSets).toHaveLength(1);
+      expect(transactionSets[0].ref._docId).toBe('TdGQqmNhA3AjNeoyYrQn');
+    });
+
+    it('does not rebuild menus without the changed menuGroup', async () => {
+      await rebuildMenus(BUSINESS_ID, {
+        changedMenuGroupIds: ['SKoGd62OfNyZqMXqsKSX'],
+      });
+      const menuIds = transactionSets.map((s) => s.ref._docId);
+      expect(menuIds).not.toContain('CcUqgkBxEnk1qYaNZ3K2');
+      expect(menuIds).not.toContain('LShRjmDOXBNL7yVSD65V');
+      expect(menuIds).not.toContain('menu4');
+    });
+
+    it('unions with changedProductIds', async () => {
+      await rebuildMenus(BUSINESS_ID, {
+        changedMenuGroupIds: ['SKoGd62OfNyZqMXqsKSX'], // only in TdGQqmNhA3AjNeoyYrQn
+        changedProductIds: ['hE0hUoKxy0KgplK5pfF8'], // also only in TdGQqmNhA3AjNeoyYrQn
+      });
+      expect(transactionSets).toHaveLength(1);
+      expect(transactionSets[0].ref._docId).toBe('TdGQqmNhA3AjNeoyYrQn');
+    });
+
+    it('no-ops when empty array', async () => {
+      await rebuildMenus(BUSINESS_ID, {
+        changedMenuGroupIds: [],
+      });
+      // Empty scope with no other fields => no menus selected
+      expect(transactionSets).toHaveLength(0);
+    });
+  });
+
   // ─── resolveChangedProducts ───────────────────────────────────────
 
   describe('resolveChangedProducts', () => {
