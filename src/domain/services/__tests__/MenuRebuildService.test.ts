@@ -446,4 +446,291 @@ describe('MenuRebuildService', () => {
       expect(menuIds).toEqual(['CcUqgkBxEnk1qYaNZ3K2', 'LShRjmDOXBNL7yVSD65V', 'TdGQqmNhA3AjNeoyYrQn'].sort());
     });
   });
+
+  // ─── TOCTOU race condition (issue #50) ──────────────────────────────
+
+  describe('TOCTOU race condition (issue #50)', () => {
+    /**
+     * Helper: register a single menu and its dependencies for TOCTOU tests.
+     * Returns the menu data for assertions.
+     */
+    function setupSingleMenu(overrides?: {
+      bulkMenuAssets?: Record<string, any>;
+      bulkMenuAssetDisplayOrder?: string[];
+      bulkVersion?: string;
+    }) {
+      const menuAssets = overrides?.bulkMenuAssets ?? {
+        '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' },
+      };
+      const menuAssetDisplayOrder = overrides?.bulkMenuAssetDisplayOrder ?? ['0YRxtglWpkDyxcW8WCTD'];
+      const version = overrides?.bulkVersion ?? '1.0';
+
+      const menuData = {
+        name: 'Test Menu',
+        displayName: 'Test',
+        coverImageGsl: null,
+        coverBackgroundImageGsl: null,
+        coverVideoGsl: null,
+        logoImageGsl: null,
+        gratuityRates: [],
+        managedBy: null,
+        isDeleted: false,
+        created: new Date(),
+        updated: new Date(),
+        version,
+        groupDisplayOrder: ['0YRxtglWpkDyxcW8WCTD'],
+        groups: { '0YRxtglWpkDyxcW8WCTD': { name: 'All Items', displayName: 'All Items' } },
+        menuAssets,
+        menuAssetDisplayOrder,
+      };
+
+      registerCollection(MENUS_PATH, [{ id: 'toctou-menu', data: menuData }]);
+      registerCollection(MENU_GROUPS_PATH, menuGroups);
+      registerCollection(COLLECTIONS_PATH, collections);
+      registerCollection(PRODUCTS_PATH, products);
+      registerCollection(CATEGORIES_PATH, categories);
+
+      return menuData;
+    }
+
+    it('uses fresh menuAssets and menuAssetDisplayOrder from transaction read (no race)', async () => {
+      const bulkData = setupSingleMenu();
+
+      // Transaction returns data with different menuAssetDisplayOrder ordering (but same assets)
+      const freshOrder = ['0YRxtglWpkDyxcW8WCTD'];
+      // Same keys, just different displayOrder to prove we use fresh values
+      const freshDisplayOrder = ['0YRxtglWpkDyxcW8WCTD'];
+
+      mockTransaction.get.mockImplementation(async () => ({
+        id: 'toctou-menu',
+        exists: true,
+        data: () => ({
+          ...bulkData,
+          menuAssetDisplayOrder: freshDisplayOrder,
+        }),
+      }));
+
+      await rebuildMenus(BUSINESS_ID, { menuIds: ['toctou-menu'] });
+
+      expect(transactionSets).toHaveLength(1);
+      const written = transactionSets[0].data;
+      // Should use the fresh menuAssetDisplayOrder from existingData
+      expect(written.menuAssetDisplayOrder).toEqual(freshDisplayOrder);
+      // menuAssets should come from existingData
+      expect(written.menuAssets).toEqual(bulkData.menuAssets);
+    });
+
+    it('retries rebuild when menuAssets change between bulk read and transaction', async () => {
+      const bulkData = setupSingleMenu();
+
+      let runTransactionCallCount = 0;
+
+      // Override runTransaction to track calls and vary transaction.get behavior
+      mockDb.runTransaction.mockImplementation(async (fn: (t: any) => Promise<void>) => {
+        runTransactionCallCount++;
+        if (runTransactionCallCount === 1) {
+          // First attempt: transaction returns different menuAssets (extra asset)
+          mockTransaction.get.mockResolvedValueOnce({
+            id: 'toctou-menu',
+            exists: true,
+            data: () => ({
+              ...bulkData,
+              menuAssets: {
+                '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' as const },
+                'newAsset': { assetType: 'collection' as const },
+              },
+              menuAssetDisplayOrder: ['0YRxtglWpkDyxcW8WCTD', 'newAsset'],
+            }),
+          });
+        } else {
+          // Second attempt: consistent data (includes newAsset which is now in the bulk read too)
+          mockTransaction.get.mockResolvedValueOnce({
+            id: 'toctou-menu',
+            exists: true,
+            data: () => ({
+              ...bulkData,
+              menuAssets: {
+                '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' as const },
+                'newAsset': { assetType: 'collection' as const },
+              },
+              menuAssetDisplayOrder: ['0YRxtglWpkDyxcW8WCTD', 'newAsset'],
+            }),
+          });
+        }
+        await fn(mockTransaction);
+      });
+
+      await rebuildMenus(BUSINESS_ID, { menuIds: ['toctou-menu'] });
+
+      // runTransaction should have been called twice (once per attempt)
+      expect(mockDb.runTransaction).toHaveBeenCalledTimes(2);
+      // Only the second attempt should have written
+      expect(transactionSets).toHaveLength(1);
+    });
+
+    it('writes fresh version from transaction, not stale snapshot version', async () => {
+      setupSingleMenu({ bulkVersion: '1.0' });
+
+      mockTransaction.get.mockImplementation(async () => ({
+        id: 'toctou-menu',
+        exists: true,
+        data: () => ({
+          name: 'Test Menu',
+          displayName: 'Test',
+          coverImageGsl: null,
+          coverBackgroundImageGsl: null,
+          coverVideoGsl: null,
+          logoImageGsl: null,
+          gratuityRates: [],
+          managedBy: null,
+          isDeleted: false,
+          created: new Date(),
+          updated: new Date(),
+          version: '2.0',
+          groupDisplayOrder: ['0YRxtglWpkDyxcW8WCTD'],
+          menuAssets: { '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' } },
+          menuAssetDisplayOrder: ['0YRxtglWpkDyxcW8WCTD'],
+        }),
+      }));
+
+      await rebuildMenus(BUSINESS_ID, { menuIds: ['toctou-menu'] });
+
+      expect(transactionSets).toHaveLength(1);
+      expect(transactionSets[0].data.version).toBe('2.0');
+    });
+
+    it('throws after exceeding max retries', async () => {
+      setupSingleMenu();
+
+      let callCount = 0;
+
+      // Every transaction returns different menuAssets
+      mockDb.runTransaction.mockImplementation(async (fn: (t: any) => Promise<void>) => {
+        callCount++;
+        mockTransaction.get.mockResolvedValueOnce({
+          id: 'toctou-menu',
+          exists: true,
+          data: () => ({
+            name: 'Test Menu',
+            displayName: 'Test',
+            coverImageGsl: null,
+            coverBackgroundImageGsl: null,
+            coverVideoGsl: null,
+            logoImageGsl: null,
+            gratuityRates: [],
+            managedBy: null,
+            isDeleted: false,
+            created: new Date(),
+            updated: new Date(),
+            version: '1.0',
+            groupDisplayOrder: ['0YRxtglWpkDyxcW8WCTD'],
+            menuAssets: {
+              '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' },
+              [`divergent-${callCount}`]: { assetType: 'collection' },
+            },
+            menuAssetDisplayOrder: ['0YRxtglWpkDyxcW8WCTD', `divergent-${callCount}`],
+          }),
+        });
+        await fn(mockTransaction);
+      });
+
+      // Suppress expected console.warn output
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      await expect(
+        rebuildMenus(BUSINESS_ID, { menuIds: ['toctou-menu'] }),
+      ).rejects.toThrow('Failed to rebuild menu toctou-menu after 3 retries');
+
+      warnSpy.mockRestore();
+    });
+
+    it('re-materializes groups and collections on retry with changed asset IDs', async () => {
+      // Bulk snapshot has only group g1 = 0YRxtglWpkDyxcW8WCTD
+      setupSingleMenu({
+        bulkMenuAssets: {
+          '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' },
+        },
+        bulkMenuAssetDisplayOrder: ['0YRxtglWpkDyxcW8WCTD'],
+      });
+
+      let runTransactionCallCount = 0;
+
+      mockDb.runTransaction.mockImplementation(async (fn: (t: any) => Promise<void>) => {
+        runTransactionCallCount++;
+        if (runTransactionCallCount === 1) {
+          // First attempt: transaction shows a second group was added
+          mockTransaction.get.mockResolvedValueOnce({
+            id: 'toctou-menu',
+            exists: true,
+            data: () => ({
+              name: 'Test Menu',
+              displayName: 'Test',
+              coverImageGsl: null,
+              coverBackgroundImageGsl: null,
+              coverVideoGsl: null,
+              logoImageGsl: null,
+              gratuityRates: [],
+              managedBy: null,
+              isDeleted: false,
+              created: new Date(),
+              updated: new Date(),
+              version: '1.0',
+              groupDisplayOrder: ['0YRxtglWpkDyxcW8WCTD', 'SKoGd62OfNyZqMXqsKSX'],
+              menuAssets: {
+                '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' },
+                'SKoGd62OfNyZqMXqsKSX': { assetType: 'group' },
+              },
+              menuAssetDisplayOrder: ['0YRxtglWpkDyxcW8WCTD', 'SKoGd62OfNyZqMXqsKSX'],
+            }),
+          });
+        } else {
+          // Second attempt: consistent with the fresh data (both groups)
+          mockTransaction.get.mockResolvedValueOnce({
+            id: 'toctou-menu',
+            exists: true,
+            data: () => ({
+              name: 'Test Menu',
+              displayName: 'Test',
+              coverImageGsl: null,
+              coverBackgroundImageGsl: null,
+              coverVideoGsl: null,
+              logoImageGsl: null,
+              gratuityRates: [],
+              managedBy: null,
+              isDeleted: false,
+              created: new Date(),
+              updated: new Date(),
+              version: '1.0',
+              groupDisplayOrder: ['0YRxtglWpkDyxcW8WCTD', 'SKoGd62OfNyZqMXqsKSX'],
+              menuAssets: {
+                '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' },
+                'SKoGd62OfNyZqMXqsKSX': { assetType: 'group' },
+              },
+              menuAssetDisplayOrder: ['0YRxtglWpkDyxcW8WCTD', 'SKoGd62OfNyZqMXqsKSX'],
+            }),
+          });
+        }
+        await fn(mockTransaction);
+      });
+
+      // Suppress expected console.warn output
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      await rebuildMenus(BUSINESS_ID, { menuIds: ['toctou-menu'] });
+
+      warnSpy.mockRestore();
+
+      // Should have retried once
+      expect(mockDb.runTransaction).toHaveBeenCalledTimes(2);
+      // Only the second attempt writes
+      expect(transactionSets).toHaveLength(1);
+
+      const written = transactionSets[0].data;
+      // Both groups should be materialized
+      expect(written.groups['0YRxtglWpkDyxcW8WCTD']).toBeDefined();
+      expect(written.groups['SKoGd62OfNyZqMXqsKSX']).toBeDefined();
+      // The Chicken group should have products
+      expect(written.groups['SKoGd62OfNyZqMXqsKSX'].name).toBe('Chicken');
+    });
+  });
 });
