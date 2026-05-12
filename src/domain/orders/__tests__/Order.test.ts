@@ -1,19 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { Order, OrderPayment, LinkedObjectRef } from '../Order';
-import { DomainEntity } from '../../DomainEntity';
+import { createOrder, OrderPayment, LinkedObjectRef } from '../Order';
 import { OrderState, OrderType, PaymentState } from '../OrderSymbols';
 import {
-  createTestOrderProps,
+  createTestOrderInput,
   createTestFulfillment,
 } from '../../__tests__/helpers/OrderFixtures';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { ValidationError } from '../../validation';
 
 describe('Order (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
     const fulfillment = createTestFulfillment();
-    const order = new Order(createTestOrderProps({
+    const order = createOrder(createTestOrderInput({
       Id: 'order-1',
       created: now,
       updated: now,
@@ -47,44 +45,39 @@ describe('Order (domain)', () => {
     expect(order.tags).toBeNull();
   });
 
-  it('auto-generates UUID when no Id', () => {
-    const order = new Order(createTestOrderProps());
-    expect(order.Id).toMatch(UUID_REGEX);
-  });
-
   it('uses provided Id', () => {
-    const order = new Order(createTestOrderProps({ Id: 'order-123' }));
+    const order = createOrder(createTestOrderInput({ Id: 'order-123' }));
     expect(order.Id).toBe('order-123');
   });
 
   it('defaults state to OrderState.new', () => {
-    const order = new Order(createTestOrderProps());
+    const order = createOrder(createTestOrderInput());
     expect(order.state).toBe('new');
   });
 
   it('uses provided state', () => {
-    const order = new Order(createTestOrderProps({ state: OrderState.completed }));
+    const order = createOrder(createTestOrderInput({ state: OrderState.completed }));
     expect(order.state).toBe('completed');
   });
 
   it('defaults version to "3"', () => {
-    const order = new Order(createTestOrderProps());
+    const order = createOrder(createTestOrderInput());
     expect(order.version).toBe('3');
   });
 
   it('uses provided version', () => {
-    const order = new Order(createTestOrderProps({ version: '2' }));
+    const order = createOrder(createTestOrderInput({ version: '2' }));
     expect(order.version).toBe('2');
   });
 
   it('defaults isAvailable to true', () => {
-    const order = new Order(createTestOrderProps());
+    const order = createOrder(createTestOrderInput());
     expect(order.isAvailable).toBe(true);
   });
 
   it('defaults timestamp to now', () => {
     const before = Date.now();
-    const order = new Order(createTestOrderProps());
+    const order = createOrder(createTestOrderInput());
     const after = Date.now();
 
     expect(order.timestamp.getTime()).toBeGreaterThanOrEqual(before);
@@ -93,30 +86,22 @@ describe('Order (domain)', () => {
 
   it('uses provided timestamp', () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const order = new Order(createTestOrderProps({ timestamp: ts }));
+    const order = createOrder(createTestOrderInput({ timestamp: ts }));
     expect(order.timestamp).toBe(ts);
   });
 
   it('defaults posProvider to "system"', () => {
-    const order = new Order(createTestOrderProps());
+    const order = createOrder(createTestOrderInput());
     expect(order.posProvider).toBe('system');
   });
 
   it('uses provided posProvider', () => {
-    const order = new Order(createTestOrderProps({ posProvider: 'square' }));
+    const order = createOrder(createTestOrderInput({ posProvider: 'square' }));
     expect(order.posProvider).toBe('square');
   });
 
-  it('inherits DomainEntity fields', () => {
-    const order = new Order(createTestOrderProps());
-    expect(order).toBeInstanceOf(DomainEntity);
-    expect(order).toHaveProperty('created');
-    expect(order).toHaveProperty('updated');
-    expect(order).toHaveProperty('isDeleted');
-  });
-
   it('nullable fields accept null', () => {
-    const order = new Order(createTestOrderProps());
+    const order = createOrder(createTestOrderInput());
     expect(order.deviceId).toBeNull();
     expect(order.customerId).toBeNull();
     expect(order.note).toBeNull();
@@ -131,7 +116,7 @@ describe('Order (domain)', () => {
     const linked: { [Id: string]: LinkedObjectRef } = {
       square: { linkedObjectId: 'sq-123' },
     };
-    const order = new Order(createTestOrderProps({ linkedObjects: linked }));
+    const order = createOrder(createTestOrderInput({ linkedObjects: linked }));
     expect(order.linkedObjects!['square'].linkedObjectId).toBe('sq-123');
   });
 
@@ -143,7 +128,7 @@ describe('Order (domain)', () => {
       contact: { phoneNumber: '555-1234', email: 'test@test.com', name: 'John' },
       displayId: 'D-42',
     });
-    const order = new Order(createTestOrderProps({ fulfillment }));
+    const order = createOrder(createTestOrderInput({ fulfillment }));
 
     expect(order.fulfillment.type).toBe(OrderType.dineIn);
     expect(order.fulfillment.typeMetaData!.table).toBe('A1');
@@ -153,7 +138,7 @@ describe('Order (domain)', () => {
   });
 
   it('lineItems sub-interface works', () => {
-    const order = new Order(createTestOrderProps({
+    const order = createOrder(createTestOrderInput({
       lineItems: [
         {
           Id: 'li-1',
@@ -194,27 +179,75 @@ describe('Order (domain)', () => {
       paymentTimestamp: paymentTs,
       receiptUrl: 'https://receipt.example.com/123',
     };
-    const order = new Order(createTestOrderProps({ payment }));
+    const order = createOrder(createTestOrderInput({ payment }));
 
     expect(order.payment!.paymentState).toBe('completed');
     expect(order.payment!.paymentTimestamp).toBe(paymentTs);
     expect(order.payment!.receiptUrl).toBe('https://receipt.example.com/123');
   });
 
-  it('instantiates without Firebase', () => {
-    const order = new Order(createTestOrderProps());
-    expect(order).toBeDefined();
-  });
-
   it('state is mutable', () => {
-    const order = new Order(createTestOrderProps());
+    const order = createOrder(createTestOrderInput());
     order.state = OrderState.completed;
     expect(order.state).toBe('completed');
   });
 
   it('totalAmount is mutable', () => {
-    const order = new Order(createTestOrderProps());
+    const order = createOrder(createTestOrderInput());
     order.totalAmount = 2000;
     expect(order.totalAmount).toBe(2000);
+  });
+
+  describe('validation', () => {
+    it('throws for empty businessId', () => {
+      expect(() => createOrder(createTestOrderInput({ businessId: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for empty locationId', () => {
+      expect(() => createOrder(createTestOrderInput({ locationId: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for empty menuId', () => {
+      expect(() => createOrder(createTestOrderInput({ menuId: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for empty channel', () => {
+      expect(() => createOrder(createTestOrderInput({ channel: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for empty agent', () => {
+      expect(() => createOrder(createTestOrderInput({ agent: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for empty currency', () => {
+      expect(() => createOrder(createTestOrderInput({ currency: '' }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative totalAmount', () => {
+      expect(() => createOrder(createTestOrderInput({ totalAmount: -1 }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative totalDiscountAmount', () => {
+      expect(() => createOrder(createTestOrderInput({ totalDiscountAmount: -1 }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative totalTaxAmount', () => {
+      expect(() => createOrder(createTestOrderInput({ totalTaxAmount: -1 }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative totalSurchargeAmount', () => {
+      expect(() => createOrder(createTestOrderInput({ totalSurchargeAmount: -1 }))).toThrow(ValidationError);
+    });
+
+    it('throws for negative totalTipAmount', () => {
+      expect(() => createOrder(createTestOrderInput({ totalTipAmount: -1 }))).toThrow(ValidationError);
+    });
+
+    it('allows zero amounts', () => {
+      expect(() => createOrder(createTestOrderInput({
+        totalAmount: 0, totalDiscountAmount: 0, totalTaxAmount: 0,
+        totalSurchargeAmount: 0, totalTipAmount: 0,
+      }))).not.toThrow();
+    });
   });
 });

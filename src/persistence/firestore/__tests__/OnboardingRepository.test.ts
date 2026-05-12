@@ -1,38 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Onboarding, OnboardingStage, OnboardingStageStatus } from '../../../domain/roots/Onboarding';
+import { Onboarding, createOnboarding, OnboardingStage, OnboardingStageStatus } from '../../../domain/roots/Onboarding';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { OnboardingRepository } from '../OnboardingRepository';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { onboardingConverter } from '../converters';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => ({ get: vi.fn() })),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 describe('OnboardingRepository', () => {
-  let repo: OnboardingRepository;
+  let repo: FirestoreRepository<Onboarding>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    repo = new OnboardingRepository(new MetadataRegistry());
+    repo = new FirestoreRepository<Onboarding>(onboardingConverter, new MetadataRegistry());
   });
 
   it('get() returns Onboarding when exists', async () => {
@@ -52,7 +32,7 @@ describe('OnboardingRepository', () => {
   });
 
   it('set() serializes all fields', async () => {
-    const ob = new Onboarding({
+    const ob = createOnboarding({
       Id: 'onboarding',
       stripeCustomerId: 'cus_456',
       onboardingStatus: { [OnboardingStage.squareIntegration]: OnboardingStageStatus.skipped },
@@ -78,7 +58,7 @@ describe('OnboardingRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Onboarding({
+    const original = createOnboarding({
       Id: 'onboarding',
       stripeCustomerId: 'cus_rt',
       onboardingStatus: { [OnboardingStage.configMenu]: OnboardingStageStatus.complete },

@@ -1,10 +1,10 @@
-export { Business, BusinessProps, BusinessType, Role } from './Business';
-export { Catalog, CatalogProps } from './Catalog';
-export { Surfaces as SurfacesRoot, SurfacesProps } from './Surfaces';
-export { OrderSettings, OrderSettingsProps } from './Orders';
-export { LocationsRoot, LocationsRootProps, LocationMeta } from './Locations';
-export { ConnectedAccounts as ConnectedAccountsRoot, ConnectedAccountsProps } from './ConnectedAccounts';
-export { Services, ServicesProps } from './Services';
+export { Business, createBusinessRoot, BusinessType, Role } from './Business';
+export { Catalog, createCatalog } from './Catalog';
+export { Surfaces as SurfacesRoot, createSurfaces } from './Surfaces';
+export { OrderSettings, createOrderSettings } from './Orders';
+export { LocationsRoot, createLocationsRoot, LocationMeta } from './Locations';
+export { ConnectedAccounts as ConnectedAccountsRoot, createConnectedAccounts } from './ConnectedAccounts';
+export { Services, createServices } from './Services';
 export {
-  Onboarding, OnboardingProps, OnboardingStage, OnboardingStageStatus, DEFAULT_ONBOARDING_STATUS,
+  Onboarding, OnboardingInput, createOnboarding, OnboardingStage, OnboardingStageStatus, DEFAULT_ONBOARDING_STATUS,
 } from './Onboarding';

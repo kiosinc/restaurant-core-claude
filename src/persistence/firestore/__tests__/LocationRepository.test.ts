@@ -1,38 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Location } from '../../../domain/locations/Location';
+import { createLocation } from '../../../domain/locations/Location';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { LocationRepository } from '../LocationRepository';
-import { LocationMetadataSpec } from '../LocationMetadataSpec';
-import { createTestLocationProps } from '../../../domain/__tests__/helpers/LocationFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { locationConverter } from '../converters/locationConverter';
+import { locationMetadataSpec } from '../LocationMetadataSpec';
+import { createTestLocationInput } from '../../../domain/__tests__/helpers/LocationFixtures';
+import { mockTransaction, mockDocRef, mockQuery, mockCollectionRef, mockDb } from './helpers/firestoreMocks';
 
-// Mock firebase-admin/firestore
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: 'businesses/biz-1/public/locations' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'businesses/biz-1/public/locations',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: {
-    delete: () => '$$FIELD_DELETE$$',
-  },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 function createFullSerializedLocation() {
   const ts = '2024-01-15T10:00:00.000Z';
@@ -68,12 +43,12 @@ function createFullSerializedLocation() {
 
 describe('LocationRepository', () => {
   let registry: MetadataRegistry;
-  let repo: LocationRepository;
+  let repo: FirestoreRepository<any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new LocationRepository(registry);
+    repo = new FirestoreRepository(locationConverter, registry);
   });
 
   it('get() returns Location when doc exists', async () => {
@@ -101,7 +76,8 @@ describe('LocationRepository', () => {
 
   it('set() serializes all fields correctly', async () => {
     const ts = new Date('2024-01-15T10:00:00Z');
-    const location = new Location(createTestLocationProps({
+    const location = createLocation({
+      ...createTestLocationInput(),
       Id: 'loc-1',
       name: 'Downtown',
       isActive: true,
@@ -115,7 +91,7 @@ describe('LocationRepository', () => {
       isAcceptsMobileOrders: true,
       created: ts,
       updated: ts,
-    }));
+    });
 
     await repo.set(location, 'biz-1');
 
@@ -137,12 +113,13 @@ describe('LocationRepository', () => {
   });
 
   it('set() deep-clones nested objects', async () => {
-    const location = new Location(createTestLocationProps({
+    const location = createLocation({
+      ...createTestLocationInput(),
       linkedObjects: { square: { linkedObjectId: 'sq-1' } },
       address: { addressLine1: '123 Main', addressLine2: '', city: 'Portland', state: 'OR', zip: '97201', country: 'US' },
       geoCoordinates: { geohash: 'abc', lat: 45.5, lng: -122.6 },
       businessHours: { periods: [{ open: { day: 1, time: '0900' }, close: { day: 1, time: '1700' } }] },
-    }));
+    });
 
     await repo.set(location, 'biz-1');
 
@@ -158,7 +135,7 @@ describe('LocationRepository', () => {
   });
 
   it('set() handles null geoCoordinates and businessHours', async () => {
-    const location = new Location(createTestLocationProps());
+    const location = createLocation(createTestLocationInput());
     await repo.set(location, 'biz-1');
 
     const data = mockTransaction.set.mock.calls[0][1];
@@ -167,14 +144,15 @@ describe('LocationRepository', () => {
   });
 
   it('set() runs transaction with metadata when spec registered', async () => {
-    const spec = new LocationMetadataSpec();
-    registry.register(Location, spec);
+    const spec = locationMetadataSpec;
+    registry.register('location', spec);
 
-    const location = new Location(createTestLocationProps({
+    const location = createLocation({
+      ...createTestLocationInput(),
       Id: 'loc-1',
       name: 'Test',
       isActive: true,
-    }));
+    });
 
     await repo.set(location, 'biz-1');
 
@@ -189,7 +167,7 @@ describe('LocationRepository', () => {
   });
 
   it('set() runs transaction without metadata when no spec', async () => {
-    const location = new Location(createTestLocationProps());
+    const location = createLocation(createTestLocationInput());
     await repo.set(location, 'biz-1');
 
     expect(mockDb.runTransaction).toHaveBeenCalledTimes(1);
@@ -199,7 +177,8 @@ describe('LocationRepository', () => {
 
   it('round-trip: toFirestore -> fromFirestore preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Location(createTestLocationProps({
+    const original = createLocation({
+      ...createTestLocationInput(),
       Id: 'loc-rt',
       name: 'Round Trip',
       isActive: false,
@@ -217,7 +196,7 @@ describe('LocationRepository', () => {
       isAcceptsMobileOrders: false,
       created: ts,
       updated: ts,
-    }));
+    });
 
     // Capture toFirestore output via set
     await repo.set(original, 'biz-1');

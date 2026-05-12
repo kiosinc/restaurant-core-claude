@@ -1,4 +1,5 @@
 import { createHttpTask } from '../utils/GoogleCloudTask';
+import { standardizedDate } from '../utils/dateFormat';
 import { ReportTaskEvent } from './ReportTaskEvent';
 
 export interface DailyKeyMetrics {
@@ -48,9 +49,9 @@ export class DailyKeyMetricReportV2 {
     this.updated = updated ?? now;
   }
 
-  public static initFromDataSnapshot(snap: any) {
+  public static initFromDataSnapshot(snap: FirebaseFirestore.DocumentData) {
     const now = new Date();
-    const obj = new DailyKeyMetricReportV2(
+    return new DailyKeyMetricReportV2(
       snap.businessId,
       snap.locationId,
       snap.dateIndex,
@@ -58,36 +59,21 @@ export class DailyKeyMetricReportV2 {
       snap.created ? new Date(snap.created) : now,
       snap.updated ? new Date(snap.updated) : now,
     );
-
-    return obj;
   }
 
   static locationReportPathV1(businessId: string, date: Date, locationId: string) {
-    // TODO: localization of date
-    const dateSplit = date.toISOString().split('T')[0].split('-');
-    const year = dateSplit[0];
-    const month = dateSplit[1];
-    const day = dateSplit[2];
-
-    const path = `/businesses/${businessId}/reports/dailyKeyMetrics/${year}/${month}/${day}/${locationId}`;
-
-    return path;
+    // ISO date used intentionally for consistent, timezone-independent path keys
+    const dateKey = standardizedDate(date);
+    return `/businesses/${businessId}/reports/dailyKeyMetrics/${dateKey}/${locationId}`;
   }
 
   static locationReportPath(locationId: string, date: Date) {
-    const dateKey = this.standardizedDate(date).replace(/\//g, '');
-    const path = `/dailyKeyMetrics/${locationId}_${dateKey}`;
-
-    return path;
+    const dateKey = standardizedDate(date).replace(/\//g, '');
+    return `/dailyKeyMetrics/${locationId}_${dateKey}`;
   }
 
   static standardizedDate(date: Date) {
-    const dateSplit = date.toISOString().split('T')[0].split('-');
-    const year = dateSplit[0];
-    const month = `00${dateSplit[1]}`.slice(-2);
-    const day = `00${dateSplit[2]}`.slice(-2);
-
-    return `${year}/${month}/${day}`;
+    return standardizedDate(date);
   }
 
   static newDailyKeyMetrics(): DailyKeyMetrics {
@@ -130,5 +116,5 @@ export interface UpdateDailyKeyMetricReportTaskData {
   locationId: string,
   date: string,
   source: string,
-  keyMetrics: any,
+  keyMetrics: DailyKeyMetrics,
 }

@@ -1,19 +1,29 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
-import { MetadataProjection } from '../MetadataSpec';
-import { MenuGroupMeta } from './MenuGroupMeta';
-import { ProductMeta } from '../catalog/ProductMeta';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireString } from '../validation';
+import { ProductMeta } from '../catalog/Product';
+import type { MenuProductMeta } from './Menu';
 
-export interface MenuGroupProps extends DomainEntityProps {
+export interface MenuGroupMeta {
   name: string;
   displayName: string | null;
-  products: { [id: string]: ProductMeta };
-  productDisplayOrder: string[];
-  parentGroup: string | null;
-  childGroup: string | null;
-  mirrorCategoryId: string | null;
+  imageGsls?: string[];
+  productDisplayOrder?: string[];
+  mirrorCategoryId?: string | null;
+  products?: { [id: string]: MenuProductMeta };
 }
 
-export class MenuGroup extends DomainEntity implements MetadataProjection<MenuGroupMeta> {
+export interface MenuGroupInput {
+  name: string;
+  displayName?: string | null;
+  products?: { [id: string]: ProductMeta };
+  productDisplayOrder?: string[];
+  parentGroup?: string | null;
+  childGroup?: string | null;
+  mirrorCategoryId?: string | null;
+  managedBy?: string | null;
+}
+
+export interface MenuGroup extends BaseEntity {
   name: string;
   displayName: string | null;
   products: { [id: string]: ProductMeta };
@@ -21,22 +31,27 @@ export class MenuGroup extends DomainEntity implements MetadataProjection<MenuGr
   parentGroup: string | null;
   childGroup: string | null;
   mirrorCategoryId: string | null;
+  managedBy: string | null;
+}
 
-  constructor(props: MenuGroupProps) {
-    super(props);
-    this.name = props.name;
-    this.displayName = props.displayName ?? '';
-    this.products = props.products ?? {};
-    this.productDisplayOrder = props.productDisplayOrder ?? [];
-    this.parentGroup = props.parentGroup ?? null;
-    this.childGroup = props.childGroup ?? null;
-    this.mirrorCategoryId = props.mirrorCategoryId ?? null;
-  }
+export function createMenuGroup(input: MenuGroupInput & Partial<BaseEntity>): MenuGroup {
+  requireString('name', input.name);
+  return {
+    ...baseEntityDefaults(input),
+    name: input.name,
+    displayName: input.displayName ?? null,
+    products: input.products ?? {},
+    productDisplayOrder: input.productDisplayOrder ?? [],
+    parentGroup: input.parentGroup ?? null,
+    childGroup: input.childGroup ?? null,
+    mirrorCategoryId: input.mirrorCategoryId ?? null,
+    managedBy: input.managedBy ?? null,
+  };
+}
 
-  metadata(): MenuGroupMeta {
-    return {
-      name: this.name,
-      displayName: this.displayName,
-    };
-  }
+export function menuGroupMeta(menuGroup: MenuGroup): MenuGroupMeta {
+  return {
+    name: menuGroup.name,
+    displayName: menuGroup.displayName,
+  };
 }

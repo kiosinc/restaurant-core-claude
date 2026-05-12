@@ -1,5 +1,5 @@
 export { RelationshipHandler } from './RelationshipHandler';
 export { RelationshipHandlerRegistry } from './RelationshipHandlerRegistry';
-export { OptionRelationshipHandler } from './OptionRelationshipHandler';
-export { OptionSetRelationshipHandler } from './OptionSetRelationshipHandler';
-export { ProductRelationshipHandler } from './ProductRelationshipHandler';
+export { CascadeRelationshipHandler, CascadeHandlerConfig } from './CascadeRelationshipHandler';
+export { CompositeCascadeRelationshipHandler } from './CompositeCascadeRelationshipHandler';
+export { ProductRelationshipHandler, ProductMenuGroupRelationshipHandler, ProductCompositeHandler, OptionSetRelationshipHandler, OptionRelationshipHandler } from './catalogHandlers';

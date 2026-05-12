@@ -65,6 +65,10 @@ export class PathResolver {
     return this.privateCollection(businessId).doc(Paths.CollectionNames.onboarding);
   }
 
+  static varsDoc(businessId: string): FirebaseFirestore.DocumentReference {
+    return this.privateCollection(businessId).doc(Paths.CollectionNames.vars);
+  }
+
   // Child collection helpers
   static productsCollection(businessId: string): FirebaseFirestore.CollectionReference {
     return this.catalogDoc(businessId).collection(Paths.CollectionNames.products);
@@ -114,6 +118,18 @@ export class PathResolver {
     return this.surfacesDoc(businessId).collection(Paths.CollectionNames.checkoutOptions);
   }
 
+  static collectionsCollection(businessId: string): FirebaseFirestore.CollectionReference {
+    return this.surfacesDoc(businessId).collection(Paths.CollectionNames.collections);
+  }
+
+  static inventoryRootDoc(businessId: string): FirebaseFirestore.DocumentReference {
+    return this.publicCollection(businessId).doc(Paths.CollectionNames.inventory);
+  }
+
+  static availabilityDoc(businessId: string, locationId: string): FirebaseFirestore.DocumentReference {
+    return this.inventoryRootDoc(businessId).collection(Paths.CollectionNames.inventory).doc(locationId);
+  }
+
   static locationsCollection(businessId: string): FirebaseFirestore.CollectionReference {
     return this.locationsDoc(businessId).collection(Paths.CollectionNames.locations);
   }
@@ -132,5 +148,9 @@ export class PathResolver {
 
   static onboardingOrdersCollection(businessId: string): FirebaseFirestore.CollectionReference {
     return this.onboardingDoc(businessId).collection(Paths.CollectionNames.onboardingOrders);
+  }
+
+  static semaphoresCollection(): FirebaseFirestore.CollectionReference {
+    return this.db().collection(Paths.CollectionNames.semaphores);
   }
 }

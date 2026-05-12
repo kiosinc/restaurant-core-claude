@@ -6,8 +6,8 @@ export function linkedObjectQuery(
   linkedObjectId: string,
   provider: string,
   collectionRef: FirebaseFirestore.CollectionReference,
-  converter?: FirebaseFirestore.FirestoreDataConverter<any>,
-): FirebaseFirestore.Query<any> {
+  converter?: FirebaseFirestore.FirestoreDataConverter<unknown>,
+): FirebaseFirestore.Query<unknown> {
   let query = collectionRef
     .where(`linkedObjects.${provider}.linkedObjectId`, '==', linkedObjectId);
 

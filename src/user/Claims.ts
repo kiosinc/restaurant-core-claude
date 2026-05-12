@@ -2,12 +2,12 @@
  * Claims module
  * Documents user claims
  */
-import * as Constants from '../firestore-core/Constants';
+import { Role } from '../domain/roots/Business';
 
 /** Claim body that contains the dictionary
  * of user roles for given businessId */
 export interface Body {
-  businessRole: { [businessId: string]: Constants.Role };
+  businessRole: { [businessId: string]: Role };
 }
 
 /** Wraps a claim body to be readable on decodedIdToken

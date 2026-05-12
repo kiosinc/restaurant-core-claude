@@ -8,7 +8,7 @@ export interface OrderTypeMeta {
   table?: string,
 }
 
-export const enum OrderState {
+export enum OrderState {
   open = 'open',
   new = 'new',
   inProgress = 'inProgress',
@@ -17,7 +17,7 @@ export const enum OrderState {
   cancelled = 'cancelled',
 }
 
-export const enum PaymentState {
+export enum PaymentState {
   none = 'none',
   approved = 'approved',
   pending = 'pending',

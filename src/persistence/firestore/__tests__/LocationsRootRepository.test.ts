@@ -1,38 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { LocationsRoot } from '../../../domain/roots/Locations';
+import { LocationsRoot, createLocationsRoot } from '../../../domain/roots/Locations';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { LocationsRootRepository } from '../LocationsRootRepository';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { locationsRootConverter } from '../converters';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => ({ get: vi.fn() })),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 describe('LocationsRootRepository', () => {
-  let repo: LocationsRootRepository;
+  let repo: FirestoreRepository<LocationsRoot>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    repo = new LocationsRootRepository(new MetadataRegistry());
+    repo = new FirestoreRepository<LocationsRoot>(locationsRootConverter, new MetadataRegistry());
   });
 
   it('get() returns LocationsRoot when exists', async () => {
@@ -49,7 +29,7 @@ describe('LocationsRootRepository', () => {
 
   it('set() deep-clones locations', async () => {
     const locations = { 'loc-1': { name: 'Airport', isActive: true } };
-    const lr = new LocationsRoot({ Id: 'locations', locations });
+    const lr = createLocationsRoot({ Id: 'locations', locations });
     await repo.set(lr, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.locations).toEqual(locations);
@@ -58,7 +38,7 @@ describe('LocationsRootRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new LocationsRoot({
+    const original = createLocationsRoot({
       Id: 'locations',
       locations: { 'loc-1': { name: 'Mall', isActive: false } },
       created: ts, updated: ts,

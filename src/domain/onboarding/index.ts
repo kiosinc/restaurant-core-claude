@@ -1,1 +1,1 @@
-export { OnboardingOrder, OnboardingOrderProps, InvoiceStatus } from './OnboardingOrder';
+export { OnboardingOrder, OnboardingOrderInput, InvoiceStatus, createOnboardingOrder } from './OnboardingOrder';

@@ -1,29 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Category } from '../../../domain/catalog/Category';
+import { createCategory } from '../../../domain/catalog/Category';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { CategoryRepository } from '../CategoryRepository';
-import { createTestCategoryProps } from '../../../domain/__tests__/helpers/CatalogFixtures';
-
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
+import { FirestoreRepository } from '../FirestoreRepository';
+import { categoryConverter } from '../converters';
+import { createTestCategoryInput } from '../../../domain/__tests__/helpers/CatalogFixtures';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mockDb,
@@ -44,12 +25,12 @@ function createFullSerializedCategory() {
 
 describe('CategoryRepository', () => {
   let registry: MetadataRegistry;
-  let repo: CategoryRepository;
+  let repo: FirestoreRepository<any>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new CategoryRepository(registry);
+    repo = new FirestoreRepository(categoryConverter, registry);
   });
 
   it('get() returns Category when exists', async () => {
@@ -70,11 +51,12 @@ describe('CategoryRepository', () => {
   });
 
   it('set() serializes all fields', async () => {
-    const category = new Category(createTestCategoryProps({
+    const category = createCategory({
+      ...createTestCategoryInput(),
       Id: 'cat-1', name: 'Entrees',
       products: { 'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1 } },
       productDisplayOrder: ['prod-1'],
-    }));
+    });
     await repo.set(category, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.name).toBe('Entrees');
@@ -83,11 +65,12 @@ describe('CategoryRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new Category(createTestCategoryProps({
+    const original = createCategory({
+      ...createTestCategoryInput(),
       Id: 'cat-rt', name: 'Desserts',
       imageUrls: ['dessert.jpg'], imageGsls: ['gs://dessert'],
       created: ts, updated: ts,
-    }));
+    });
     await repo.set(original, 'biz-1');
     const serialized = mockTransaction.set.mock.calls[0][1];
     mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-rt' });

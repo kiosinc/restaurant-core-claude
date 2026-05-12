@@ -1,18 +1,10 @@
-import { MetadataSpec, MetaLinkDeclaration } from '../../domain/MetadataSpec';
-import { MenuGroup } from '../../domain/surfaces/MenuGroup';
-import { MenuGroupMeta } from '../../domain/surfaces/MenuGroupMeta';
+import { MenuGroup, MenuGroupMeta, menuGroupMeta } from '../../domain/surfaces/MenuGroup';
 import { PathResolver } from './PathResolver';
-import * as Paths from '../../firestore-core/Paths';
+import { CollectionNames } from '../../firestore-core/Paths';
+import { createRootMetadataSpec } from './createRootMetadataSpec';
 
-export class MenuGroupMetadataSpec implements MetadataSpec<MenuGroup, MenuGroupMeta> {
-  getMetadata(entity: MenuGroup): MenuGroupMeta {
-    return entity.metadata();
-  }
-
-  getMetaLinks(entity: MenuGroup, businessId: string): MetaLinkDeclaration[] {
-    return [{
-      documentPath: PathResolver.surfacesDoc(businessId).path,
-      fieldPath: `${Paths.CollectionNames.menuGroups}.${entity.Id}`,
-    }];
-  }
-}
+export const menuGroupMetadataSpec = createRootMetadataSpec<MenuGroup, MenuGroupMeta>(
+  menuGroupMeta,
+  (businessId) => PathResolver.surfacesDoc(businessId),
+  CollectionNames.menuGroups,
+);

@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { Menu } from '../Menu';
-import { createTestMenuProps } from '../../__tests__/helpers/SurfacesFixtures';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+import { createMenu, menuMeta } from '../Menu';
+import { createTestMenuInput } from '../../__tests__/helpers/SurfacesFixtures';
+import { ValidationError } from '../../validation';
 
 describe('Menu (domain)', () => {
   it('constructs with all props', () => {
     const now = new Date('2024-01-15T10:00:00Z');
-    const menu = new Menu(createTestMenuProps({
+    const menu = createMenu({
+      ...createTestMenuInput(),
       Id: 'menu-1',
       name: 'Lunch Menu',
       displayName: 'Lunch',
@@ -18,9 +18,10 @@ describe('Menu (domain)', () => {
       coverVideoGsl: 'gs://video',
       logoImageGsl: 'gs://logo',
       gratuityRates: [15, 18, 20],
+      managedBy: 'square',
       created: now,
       updated: now,
-    }));
+    });
 
     expect(menu.Id).toBe('menu-1');
     expect(menu.name).toBe('Lunch Menu');
@@ -32,74 +33,95 @@ describe('Menu (domain)', () => {
     expect(menu.coverVideoGsl).toBe('gs://video');
     expect(menu.logoImageGsl).toBe('gs://logo');
     expect(menu.gratuityRates).toEqual([15, 18, 20]);
-  });
-
-  it('auto-generates UUID when no Id', () => {
-    const menu = new Menu(createTestMenuProps());
-    expect(menu.Id).toMatch(UUID_REGEX);
+    expect(menu.managedBy).toBe('square');
   });
 
   it('defaults displayName to null', () => {
-    const menu = new Menu(createTestMenuProps());
+    const menu = createMenu(createTestMenuInput());
     expect(menu.displayName).toBeNull();
   });
 
   it('defaults groups to {}', () => {
-    const menu = new Menu(createTestMenuProps());
+    const menu = createMenu(createTestMenuInput());
     expect(menu.groups).toEqual({});
   });
 
   it('defaults groupDisplayOrder to []', () => {
-    const menu = new Menu(createTestMenuProps());
+    const menu = createMenu(createTestMenuInput());
     expect(menu.groupDisplayOrder).toEqual([]);
   });
 
   it('defaults coverImageGsl to null', () => {
-    const menu = new Menu(createTestMenuProps());
+    const menu = createMenu(createTestMenuInput());
     expect(menu.coverImageGsl).toBeNull();
   });
 
   it('defaults coverBackgroundImageGsl to null', () => {
-    const menu = new Menu(createTestMenuProps());
+    const menu = createMenu(createTestMenuInput());
     expect(menu.coverBackgroundImageGsl).toBeNull();
   });
 
   it('defaults coverVideoGsl to null', () => {
-    const menu = new Menu(createTestMenuProps());
+    const menu = createMenu(createTestMenuInput());
     expect(menu.coverVideoGsl).toBeNull();
   });
 
   it('defaults logoImageGsl to null', () => {
-    const menu = new Menu(createTestMenuProps());
+    const menu = createMenu(createTestMenuInput());
     expect(menu.logoImageGsl).toBeNull();
   });
 
   it('defaults gratuityRates to []', () => {
-    const menu = new Menu(createTestMenuProps());
+    const menu = createMenu(createTestMenuInput());
     expect(menu.gratuityRates).toEqual([]);
   });
 
-  it('metadata() returns MenuMeta', () => {
-    const menu = new Menu(createTestMenuProps({
+  it('defaults managedBy to null', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.managedBy).toBeNull();
+  });
+
+  it('defaults collections to {}', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.collections).toEqual({});
+  });
+
+  it('defaults menuAssets to {}', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.menuAssets).toEqual({});
+  });
+
+  it('defaults menuAssetDisplayOrder to []', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.menuAssetDisplayOrder).toEqual([]);
+  });
+
+  it('defaults version to null', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.version).toBeNull();
+  });
+
+  it('defaults products to {}', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.products).toEqual({});
+  });
+
+  it('menuMeta() returns MenuMeta', () => {
+    const menu = createMenu(createTestMenuInput({
       name: 'Dinner',
       displayName: 'Evening Menu',
     }));
-    expect(menu.metadata()).toEqual({
+    expect(menuMeta(menu)).toEqual({
       name: 'Dinner',
       displayName: 'Evening Menu',
     });
   });
 
-  it('inherits DomainEntity fields', () => {
-    const now = new Date('2024-06-01T12:00:00Z');
-    const menu = new Menu(createTestMenuProps({ created: now, updated: now, isDeleted: true }));
-    expect(menu.created).toEqual(now);
-    expect(menu.updated).toEqual(now);
-    expect(menu.isDeleted).toBe(true);
+  describe('validation', () => {
+    it('allows empty name', () => {
+      const menu = createMenu(createTestMenuInput({ name: '' }));
+      expect(menu.name).toBe('');
+    });
   });
 
-  it('instantiates without Firebase', () => {
-    const menu = new Menu(createTestMenuProps());
-    expect(menu).toBeDefined();
-  });
 });

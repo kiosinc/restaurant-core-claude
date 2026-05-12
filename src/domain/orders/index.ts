@@ -1,6 +1,6 @@
 export {
   Order,
-  OrderProps,
+  OrderInput,
   OrderItem,
   OrderLineItem,
   OrderFulfillment,
@@ -9,8 +9,7 @@ export {
   OrderPriceAdjustmentMeta,
   OptionSetSelected,
   SelectedValue,
-  LinkedObjectRef,
-  LinkedObjectMap,
+  createOrder,
 } from './Order';
 export {
   OrderType,

@@ -1,20 +1,20 @@
-import { DomainEntity, DomainEntityProps } from '../DomainEntity';
+import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
+import { requireNonEmptyString } from '../validation';
 
-export interface TokenProps extends DomainEntityProps {
+export interface Token extends BaseEntity {
   createdBy: string;
   businessId: string;
   provider: string;
 }
 
-export abstract class Token extends DomainEntity {
-  createdBy: string;
-  businessId: string;
-  provider: string;
-
-  protected constructor(props: TokenProps) {
-    super(props);
-    this.createdBy = props.createdBy;
-    this.businessId = props.businessId;
-    this.provider = props.provider;
-  }
+export function createToken(input: Partial<Token> & { createdBy: string; businessId: string; provider: string }): Token {
+  requireNonEmptyString('createdBy', input.createdBy);
+  requireNonEmptyString('businessId', input.businessId);
+  requireNonEmptyString('provider', input.provider);
+  return {
+    ...baseEntityDefaults(input),
+    createdBy: input.createdBy,
+    businessId: input.businessId,
+    provider: input.provider,
+  };
 }

@@ -1,43 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TaxRate } from '../../../domain/catalog/TaxRate';
+import { TaxRate, createTaxRate } from '../../../domain/catalog/TaxRate';
 import { MetadataRegistry } from '../../MetadataRegistry';
-import { TaxRateRepository } from '../TaxRateRepository';
-import { createTestTaxRateProps } from '../../../domain/__tests__/helpers/CatalogFixtures';
+import { FirestoreRepository } from '../FirestoreRepository';
+import { taxRateConverter } from '../converters';
+import { createTestTaxRateInput } from '../../../domain/__tests__/helpers/CatalogFixtures';
+import { mockTransaction, mockDocRef, mockDb } from './helpers/firestoreMocks';
 
-const mockTransaction = { set: vi.fn(), update: vi.fn(), delete: vi.fn() };
-const mockDocRef = { get: vi.fn(), update: vi.fn(), path: '' };
-const mockQuery = { get: vi.fn() };
-const mockCollectionRef = {
-  doc: vi.fn(() => mockDocRef),
-  where: vi.fn(() => mockQuery),
-};
-
-const mockDb = {
-  collection: vi.fn(() => mockCollectionRef),
-  doc: vi.fn(() => mockDocRef),
-  runTransaction: vi.fn(async (fn: (t: any) => Promise<void>) => fn(mockTransaction)),
-};
-
-// Make chaining work: collection().doc() returns something with .collection()
-mockCollectionRef.doc.mockReturnValue({
-  ...mockDocRef,
-  collection: vi.fn(() => mockCollectionRef),
-  path: 'mocked/path',
-});
-
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mockDb,
-  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
-}));
+vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => mockDb, FieldValue: { delete: () => '$$FIELD_DELETE$$' } }));
 
 describe('TaxRateRepository', () => {
   let registry: MetadataRegistry;
-  let repo: TaxRateRepository;
+  let repo: FirestoreRepository<TaxRate>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     registry = new MetadataRegistry();
-    repo = new TaxRateRepository(registry);
+    repo = new FirestoreRepository<TaxRate>(taxRateConverter, registry);
   });
 
   it('get() returns TaxRate when exists', async () => {
@@ -63,7 +41,7 @@ describe('TaxRateRepository', () => {
   });
 
   it('set() serializes all fields', async () => {
-    const taxRate = new TaxRate(createTestTaxRateProps({ Id: 'tax-1' }));
+    const taxRate = createTaxRate({ ...createTestTaxRateInput(), Id: 'tax-1' });
     await repo.set(taxRate, 'biz-1');
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.name).toBe('Test Tax');
@@ -74,11 +52,12 @@ describe('TaxRateRepository', () => {
 
   it('round-trip preserves data', async () => {
     const ts = new Date('2024-06-01T12:00:00Z');
-    const original = new TaxRate(createTestTaxRateProps({
+    const original = createTaxRate({
+      ...createTestTaxRateInput(),
       Id: 'tax-rt', name: 'RT Tax', rate: 0.05,
       isCalculatedSubTotalPhase: false, isInclusive: true,
       created: ts, updated: ts,
-    }));
+    });
     await repo.set(original, 'biz-1');
     const serialized = mockTransaction.set.mock.calls[0][1];
     mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'tax-rt' });
