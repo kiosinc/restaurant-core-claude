@@ -95,9 +95,7 @@ export async function getOptionTimestamp(
   locationId: string,
   optionId: string,
 ): Promise<Date | undefined> {
-  const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  const snap = await docRef.get();
-  if (!snap.exists) return undefined;
-  const opt = snap.data()?.options?.[optionId];
-  return opt?.timestamp ? new Date(opt.timestamp) : undefined;
+  const doc = await getAvailability(businessId, locationId);
+  const ts = doc?.options?.[optionId]?.timestamp;
+  return ts ? new Date(ts) : undefined;
 }
