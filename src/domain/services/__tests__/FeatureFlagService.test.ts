@@ -24,6 +24,7 @@ describe('FeatureFlagService', () => {
       enableAvailabilityDoc: true,
       writeLegacyOptionInventory: false,
       useCascadeEndpoint: false,
+      disableImageSync: false,
     });
   });
 

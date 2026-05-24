@@ -60,6 +60,20 @@ export interface OrderPayment {
   receiptUrl: string | null;
 }
 
+export interface ComposableTender {
+  idempotencyKey: string;
+  squarePaymentId: string;
+  kind: 'giftcard' | 'savedCard';
+  amountApplied: number;
+  tipApplied: number;
+  status: string;
+}
+
+export interface RedeemedCodeRedemption {
+  id: string;
+  discountCodeId: string;
+}
+
 export interface OrderInput {
   businessId: string;
   locationId: string;
@@ -90,6 +104,9 @@ export interface OrderInput {
   tags: string[] | null;
   version?: string;
   isAvailable?: boolean;
+  redeemedLoyaltyRewardIds?: string[];
+  redeemedCodeRedemptions?: RedeemedCodeRedemption[];
+  composableTenders?: ComposableTender[];
 }
 
 export interface Order extends BaseEntity {
@@ -122,6 +139,9 @@ export interface Order extends BaseEntity {
   linkedObjects: { [Id: string]: LinkedObjectRef } | null;
   isAvailable: boolean;
   tags: string[] | null;
+  redeemedLoyaltyRewardIds: string[];
+  redeemedCodeRedemptions: RedeemedCodeRedemption[];
+  composableTenders: ComposableTender[];
 }
 
 export function createOrder(input: OrderInput & Partial<BaseEntity>): Order {
@@ -167,5 +187,8 @@ export function createOrder(input: OrderInput & Partial<BaseEntity>): Order {
     linkedObjects: input.linkedObjects,
     isAvailable: input.isAvailable ?? true,
     tags: input.tags,
+    redeemedLoyaltyRewardIds: input.redeemedLoyaltyRewardIds ?? [],
+    redeemedCodeRedemptions: input.redeemedCodeRedemptions ?? [],
+    composableTenders: input.composableTenders ?? [],
   };
 }

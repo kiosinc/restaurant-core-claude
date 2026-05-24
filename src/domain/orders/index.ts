@@ -9,6 +9,8 @@ export {
   OrderPriceAdjustmentMeta,
   OptionSetSelected,
   SelectedValue,
+  ComposableTender,
+  RedeemedCodeRedemption,
   createOrder,
 } from './Order';
 export {

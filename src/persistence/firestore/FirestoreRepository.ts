@@ -1,4 +1,4 @@
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, FieldPath } from 'firebase-admin/firestore';
 import { BaseEntity } from '../../domain/BaseEntity';
 import { MetadataRegistry } from '../MetadataRegistry';
 import { RelationshipHandlerRegistry } from './handlers/RelationshipHandlerRegistry';
@@ -106,6 +106,62 @@ export class FirestoreRepository<T extends BaseEntity> {
     const doc = snapshot.docs[0];
     const data = this.dateify(doc.data() as Record<string, unknown>);
     return this.cfg.fromFirestore(data, doc.id, businessId);
+  }
+
+  async findByLinkedObjects(
+    businessId: string,
+    linkedObjectIds: string[],
+    provider: string,
+  ): Promise<Map<string, T>> {
+    const result = new Map<string, T>();
+    if (!linkedObjectIds || linkedObjectIds.length === 0) return result;
+    const unique = Array.from(new Set(linkedObjectIds));
+    const CHUNK = 30;
+    const chunks: string[][] = [];
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      chunks.push(unique.slice(i, i + CHUNK));
+    }
+    const field = `linkedObjects.${provider}.linkedObjectId`;
+    const snapshots = await Promise.all(
+      chunks.map(chunk => this.cfg.collectionRef(businessId).where(field, 'in', chunk).get()),
+    );
+    for (const snap of snapshots) {
+      for (const doc of snap.docs) {
+        const data = this.dateify(doc.data() as Record<string, unknown>);
+        const entity = this.cfg.fromFirestore(data, doc.id, businessId);
+        const providerLink = (data as Record<string, unknown> & { linkedObjects?: Record<string, { linkedObjectId?: string }> }).linkedObjects?.[provider];
+        const linkedId = providerLink?.linkedObjectId;
+        if (!linkedId) continue;
+        if (result.has(linkedId)) {
+          throw new Error(`findByLinkedObjects: multiple documents matched linkedObjectId=${linkedId} for provider=${provider}`);
+        }
+        result.set(linkedId, entity);
+      }
+    }
+    return result;
+  }
+
+  async getMany(businessId: string, ids: string[]): Promise<Map<string, T>> {
+    const result = new Map<string, T>();
+    if (!ids || ids.length === 0) return result;
+    const unique = Array.from(new Set(ids));
+    const CHUNK = 30;
+    const chunks: string[][] = [];
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      chunks.push(unique.slice(i, i + CHUNK));
+    }
+    const snapshots = await Promise.all(
+      chunks.map(chunk =>
+        this.cfg.collectionRef(businessId).where(FieldPath.documentId(), 'in', chunk).get(),
+      ),
+    );
+    for (const snap of snapshots) {
+      for (const doc of snap.docs) {
+        const data = this.dateify(doc.data() as Record<string, unknown>);
+        result.set(doc.id, this.cfg.fromFirestore(data, doc.id, businessId));
+      }
+    }
+    return result;
   }
 
   private resolveHandler() {

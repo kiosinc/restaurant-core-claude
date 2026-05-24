@@ -213,6 +213,32 @@ export default class Semaphore {
     });
   }
 
+  static async releaseIfOwner(
+    businessId: string,
+    type: string,
+    syncTraceId: string,
+  ): Promise<boolean> {
+    const docRef = Semaphore.ref(businessId, type);
+
+    return getFirestore().runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(docRef);
+
+      if (!snapshot.exists) return false;
+
+      const current = snapshot.data()!;
+      if (current.isAvailable) return false;
+      if (current.syncTraceId !== syncTraceId) return false;
+
+      transaction.set(docRef, {
+        isAvailable: true,
+        updated: FieldValue.serverTimestamp(),
+        ...Semaphore.heartbeatDeleteFields(),
+      }, { merge: true });
+
+      return true;
+    });
+  }
+
   private static heartbeatDeleteFields() {
     return {
       lastHeartbeat: FieldValue.delete(),

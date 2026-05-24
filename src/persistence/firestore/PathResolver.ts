@@ -127,7 +127,7 @@ export class PathResolver {
   }
 
   static availabilityDoc(businessId: string, locationId: string): FirebaseFirestore.DocumentReference {
-    return this.inventoryRootDoc(businessId).collection(Paths.CollectionNames.inventory).doc(locationId);
+    return this.catalogDoc(businessId).collection(Paths.CollectionNames.inventory).doc(locationId);
   }
 
   static locationsCollection(businessId: string): FirebaseFirestore.CollectionReference {
