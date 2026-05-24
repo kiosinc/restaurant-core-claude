@@ -5,6 +5,7 @@ import {
   setOptionAvailability,
   setProductAvailabilityBatch,
   updateAvailability,
+  getOptionTimestamp,
 } from '../AvailabilityService';
 
 const mockDocGet = vi.fn();
@@ -37,7 +38,7 @@ describe('AvailabilityService', () => {
         exists: true,
         data: () => ({
           products: { 'prod-1': { isAvailable: true } },
-          options: { 'opt-1': { isAvailable: true, count: 5, state: 'IN_STOCK', timestamp: '2024-01-01T00:00:00Z' } },
+          options: { 'opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' } },
         }),
       });
 
@@ -69,6 +70,25 @@ describe('AvailabilityService', () => {
         { merge: true },
       );
     });
+
+    it('writes state and timestamp fields via merge when provided', async () => {
+      await setProductAvailability('biz-1', 'loc-1', 'prod-1', {
+        isAvailable: false,
+        state: 'soldOut',
+        timestamp: '2024-06-01T09:00:00Z',
+      });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        {
+          'products.prod-1': {
+            isAvailable: false,
+            state: 'soldOut',
+            timestamp: '2024-06-01T09:00:00Z',
+          },
+        },
+        { merge: true },
+      );
+    });
   });
 
   describe('setOptionAvailability', () => {
@@ -76,7 +96,7 @@ describe('AvailabilityService', () => {
       await setOptionAvailability('biz-1', 'loc-1', 'opt-1', {
         isAvailable: true,
         count: 10,
-        state: 'IN_STOCK',
+        state: 'inStock',
         timestamp: '2024-01-01T00:00:00Z',
       });
 
@@ -85,7 +105,7 @@ describe('AvailabilityService', () => {
           'options.opt-1': {
             isAvailable: true,
             count: 10,
-            state: 'IN_STOCK',
+            state: 'inStock',
             timestamp: '2024-01-01T00:00:00Z',
           },
         },
@@ -115,13 +135,13 @@ describe('AvailabilityService', () => {
     it('writes products and options in a single merge', async () => {
       await updateAvailability('biz-1', 'loc-1', {
         products: { 'prod-1': { isAvailable: true } },
-        options: { 'opt-1': { isAvailable: true, count: 5, state: 'IN_STOCK', timestamp: '2024-01-01T00:00:00Z' } },
+        options: { 'opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' } },
       });
 
       expect(mockDocSet).toHaveBeenCalledWith(
         {
           'products.prod-1': { isAvailable: true },
-          'options.opt-1': { isAvailable: true, count: 5, state: 'IN_STOCK', timestamp: '2024-01-01T00:00:00Z' },
+          'options.opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' },
         },
         { merge: true },
       );
@@ -142,6 +162,49 @@ describe('AvailabilityService', () => {
       await updateAvailability('biz-1', 'loc-1', {});
 
       expect(mockDocSet).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getOptionTimestamp', () => {
+    it('returns undefined when doc does not exist', async () => {
+      mockDocGet.mockResolvedValue({ exists: false });
+      const result = await getOptionTimestamp('biz-1', 'loc-1', 'opt-1');
+      expect(result).toBeUndefined();
+    });
+
+    it('returns undefined when option is not in the doc', async () => {
+      mockDocGet.mockResolvedValue({
+        exists: true,
+        data: () => ({ options: {} }),
+      });
+      const result = await getOptionTimestamp('biz-1', 'loc-1', 'opt-missing');
+      expect(result).toBeUndefined();
+    });
+
+    it('returns a Date when option exists with a timestamp', async () => {
+      mockDocGet.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          options: {
+            'opt-1': { isAvailable: true, count: 3, state: 'inStock', timestamp: '2024-06-01T12:00:00Z' },
+          },
+        }),
+      });
+      const result = await getOptionTimestamp('biz-1', 'loc-1', 'opt-1');
+      expect(result).toEqual(new Date('2024-06-01T12:00:00Z'));
+    });
+
+    it('returns undefined when option exists but has no timestamp', async () => {
+      mockDocGet.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          options: {
+            'opt-1': { isAvailable: true, count: 3, state: 'inStock' },
+          },
+        }),
+      });
+      const result = await getOptionTimestamp('biz-1', 'loc-1', 'opt-1');
+      expect(result).toBeUndefined();
     });
   });
 });

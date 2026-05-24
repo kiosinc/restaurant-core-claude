@@ -2,12 +2,14 @@ import { PathResolver } from '../../persistence/firestore/PathResolver';
 
 export interface ProductAvailability {
   isAvailable: boolean;
+  state?: 'inStock' | 'soldOut';
+  timestamp?: string;
 }
 
 export interface OptionAvailability {
   isAvailable: boolean;
   count: number;
-  state: string;
+  state: 'inStock' | 'soldOut';
   timestamp: string;
 }
 
@@ -86,4 +88,14 @@ export async function updateAvailability(
     const docRef = PathResolver.availabilityDoc(businessId, locationId);
     await docRef.set(dotUpdates, { merge: true });
   }
+}
+
+export async function getOptionTimestamp(
+  businessId: string,
+  locationId: string,
+  optionId: string,
+): Promise<Date | undefined> {
+  const doc = await getAvailability(businessId, locationId);
+  const ts = doc?.options?.[optionId]?.timestamp;
+  return ts ? new Date(ts) : undefined;
 }

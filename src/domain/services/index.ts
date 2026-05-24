@@ -37,4 +37,5 @@ export {
   setOptionAvailability,
   setProductAvailabilityBatch,
   updateAvailability,
+  getOptionTimestamp,
 } from './AvailabilityService';
