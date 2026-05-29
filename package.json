@@ -1,6 +1,6 @@
 {
   "name": "@kiosinc/restaurant-core-claude",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "description": "",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

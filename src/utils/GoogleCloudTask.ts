@@ -2,7 +2,7 @@ import * as GoogleCloudTasks from '@google-cloud/tasks';
 
 const cloudTasksClient = new GoogleCloudTasks.CloudTasksClient();
 
-const project = process.env.NODE_ENV as string === 'production' ? 'kios-master' : 'project-arya-280418';
+const project = process.env.GOOGLE_CLOUD_PROJECT ?? process.env.GCLOUD_PROJECT ?? (process.env.NODE_ENV === 'production' ? 'kios-master' : 'project-arya-280418');
 const location = 'us-central1';
 
 export async function createHttpTask(queue: string, url: string, payload: string) {
