@@ -36,10 +36,7 @@ export async function setProductAvailability(
   availability: ProductAvailability,
 ): Promise<void> {
   const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  await docRef.set(
-    { [`products.${productId}`]: availability },
-    { merge: true },
-  );
+  await docRef.update({ [`products.${productId}`]: availability });
 }
 
 export async function setOptionAvailability(
@@ -49,10 +46,7 @@ export async function setOptionAvailability(
   availability: OptionAvailability,
 ): Promise<void> {
   const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  await docRef.set(
-    { [`options.${optionId}`]: availability },
-    { merge: true },
-  );
+  await docRef.update({ [`options.${optionId}`]: availability });
 }
 
 function prefixKeys(prefix: string, entries: Record<string, unknown>): Record<string, unknown> {
@@ -69,7 +63,7 @@ export async function setProductAvailabilityBatch(
   products: { [pid: string]: ProductAvailability },
 ): Promise<void> {
   const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  await docRef.set(prefixKeys('products', products), { merge: true });
+  await docRef.update(prefixKeys('products', products));
 }
 
 export async function updateAvailability(
@@ -86,7 +80,7 @@ export async function updateAvailability(
   };
   if (Object.keys(dotUpdates).length > 0) {
     const docRef = PathResolver.availabilityDoc(businessId, locationId);
-    await docRef.set(dotUpdates, { merge: true });
+    await docRef.update(dotUpdates);
   }
 }
 

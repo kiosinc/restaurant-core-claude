@@ -9,10 +9,10 @@ import {
 } from '../AvailabilityService';
 
 const mockDocGet = vi.fn();
-const mockDocSet = vi.fn();
+const mockDocUpdate = vi.fn();
 const mockAvailabilityDoc = {
   get: mockDocGet,
-  set: mockDocSet,
+  update: mockDocUpdate,
 };
 
 vi.mock('../../../persistence/firestore/PathResolver', () => ({
@@ -23,6 +23,7 @@ vi.mock('../../../persistence/firestore/PathResolver', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockDocUpdate.mockResolvedValue(undefined);
 });
 
 describe('AvailabilityService', () => {
@@ -62,23 +63,22 @@ describe('AvailabilityService', () => {
   });
 
   describe('setProductAvailability', () => {
-    it('writes with merge and dot-notation path', async () => {
+    it('writes with update and dot-notation path', async () => {
       await setProductAvailability('biz-1', 'loc-1', 'prod-1', { isAvailable: true });
 
-      expect(mockDocSet).toHaveBeenCalledWith(
+      expect(mockDocUpdate).toHaveBeenCalledWith(
         { 'products.prod-1': { isAvailable: true } },
-        { merge: true },
       );
     });
 
-    it('writes state and timestamp fields via merge when provided', async () => {
+    it('writes state and timestamp fields when provided', async () => {
       await setProductAvailability('biz-1', 'loc-1', 'prod-1', {
         isAvailable: false,
         state: 'soldOut',
         timestamp: '2024-06-01T09:00:00Z',
       });
 
-      expect(mockDocSet).toHaveBeenCalledWith(
+      expect(mockDocUpdate).toHaveBeenCalledWith(
         {
           'products.prod-1': {
             isAvailable: false,
@@ -86,13 +86,12 @@ describe('AvailabilityService', () => {
             timestamp: '2024-06-01T09:00:00Z',
           },
         },
-        { merge: true },
       );
     });
   });
 
   describe('setOptionAvailability', () => {
-    it('writes with merge and dot-notation path', async () => {
+    it('writes with update and dot-notation path', async () => {
       await setOptionAvailability('biz-1', 'loc-1', 'opt-1', {
         isAvailable: true,
         count: 10,
@@ -100,7 +99,7 @@ describe('AvailabilityService', () => {
         timestamp: '2024-01-01T00:00:00Z',
       });
 
-      expect(mockDocSet).toHaveBeenCalledWith(
+      expect(mockDocUpdate).toHaveBeenCalledWith(
         {
           'options.opt-1': {
             isAvailable: true,
@@ -109,41 +108,38 @@ describe('AvailabilityService', () => {
             timestamp: '2024-01-01T00:00:00Z',
           },
         },
-        { merge: true },
       );
     });
   });
 
   describe('setProductAvailabilityBatch', () => {
-    it('writes multiple products with merge', async () => {
+    it('writes multiple products with update', async () => {
       await setProductAvailabilityBatch('biz-1', 'loc-1', {
         'prod-1': { isAvailable: true },
         'prod-2': { isAvailable: false },
       });
 
-      expect(mockDocSet).toHaveBeenCalledWith(
+      expect(mockDocUpdate).toHaveBeenCalledWith(
         {
           'products.prod-1': { isAvailable: true },
           'products.prod-2': { isAvailable: false },
         },
-        { merge: true },
       );
     });
   });
 
   describe('updateAvailability', () => {
-    it('writes products and options in a single merge', async () => {
+    it('writes products and options in a single update', async () => {
       await updateAvailability('biz-1', 'loc-1', {
         products: { 'prod-1': { isAvailable: true } },
         options: { 'opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' } },
       });
 
-      expect(mockDocSet).toHaveBeenCalledWith(
+      expect(mockDocUpdate).toHaveBeenCalledWith(
         {
           'products.prod-1': { isAvailable: true },
           'options.opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' },
         },
-        { merge: true },
       );
     });
 
@@ -152,16 +148,15 @@ describe('AvailabilityService', () => {
         products: { 'prod-1': { isAvailable: false } },
       });
 
-      expect(mockDocSet).toHaveBeenCalledWith(
+      expect(mockDocUpdate).toHaveBeenCalledWith(
         { 'products.prod-1': { isAvailable: false } },
-        { merge: true },
       );
     });
 
-    it('does not call set when updates are empty', async () => {
+    it('does not call update when updates are empty', async () => {
       await updateAvailability('biz-1', 'loc-1', {});
 
-      expect(mockDocSet).not.toHaveBeenCalled();
+      expect(mockDocUpdate).not.toHaveBeenCalled();
     });
   });
 
