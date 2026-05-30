@@ -9,10 +9,10 @@ import {
 } from '../AvailabilityService';
 
 const mockDocGet = vi.fn();
-const mockDocUpdate = vi.fn();
+const mockDocSet = vi.fn();
 const mockAvailabilityDoc = {
   get: mockDocGet,
-  update: mockDocUpdate,
+  set: mockDocSet,
 };
 
 vi.mock('../../../persistence/firestore/PathResolver', () => ({
@@ -23,7 +23,7 @@ vi.mock('../../../persistence/firestore/PathResolver', () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockDocUpdate.mockResolvedValue(undefined);
+  mockDocSet.mockResolvedValue(undefined);
 });
 
 describe('AvailabilityService', () => {
@@ -62,12 +62,36 @@ describe('AvailabilityService', () => {
     });
   });
 
+  // Regression guard (#70): writers must use a nested-object merge-set, NOT a
+  // dotted-key update(). update() throws NOT_FOUND when the doc is absent, and
+  // a dotted key in set() creates a flat "options.<id>" field instead of nesting.
+  describe('writer semantics (#70 regression)', () => {
+    it('merge-sets (upserts) so a missing doc is created', async () => {
+      await setOptionAvailability('biz-1', 'loc-1', 'opt-1', {
+        isAvailable: true, count: 1, state: 'inStock', timestamp: '2024-01-01T00:00:00Z',
+      });
+      expect(mockDocSet).toHaveBeenCalledTimes(1);
+      expect(mockDocSet.mock.calls[0][1]).toEqual({ merge: true });
+    });
+
+    it('nests under options/products via real objects, not dotted keys', async () => {
+      await setOptionAvailability('biz-1', 'loc-1', 'opt-1', {
+        isAvailable: true, count: 1, state: 'inStock', timestamp: '2024-01-01T00:00:00Z',
+      });
+      const payload = mockDocSet.mock.calls[0][0];
+      expect(payload).toHaveProperty('options');
+      expect(payload.options).toHaveProperty('opt-1');
+      expect(Object.keys(payload)).not.toContain('options.opt-1');
+    });
+  });
+
   describe('setProductAvailability', () => {
-    it('writes with update and dot-notation path', async () => {
+    it('merge-sets a nested product entry', async () => {
       await setProductAvailability('biz-1', 'loc-1', 'prod-1', { isAvailable: true });
 
-      expect(mockDocUpdate).toHaveBeenCalledWith(
-        { 'products.prod-1': { isAvailable: true } },
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { products: { 'prod-1': { isAvailable: true } } },
+        { merge: true },
       );
     });
 
@@ -78,20 +102,15 @@ describe('AvailabilityService', () => {
         timestamp: '2024-06-01T09:00:00Z',
       });
 
-      expect(mockDocUpdate).toHaveBeenCalledWith(
-        {
-          'products.prod-1': {
-            isAvailable: false,
-            state: 'soldOut',
-            timestamp: '2024-06-01T09:00:00Z',
-          },
-        },
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { products: { 'prod-1': { isAvailable: false, state: 'soldOut', timestamp: '2024-06-01T09:00:00Z' } } },
+        { merge: true },
       );
     });
   });
 
   describe('setOptionAvailability', () => {
-    it('writes with update and dot-notation path', async () => {
+    it('merge-sets a nested option entry', async () => {
       await setOptionAvailability('biz-1', 'loc-1', 'opt-1', {
         isAvailable: true,
         count: 10,
@@ -99,47 +118,40 @@ describe('AvailabilityService', () => {
         timestamp: '2024-01-01T00:00:00Z',
       });
 
-      expect(mockDocUpdate).toHaveBeenCalledWith(
-        {
-          'options.opt-1': {
-            isAvailable: true,
-            count: 10,
-            state: 'inStock',
-            timestamp: '2024-01-01T00:00:00Z',
-          },
-        },
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { options: { 'opt-1': { isAvailable: true, count: 10, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' } } },
+        { merge: true },
       );
     });
   });
 
   describe('setProductAvailabilityBatch', () => {
-    it('writes multiple products with update', async () => {
+    it('merge-sets multiple products under products', async () => {
       await setProductAvailabilityBatch('biz-1', 'loc-1', {
         'prod-1': { isAvailable: true },
         'prod-2': { isAvailable: false },
       });
 
-      expect(mockDocUpdate).toHaveBeenCalledWith(
-        {
-          'products.prod-1': { isAvailable: true },
-          'products.prod-2': { isAvailable: false },
-        },
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { products: { 'prod-1': { isAvailable: true }, 'prod-2': { isAvailable: false } } },
+        { merge: true },
       );
     });
   });
 
   describe('updateAvailability', () => {
-    it('writes products and options in a single update', async () => {
+    it('merge-sets products and options in a single write', async () => {
       await updateAvailability('biz-1', 'loc-1', {
         products: { 'prod-1': { isAvailable: true } },
         options: { 'opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' } },
       });
 
-      expect(mockDocUpdate).toHaveBeenCalledWith(
+      expect(mockDocSet).toHaveBeenCalledWith(
         {
-          'products.prod-1': { isAvailable: true },
-          'options.opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' },
+          products: { 'prod-1': { isAvailable: true } },
+          options: { 'opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' } },
         },
+        { merge: true },
       );
     });
 
@@ -148,15 +160,16 @@ describe('AvailabilityService', () => {
         products: { 'prod-1': { isAvailable: false } },
       });
 
-      expect(mockDocUpdate).toHaveBeenCalledWith(
-        { 'products.prod-1': { isAvailable: false } },
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { products: { 'prod-1': { isAvailable: false } } },
+        { merge: true },
       );
     });
 
-    it('does not call update when updates are empty', async () => {
+    it('does not write when updates are empty', async () => {
       await updateAvailability('biz-1', 'loc-1', {});
 
-      expect(mockDocUpdate).not.toHaveBeenCalled();
+      expect(mockDocSet).not.toHaveBeenCalled();
     });
   });
 
