@@ -36,7 +36,9 @@ export async function setProductAvailability(
   availability: ProductAvailability,
 ): Promise<void> {
   const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  await docRef.update({ [`products.${productId}`]: availability });
+  // Nested-object merge-set (not a dotted key, not update()): nests under
+  // products.<id> AND upserts, creating the doc when it does not yet exist.
+  await docRef.set({ products: { [productId]: availability } }, { merge: true });
 }
 
 export async function setOptionAvailability(
@@ -46,15 +48,9 @@ export async function setOptionAvailability(
   availability: OptionAvailability,
 ): Promise<void> {
   const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  await docRef.update({ [`options.${optionId}`]: availability });
-}
-
-function prefixKeys(prefix: string, entries: Record<string, unknown>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [id, value] of Object.entries(entries)) {
-    result[`${prefix}.${id}`] = value;
-  }
-  return result;
+  // Nested-object merge-set (not a dotted key, not update()): nests under
+  // options.<id> AND upserts, creating the doc when it does not yet exist.
+  await docRef.set({ options: { [optionId]: availability } }, { merge: true });
 }
 
 export async function setProductAvailabilityBatch(
@@ -63,7 +59,7 @@ export async function setProductAvailabilityBatch(
   products: { [pid: string]: ProductAvailability },
 ): Promise<void> {
   const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  await docRef.update(prefixKeys('products', products));
+  await docRef.set({ products }, { merge: true });
 }
 
 export async function updateAvailability(
@@ -74,13 +70,13 @@ export async function updateAvailability(
     options?: { [oid: string]: OptionAvailability };
   },
 ): Promise<void> {
-  const dotUpdates: Record<string, unknown> = {
-    ...(updates.products ? prefixKeys('products', updates.products) : {}),
-    ...(updates.options ? prefixKeys('options', updates.options) : {}),
+  const merge: { products?: Record<string, ProductAvailability>; options?: Record<string, OptionAvailability> } = {
+    ...(updates.products ? { products: updates.products } : {}),
+    ...(updates.options ? { options: updates.options } : {}),
   };
-  if (Object.keys(dotUpdates).length > 0) {
+  if (Object.keys(merge).length > 0) {
     const docRef = PathResolver.availabilityDoc(businessId, locationId);
-    await docRef.update(dotUpdates);
+    await docRef.set(merge, { merge: true });
   }
 }
 
