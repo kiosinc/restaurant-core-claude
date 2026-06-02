@@ -12,6 +12,9 @@ export interface ProductMeta {
   minPrice: number;
   maxPrice: number;
   variationCount: number;
+  dietaryPreferences?: string[];
+  allergens?: string[];
+  calorieCount?: number;
 }
 
 export interface ProductInput {
@@ -28,6 +31,9 @@ export interface ProductInput {
   locationInventory?: LocationInventoryMap;
   isActive: boolean;
   linkedObjects?: LinkedObjectMap;
+  dietaryPreferences?: string[];
+  allergens?: string[];
+  calorieCount?: number;
 }
 
 export interface Product extends BaseEntity {
@@ -44,6 +50,9 @@ export interface Product extends BaseEntity {
   locationInventory: LocationInventoryMap;
   isActive: boolean;
   linkedObjects: LinkedObjectMap;
+  dietaryPreferences: string[];
+  allergens: string[];
+  calorieCount?: number;
 }
 
 export function createProduct(input: ProductInput & Partial<BaseEntity>): Product {
@@ -67,6 +76,9 @@ export function createProduct(input: ProductInput & Partial<BaseEntity>): Produc
     locationInventory: input.locationInventory ?? {},
     isActive: input.isActive,
     linkedObjects: input.linkedObjects ?? {},
+    dietaryPreferences: input.dietaryPreferences ?? [],
+    allergens: input.allergens ?? [],
+    calorieCount: input.calorieCount,
   };
 }
 
@@ -79,5 +91,8 @@ export function productMeta(product: Product): ProductMeta {
     minPrice: product.minPrice,
     maxPrice: product.maxPrice,
     variationCount: product.variationCount,
+    dietaryPreferences: product.dietaryPreferences,
+    allergens: product.allergens,
+    ...(product.calorieCount !== undefined && { calorieCount: product.calorieCount }),
   };
 }
