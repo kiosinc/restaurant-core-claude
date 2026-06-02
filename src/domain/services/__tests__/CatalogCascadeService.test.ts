@@ -29,6 +29,7 @@ describe('CatalogCascadeService', () => {
           name: 'Burger', isActive: true,
           imageUrls: ['b.jpg'], imageGsls: [],
           minPrice: 500, maxPrice: 800, variationCount: 3,
+          dietaryPreferences: [], allergens: [],
         },
       });
       expect(result[0].update.fieldsToDelete).toEqual([]);
@@ -65,6 +66,7 @@ describe('CatalogCascadeService', () => {
           name: 'Burger', isActive: true,
           imageUrls: ['b.jpg'], imageGsls: [],
           minPrice: 500, maxPrice: 800, variationCount: 3,
+          dietaryPreferences: [], allergens: [],
         },
       });
       expect(result[0].update.fieldsToDelete).toEqual([]);

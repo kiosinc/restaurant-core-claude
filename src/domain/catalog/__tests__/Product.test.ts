@@ -96,6 +96,8 @@ describe('Product (domain)', () => {
       minPrice: 1000,
       maxPrice: 1500,
       variationCount: 2,
+      dietaryPreferences: [],
+      allergens: [],
     });
   });
 
