@@ -63,6 +63,7 @@ describe('ProductRelationshipHandler', () => {
         name: 'Burger', isActive: true,
         imageUrls: ['b.jpg'], imageGsls: [],
         minPrice: 500, maxPrice: 800, variationCount: 3,
+        dietaryPreferences: [], allergens: [],
       },
     });
   });
@@ -146,6 +147,7 @@ describe('ProductMenuGroupRelationshipHandler', () => {
         name: 'Burger', isActive: true,
         imageUrls: ['b.jpg'], imageGsls: [],
         minPrice: 500, maxPrice: 800, variationCount: 3,
+        dietaryPreferences: [], allergens: [],
       },
     });
   });

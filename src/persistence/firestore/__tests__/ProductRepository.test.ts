@@ -18,6 +18,7 @@ function createFullSerializedProduct() {
     minPrice: 500, maxPrice: 800, variationCount: 3,
     locationInventory: { 'loc-1': { count: 5, state: 'instock', isAvailable: true } },
     isActive: true, linkedObjects: { square: { linkedObjectId: 'sq-1' } },
+    dietaryPreferences: ['VEGAN'], allergens: ['PEANUTS'], calorieCount: 450,
     created: ts, updated: ts, isDeleted: false,
   };
 }
@@ -86,6 +87,33 @@ describe('ProductRepository', () => {
     expect(restored!.name).toBe(original.name);
     expect(restored!.caption).toBe(original.caption);
     expect(restored!.minPrice).toBe(original.minPrice);
+  });
+
+  it('round-trip preserves allergen fields', async () => {
+    const original = createProduct(createTestProductInput({
+      dietaryPreferences: ['VEGAN', 'GLUTEN_FREE'],
+      allergens: ['PEANUTS', 'MILK'],
+      calorieCount: 320,
+    }));
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: original.Id });
+    const restored = await repo.get('biz-1', original.Id);
+    expect(restored!.dietaryPreferences).toEqual(['VEGAN', 'GLUTEN_FREE']);
+    expect(restored!.allergens).toEqual(['PEANUTS', 'MILK']);
+    expect(restored!.calorieCount).toBe(320);
+  });
+
+  it('fromFirestore defaults allergen arrays to []', async () => {
+    const data = createFullSerializedProduct();
+    delete (data as any).dietaryPreferences;
+    delete (data as any).allergens;
+    delete (data as any).calorieCount;
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => data, id: 'prod-1' });
+    const result = await repo.get('biz-1', 'prod-1');
+    expect(result!.dietaryPreferences).toEqual([]);
+    expect(result!.allergens).toEqual([]);
+    expect(result!.calorieCount).toBeUndefined();
   });
 
   it('fromFirestore defaults caption to empty string', async () => {
