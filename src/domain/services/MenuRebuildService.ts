@@ -159,10 +159,14 @@ function materializeGroups(
       }
     }
 
+    productDisplayOrder = productDisplayOrder.filter((pid) => {
+      const product = productMap.get(pid);
+      return product !== undefined && !product.data.isDeleted;
+    });
+
     const groupProducts: Record<string, MenuProductMeta> = {};
     for (const pid of productDisplayOrder) {
-      const product = productMap.get(pid);
-      if (!product || product.data.isDeleted) continue;
+      const product = productMap.get(pid)!;
       groupProducts[pid] = {
         isActive: product.data.isActive ?? false,
         name: product.data.name ?? '',
@@ -305,7 +309,9 @@ async function attemptRebuild(
 
       // Materialized sections
       groups: materializedGroups,
-      groupDisplayOrder: existingData.groupDisplayOrder ?? [],
+      groupDisplayOrder: (existingData.groupDisplayOrder ?? []).filter(
+        (id: string) => id in materializedGroups
+      ),
       collections: materializedCollections,
       menuAssets: existingData.menuAssets ?? {},
       menuAssetDisplayOrder: existingData.menuAssetDisplayOrder ?? [],

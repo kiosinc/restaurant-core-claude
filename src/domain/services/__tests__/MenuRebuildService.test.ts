@@ -400,6 +400,7 @@ describe('MenuRebuildService', () => {
       await rebuildMenus(BUSINESS_ID);
       expect(transactionSets).toHaveLength(1);
       expect(transactionSets[0].data.groups).toEqual({});
+      expect(transactionSets[0].data.groupDisplayOrder).toEqual([]);
     });
 
     it('includes menu group added without legacy assetId field', async () => {
@@ -444,6 +445,80 @@ describe('MenuRebuildService', () => {
       expect(transactionSets).toHaveLength(3);
       const menuIds = transactionSets.map((s) => s.ref._docId).sort();
       expect(menuIds).toEqual(['CcUqgkBxEnk1qYaNZ3K2', 'LShRjmDOXBNL7yVSD65V', 'TdGQqmNhA3AjNeoyYrQn'].sort());
+    });
+
+    it('removes soft-deleted product from productDisplayOrder', async () => {
+      registerCollection(MENU_GROUPS_PATH, [
+        {
+          id: 'gA',
+          data: {
+            name: 'Group A', displayName: 'Group A', imageGsls: [],
+            productDisplayOrder: ['liveProduct', 'deletedProduct'],
+            mirrorCategoryId: null, isDeleted: false,
+          },
+        },
+      ]);
+      registerCollection(PRODUCTS_PATH, [
+        { id: 'liveProduct', data: { name: 'Live', isActive: true, imageGsls: [], minPrice: 500, variationCount: 1, description: '', isDeleted: false } },
+        { id: 'deletedProduct', data: { name: 'Dead', isActive: true, imageGsls: [], minPrice: 500, variationCount: 1, description: '', isDeleted: true } },
+      ]);
+      registerCollection(MENUS_PATH, [{
+        id: 'mA',
+        data: {
+          name: 'Test Menu', displayName: null, coverImageGsl: null,
+          coverBackgroundImageGsl: null, coverVideoGsl: null, logoImageGsl: null,
+          gratuityRates: [], managedBy: null, isDeleted: false,
+          created: new Date(), updated: new Date(), version: '1.0',
+          groupDisplayOrder: ['gA'],
+          groups: {},
+          menuAssets: { gA: { assetType: 'group' } },
+          menuAssetDisplayOrder: ['gA'],
+        },
+      }]);
+
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(transactionSets).toHaveLength(1);
+      const group = transactionSets[0].data.groups['gA'];
+      expect(group.productDisplayOrder).toEqual(['liveProduct']);
+      expect(group.products['deletedProduct']).toBeUndefined();
+    });
+
+    it('removes hard-deleted (absent) product from productDisplayOrder', async () => {
+      registerCollection(MENU_GROUPS_PATH, [
+        {
+          id: 'gB',
+          data: {
+            name: 'Group B', displayName: 'Group B', imageGsls: [],
+            productDisplayOrder: ['presentProduct', 'absentProduct'],
+            mirrorCategoryId: null, isDeleted: false,
+          },
+        },
+      ]);
+      registerCollection(PRODUCTS_PATH, [
+        { id: 'presentProduct', data: { name: 'Present', isActive: true, imageGsls: [], minPrice: 100, variationCount: 1, description: '', isDeleted: false } },
+        // 'absentProduct' intentionally not registered — doc does not exist in Firestore
+      ]);
+      registerCollection(MENUS_PATH, [{
+        id: 'mB',
+        data: {
+          name: 'Test Menu', displayName: null, coverImageGsl: null,
+          coverBackgroundImageGsl: null, coverVideoGsl: null, logoImageGsl: null,
+          gratuityRates: [], managedBy: null, isDeleted: false,
+          created: new Date(), updated: new Date(), version: '1.0',
+          groupDisplayOrder: ['gB'],
+          groups: {},
+          menuAssets: { gB: { assetType: 'group' } },
+          menuAssetDisplayOrder: ['gB'],
+        },
+      }]);
+
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(transactionSets).toHaveLength(1);
+      const group = transactionSets[0].data.groups['gB'];
+      expect(group.productDisplayOrder).toEqual(['presentProduct']);
+      expect(group.products['absentProduct']).toBeUndefined();
     });
   });
 
