@@ -54,7 +54,11 @@ export function createOptionSet(input: OptionSetInput & Partial<BaseEntity>): Op
   requireNonNegativeIntegerOrNeg1('minSelection', input.minSelection);
   requireNonNegativeIntegerOrNeg1('maxSelection', input.maxSelection);
   requireMinLessOrEqual('minSelection', input.minSelection, 'maxSelection', input.maxSelection);
-  requireNonNegativeInteger('displayOrder', input.displayOrder);
+  // Legacy "-1" was the sentinel for "Square supplied no ordinal"; the current sync mapper
+  // writes 0 for the same case. Coerce so legacy docs hydrate as 0 rather than throwing on
+  // read (which poison-pilled catalog sync / pricing / menu rebuild). See #76.
+  const displayOrder = input.displayOrder === -1 ? 0 : input.displayOrder;
+  requireNonNegativeInteger('displayOrder', displayOrder);
   requireNonNegativeInteger('displayTier', input.displayTier);
   return {
     ...baseEntityDefaults(input),
@@ -62,7 +66,7 @@ export function createOptionSet(input: OptionSetInput & Partial<BaseEntity>): Op
     options: input.options ?? {},
     minSelection: input.minSelection,
     maxSelection: input.maxSelection,
-    displayOrder: input.displayOrder,
+    displayOrder,
     displayTier: input.displayTier,
     optionDisplayOrder: input.optionDisplayOrder ?? [],
     preselectedOptionIds: input.preselectedOptionIds ?? [],
