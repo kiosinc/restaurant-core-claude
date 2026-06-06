@@ -8,6 +8,7 @@ export interface RebuildScope {
   changedProductIds?: string[];
   changedCollectionIds?: string[];
   changedMenuGroupIds?: string[];
+  changedCategoryIds?: string[];
 }
 
 interface DocData {
@@ -101,9 +102,13 @@ async function resolveMenuIds(
     for (const id of scope.menuIds) result.add(id);
   }
 
-  if (scope.changedProductIds) {
-    const changedSet = new Set(scope.changedProductIds);
-
+  // #79: Both changedProductIds and changedCategoryIds need the same batch read of
+  // referenced MenuGroup docs (and the mirror categories they point at). Share one
+  // read so mirror-aware selection works for both branches without double Firestore traffic.
+  if (
+    (scope.changedProductIds && scope.changedProductIds.length > 0)
+    || (scope.changedCategoryIds && scope.changedCategoryIds.length > 0)
+  ) {
     // Build a map of menuId -> groupIds from menuAssets
     const menuGroupMap = new Map<string, string[]>();
     const allGroupIds = new Set<string>();
@@ -117,19 +122,64 @@ async function resolveMenuIds(
     // Batch-read all referenced MenuGroup docs
     const menuGroupsRef = PathResolver.menuGroupsCollection(businessId);
     const groupDocs = await batchGetDocs(db, menuGroupsRef, [...allGroupIds]);
-    const groupProductMap = new Map<string, string[]>();
+
+    // groupId -> mirrorCategoryId (null when not a mirror group)
+    const groupMirrorCatMap = new Map<string, string | null>();
+    const referencedCategoryIds = new Set<string>();
     for (const g of groupDocs) {
-      groupProductMap.set(g.id, validProductIds(g.data.productDisplayOrder));
+      const mirrorCatId: string | null = g.data.mirrorCategoryId ?? null;
+      groupMirrorCatMap.set(g.id, mirrorCatId);
+      if (mirrorCatId) referencedCategoryIds.add(mirrorCatId);
     }
 
-    // Check containment
-    for (const menu of allMenus) {
-      const groupIds = menuGroupMap.get(menu.id) ?? [];
-      for (const gid of groupIds) {
-        const pids = groupProductMap.get(gid) ?? [];
-        if (pids.some((pid: string) => changedSet.has(pid))) {
-          result.add(menu.id);
-          break;
+    // #79: A mirror group's effective product list lives on the mirror CATEGORY, not the
+    // group's own (possibly stale) productDisplayOrder. Batch-read referenced categories.
+    const categoriesRef = PathResolver.categoriesCollection(businessId);
+    const categoryDocs = await batchGetDocs(db, categoriesRef, [...referencedCategoryIds]);
+    const categoryProductMap = new Map<string, string[]>();
+    for (const c of categoryDocs) {
+      if (c.data.isDeleted) continue;
+      categoryProductMap.set(c.id, validProductIds(c.data.productDisplayOrder));
+    }
+
+    // Per-group effective product list: from the mirror category when set, else the group's own.
+    const groupProductMap = new Map<string, string[]>();
+    for (const g of groupDocs) {
+      const mirrorCatId = groupMirrorCatMap.get(g.id) ?? null;
+      groupProductMap.set(
+        g.id,
+        mirrorCatId
+          ? (categoryProductMap.get(mirrorCatId) ?? [])
+          : validProductIds(g.data.productDisplayOrder),
+      );
+    }
+
+    // changedProductIds: select menus whose group's effective product list contains a changed product.
+    if (scope.changedProductIds && scope.changedProductIds.length > 0) {
+      const changedSet = new Set(scope.changedProductIds);
+      for (const menu of allMenus) {
+        const groupIds = menuGroupMap.get(menu.id) ?? [];
+        for (const gid of groupIds) {
+          const pids = groupProductMap.get(gid) ?? [];
+          if (pids.some((pid: string) => changedSet.has(pid))) {
+            result.add(menu.id);
+            break;
+          }
+        }
+      }
+    }
+
+    // #79: changedCategoryIds: select menus that have a mirror group whose mirrorCategoryId changed.
+    if (scope.changedCategoryIds && scope.changedCategoryIds.length > 0) {
+      const changedCategorySet = new Set(scope.changedCategoryIds);
+      for (const menu of allMenus) {
+        const groupIds = menuGroupMap.get(menu.id) ?? [];
+        for (const gid of groupIds) {
+          const mirrorCatId = groupMirrorCatMap.get(gid) ?? null;
+          if (mirrorCatId && changedCategorySet.has(mirrorCatId)) {
+            result.add(menu.id);
+            break;
+          }
         }
       }
     }
@@ -261,15 +311,24 @@ async function attemptRebuild(
     if (group.data.mirrorCategoryId) mirrorCategoryIds.add(group.data.mirrorCategoryId);
   }
 
-  // Batch-read Products and Categories
+  // #79: Fetch mirror categories BEFORE products. materializeGroups() iterates the
+  // mirror category's productDisplayOrder (not the group's own, possibly-stale order),
+  // so the product prefetch set must include every product the category references —
+  // otherwise those IDs are missing from productMap and produce dangling
+  // productDisplayOrder entries with no matching products[pid] (crashes Remy's ItemCard).
+  // We therefore expand allProductIds with each non-deleted category's products, making
+  // productMap a guaranteed superset of everything materializeGroups() iterates.
   const productsRef = PathResolver.productsCollection(businessId);
   const categoriesRef = PathResolver.categoriesCollection(businessId);
-  const [products, categories] = await Promise.all([
-    batchGetDocs(db, productsRef, [...allProductIds]),
-    batchGetDocs(db, categoriesRef, [...mirrorCategoryIds]),
-  ]);
-  const productMap = new Map(products.map((p) => [p.id, p]));
+  const categories = await batchGetDocs(db, categoriesRef, [...mirrorCategoryIds]);
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
+  for (const category of categories) {
+    if (category.data.isDeleted) continue;
+    for (const pid of validProductIds(category.data.productDisplayOrder)) allProductIds.add(pid);
+  }
+
+  const products = await batchGetDocs(db, productsRef, [...allProductIds]);
+  const productMap = new Map(products.map((p) => [p.id, p]));
 
   const materializedGroups = materializeGroups(menuGroups, productMap, categoryMap);
   const materializedCollections = materializeCollections(collections);
@@ -404,4 +463,16 @@ export async function resolveChangedProducts(businessId: string, syncTraceId: st
   }
 
   return [...changedProductIds];
+}
+
+/**
+ * #79: Resolve categories directly changed in a sync, identified by syncTraceId.
+ * Category-membership changes (products added/removed from a mirror category's
+ * productDisplayOrder) are stamped directly on the category doc — no walk-up needed.
+ * Returned IDs feed RebuildScope.changedCategoryIds so mirror-group menus get rebuilt.
+ */
+export async function resolveChangedCategories(businessId: string, syncTraceId: string): Promise<string[]> {
+  const categoriesRef = PathResolver.categoriesCollection(businessId);
+  const snap = await categoriesRef.where('syncTraceId', '==', syncTraceId).select().get();
+  return snap.docs.map((d) => d.id);
 }

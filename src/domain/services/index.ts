@@ -26,6 +26,7 @@ export {
   RebuildScope,
   rebuildMenus,
   resolveChangedProducts,
+  resolveChangedCategories,
 } from './MenuRebuildService';
 
 export {
