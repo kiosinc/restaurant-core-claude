@@ -86,6 +86,24 @@ function addMenusByAssetType(
   }
 }
 
+/**
+ * #79: A group's effective product list is the mirror CATEGORY's productDisplayOrder when
+ * mirrorCategoryId is set and the category exists and isn't deleted; otherwise the group's
+ * own (possibly stale) productDisplayOrder. This single rule must be used everywhere a mirror
+ * group's products are resolved (selection in resolveMenuIds and materialization in
+ * materializeGroups) so the two paths can never drift.
+ */
+function effectiveGroupProductIds(group: DocData, categoryMap: Map<string, DocData>): string[] {
+  const mirrorCatId = group.data.mirrorCategoryId;
+  if (mirrorCatId) {
+    const cat = categoryMap.get(mirrorCatId);
+    if (cat && !cat.data.isDeleted) {
+      return validProductIds(cat.data.productDisplayOrder);
+    }
+  }
+  return validProductIds(group.data.productDisplayOrder);
+}
+
 async function resolveMenuIds(
   db: FirebaseFirestore.Firestore,
   businessId: string,
@@ -136,52 +154,26 @@ async function resolveMenuIds(
     // group's own (possibly stale) productDisplayOrder. Batch-read referenced categories.
     const categoriesRef = PathResolver.categoriesCollection(businessId);
     const categoryDocs = await batchGetDocs(db, categoriesRef, [...referencedCategoryIds]);
-    const categoryProductMap = new Map<string, string[]>();
-    for (const c of categoryDocs) {
-      if (c.data.isDeleted) continue;
-      categoryProductMap.set(c.id, validProductIds(c.data.productDisplayOrder));
-    }
+    const categoryMap = new Map(categoryDocs.map((c) => [c.id, c]));
 
-    // Per-group effective product list: from the mirror category when set, else the group's own.
+    // Per-group effective product list (mirror category when set, else the group's own).
     const groupProductMap = new Map<string, string[]>();
     for (const g of groupDocs) {
-      const mirrorCatId = groupMirrorCatMap.get(g.id) ?? null;
-      groupProductMap.set(
-        g.id,
-        mirrorCatId
-          ? (categoryProductMap.get(mirrorCatId) ?? [])
-          : validProductIds(g.data.productDisplayOrder),
-      );
+      groupProductMap.set(g.id, effectiveGroupProductIds(g, categoryMap));
     }
 
-    // changedProductIds: select menus whose group's effective product list contains a changed product.
-    if (scope.changedProductIds && scope.changedProductIds.length > 0) {
-      const changedSet = new Set(scope.changedProductIds);
-      for (const menu of allMenus) {
-        const groupIds = menuGroupMap.get(menu.id) ?? [];
-        for (const gid of groupIds) {
-          const pids = groupProductMap.get(gid) ?? [];
-          if (pids.some((pid: string) => changedSet.has(pid))) {
-            result.add(menu.id);
-            break;
-          }
-        }
-      }
-    }
-
-    // #79: changedCategoryIds: select menus that have a mirror group whose mirrorCategoryId changed.
-    if (scope.changedCategoryIds && scope.changedCategoryIds.length > 0) {
-      const changedCategorySet = new Set(scope.changedCategoryIds);
-      for (const menu of allMenus) {
-        const groupIds = menuGroupMap.get(menu.id) ?? [];
-        for (const gid of groupIds) {
-          const mirrorCatId = groupMirrorCatMap.get(gid) ?? null;
-          if (mirrorCatId && changedCategorySet.has(mirrorCatId)) {
-            result.add(menu.id);
-            break;
-          }
-        }
-      }
+    // Select a menu if any of its groups either (a) contains a changed product in its effective
+    // list, or (b) #79: mirrors a category whose membership changed. Empty change sets never match.
+    const changedProductSet = new Set(scope.changedProductIds ?? []);
+    const changedCategorySet = new Set(scope.changedCategoryIds ?? []);
+    for (const menu of allMenus) {
+      const groupIds = menuGroupMap.get(menu.id) ?? [];
+      const hit = groupIds.some((gid) => {
+        const mirrorCatId = groupMirrorCatMap.get(gid) ?? null;
+        if (mirrorCatId && changedCategorySet.has(mirrorCatId)) return true;
+        return (groupProductMap.get(gid) ?? []).some((pid) => changedProductSet.has(pid));
+      });
+      if (hit) result.add(menu.id);
     }
   }
 
@@ -200,14 +192,7 @@ function materializeGroups(
   for (const group of menuGroups) {
     if (group.data.isDeleted) continue;
 
-    let productDisplayOrder = validProductIds(group.data.productDisplayOrder);
-    const mirrorCatId = group.data.mirrorCategoryId;
-    if (mirrorCatId) {
-      const cat = categoryMap.get(mirrorCatId);
-      if (cat && !cat.data.isDeleted) {
-        productDisplayOrder = validProductIds(cat.data.productDisplayOrder);
-      }
-    }
+    const productDisplayOrder = effectiveGroupProductIds(group, categoryMap);
 
     const groupProducts: Record<string, MenuProductMeta> = {};
     for (const pid of productDisplayOrder) {
