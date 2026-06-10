@@ -124,8 +124,13 @@ describe('OptionSet (domain)', () => {
       expect(() => createOptionSet(createTestOptionSetInput({ minSelection: 1, maxSelection: 1 }))).not.toThrow();
     });
 
-    it('throws for negative displayOrder', () => {
-      expect(() => createOptionSet(createTestOptionSetInput({ displayOrder: -1 }))).toThrow(ValidationError);
+    it('coerces displayOrder -1 sentinel to 0', () => {
+      const os = createOptionSet(createTestOptionSetInput({ displayOrder: -1 }));
+      expect(os.displayOrder).toBe(0);
+    });
+
+    it('throws for displayOrder < -1', () => {
+      expect(() => createOptionSet(createTestOptionSetInput({ displayOrder: -2 }))).toThrow(ValidationError);
     });
 
     it('throws for negative displayTier', () => {

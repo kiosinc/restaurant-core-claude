@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { rebuildMenus, resolveChangedProducts } from '../MenuRebuildService';
+import { rebuildMenus, resolveChangedProducts, resolveChangedCategories } from '../MenuRebuildService';
 import {
   BUSINESS_ID,
   menus,
@@ -325,6 +325,190 @@ describe('MenuRebuildService', () => {
       });
       // Empty scope with no other fields => no menus selected
       expect(transactionSets).toHaveLength(0);
+    });
+  });
+
+  // ─── Part A — changedCategoryIds (#79) ────────────────────────────
+
+  describe('Part A — changedCategoryIds', () => {
+    const MIRROR_CATEGORY = 'dKlTguVV2yNCVFJjH2sH';
+    const MIRROR_MENU = 'CcUqgkBxEnk1qYaNZ3K2'; // only menu containing the mirror group
+
+    it('rebuilds the mirror menu when its mirrorCategoryId is in changedCategoryIds', async () => {
+      await rebuildMenus(BUSINESS_ID, {
+        changedCategoryIds: [MIRROR_CATEGORY],
+      });
+      expect(transactionSets).toHaveLength(1);
+      expect(transactionSets[0].ref._docId).toBe(MIRROR_MENU);
+    });
+
+    it('does not rebuild menus without a group mirroring the changed category', async () => {
+      await rebuildMenus(BUSINESS_ID, {
+        changedCategoryIds: [MIRROR_CATEGORY],
+      });
+      const menuIds = transactionSets.map((s) => s.ref._docId);
+      expect(menuIds).not.toContain('LShRjmDOXBNL7yVSD65V');
+      expect(menuIds).not.toContain('TdGQqmNhA3AjNeoyYrQn');
+      expect(menuIds).not.toContain('menu4');
+    });
+
+    it('no-ops on empty changedCategoryIds', async () => {
+      await rebuildMenus(BUSINESS_ID, {
+        changedCategoryIds: [],
+      });
+      expect(transactionSets).toHaveLength(0);
+    });
+
+    it('no-ops on unknown changedCategoryIds', async () => {
+      await rebuildMenus(BUSINESS_ID, {
+        changedCategoryIds: ['no-such-category'],
+      });
+      expect(transactionSets).toHaveLength(0);
+    });
+
+    it('unions changedCategoryIds with changedProductIds (2 menus)', async () => {
+      await rebuildMenus(BUSINESS_ID, {
+        changedCategoryIds: [MIRROR_CATEGORY], // → CcUqgkBxEnk1qYaNZ3K2
+        changedProductIds: ['hE0hUoKxy0KgplK5pfF8'], // → TdGQqmNhA3AjNeoyYrQn
+      });
+      expect(transactionSets).toHaveLength(2);
+      const menuIds = transactionSets.map((s) => s.ref._docId).sort();
+      expect(menuIds).toEqual(['CcUqgkBxEnk1qYaNZ3K2', 'TdGQqmNhA3AjNeoyYrQn'].sort());
+    });
+
+    it('selects mirror menu when a changedProductId lives only in the mirror category, not the stale group snapshot', async () => {
+      // Mirror group's own productDisplayOrder is stale (missing mirP9);
+      // category still lists mirP9. A change to mirP9 must still select the menu.
+      registerCollection(MENU_GROUPS_PATH, menuGroups.map((g) => (
+        g.id === 'lWWo8L7WmEiEJuZgf3dM'
+          ? {
+            ...g,
+            data: {
+              ...g.data,
+              // stale: missing mirP9 (lives only on the category)
+              productDisplayOrder: ['mirP1', 'mirP2', 'mirP3', 'mirP4', 'mirP5', 'mirP6', 'mirP7', 'mirP8'],
+            },
+          }
+          : g
+      )));
+
+      await rebuildMenus(BUSINESS_ID, {
+        changedProductIds: ['mirP9'],
+      });
+
+      const menuIds = transactionSets.map((s) => s.ref._docId);
+      expect(menuIds).toContain(MIRROR_MENU);
+    });
+  });
+
+  // ─── Part B — mirror prefetch superset / no danglers (#79) ────────
+
+  describe('Part B — mirror prefetch superset (no danglers)', () => {
+    const MIRROR_GROUP = 'lWWo8L7WmEiEJuZgf3dM';
+    const MIRROR_MENU = 'CcUqgkBxEnk1qYaNZ3K2';
+    const FULL_CATEGORY_ORDER = ['mirP1', 'mirP2', 'mirP3', 'mirP4', 'mirP5', 'mirP6', 'mirP7', 'mirP8', 'mirP9'];
+
+    function getMirrorGroup() {
+      const menu = transactionSets.find((s) => s.ref._docId === MIRROR_MENU)?.data;
+      return menu.groups[MIRROR_GROUP];
+    }
+
+    it('materializes category products absent from the stale group snapshot', async () => {
+      // Group snapshot is stale (only 3 products); category has all 9.
+      registerCollection(MENU_GROUPS_PATH, menuGroups.map((g) => (
+        g.id === MIRROR_GROUP
+          ? { ...g, data: { ...g.data, productDisplayOrder: ['mirP1', 'mirP2', 'mirP3'] } }
+          : g
+      )));
+
+      await rebuildMenus(BUSINESS_ID, { menuIds: [MIRROR_MENU] });
+
+      const group = getMirrorGroup();
+      expect(group.productDisplayOrder).toEqual(FULL_CATEGORY_ORDER);
+      // Every entry has a products[pid] (no danglers)
+      for (const pid of group.productDisplayOrder) {
+        expect(group.products[pid]).toBeDefined();
+      }
+      expect(Object.keys(group.products).sort()).toEqual(FULL_CATEGORY_ORDER.slice().sort());
+    });
+
+    it('materializes a product newly added to the mirrored category', async () => {
+      // Category gains mirP10; group snapshot does not know about it.
+      registerCollection(CATEGORIES_PATH, categories.map((c) => (
+        c.id === 'dKlTguVV2yNCVFJjH2sH'
+          ? { ...c, data: { ...c.data, productDisplayOrder: [...FULL_CATEGORY_ORDER, 'mirP10'] } }
+          : c
+      )));
+      registerCollection(PRODUCTS_PATH, [
+        ...products,
+        { id: 'mirP10', data: { name: 'Mirror Product 10', isActive: true, imageGsls: [], minPrice: 1000, maxPrice: 1000, variationCount: 1, description: 'Mirror Product 10 description', isDeleted: false } },
+      ]);
+
+      await rebuildMenus(BUSINESS_ID, { menuIds: [MIRROR_MENU] });
+
+      const group = getMirrorGroup();
+      expect(group.productDisplayOrder).toContain('mirP10');
+      expect(group.products.mirP10).toBeDefined();
+      expect(group.products.mirP10.minPrice).toBe(1000);
+    });
+
+    it('drops a product removed from the mirrored category', async () => {
+      // Category loses mirP9.
+      registerCollection(CATEGORIES_PATH, categories.map((c) => (
+        c.id === 'dKlTguVV2yNCVFJjH2sH'
+          ? { ...c, data: { ...c.data, productDisplayOrder: FULL_CATEGORY_ORDER.slice(0, 8) } }
+          : c
+      )));
+
+      await rebuildMenus(BUSINESS_ID, { menuIds: [MIRROR_MENU] });
+
+      const group = getMirrorGroup();
+      expect(group.productDisplayOrder).not.toContain('mirP9');
+      expect(group.products.mirP9).toBeUndefined();
+    });
+
+    it('every productDisplayOrder entry has a products entry across all rebuilt menus (invariant)', async () => {
+      // Stale group snapshot to force reliance on the category-derived prefetch.
+      registerCollection(MENU_GROUPS_PATH, menuGroups.map((g) => (
+        g.id === MIRROR_GROUP
+          ? { ...g, data: { ...g.data, productDisplayOrder: [] } }
+          : g
+      )));
+
+      await rebuildMenus(BUSINESS_ID);
+
+      for (const set of transactionSets) {
+        const groups: Record<string, any> = set.data.groups;
+        for (const group of Object.values(groups)) {
+          for (const pid of (group as any).productDisplayOrder as string[]) {
+            expect((group as any).products[pid]).toBeDefined();
+          }
+        }
+      }
+    });
+  });
+
+  // ─── resolveChangedCategories (#79) ───────────────────────────────
+
+  describe('resolveChangedCategories', () => {
+    it('returns categories matching the syncTraceId', async () => {
+      registerCollection(CATEGORIES_PATH, [
+        { id: 'cat-a', data: { syncTraceId: 'trace-1' } },
+        { id: 'cat-b', data: { syncTraceId: 'trace-1' } },
+        { id: 'cat-c', data: { syncTraceId: 'other' } },
+      ]);
+
+      const result = await resolveChangedCategories(BUSINESS_ID, 'trace-1');
+      expect(result.sort()).toEqual(['cat-a', 'cat-b']);
+    });
+
+    it('returns empty when none match', async () => {
+      registerCollection(CATEGORIES_PATH, [
+        { id: 'cat-a', data: { syncTraceId: 'other' } },
+      ]);
+
+      const result = await resolveChangedCategories(BUSINESS_ID, 'no-match');
+      expect(result).toEqual([]);
     });
   });
 
