@@ -19,9 +19,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Tests use Vitest with `globals: true`. Test files live in `__tests__/` directories alongside source code, matching `src/**/__tests__/**/*.test.ts`.
 
-## Publishing
+## Publishing & Promotion
 
-When creating a PR against `master` or `dev`, always bump the version in `package.json` before pushing. Artifact Registry rejects duplicate versions — every merge that triggers Cloud Build must have a unique version. Use semver patch bumps for fixes, minor for features.
+This library **owns its own dev→prod promotion** — see `PROMOTION.md` for the full model. All publishes go to the **single registry** `us-central1-npm.pkg.dev/kios-master/npm-packages`; environment isolation is by version, never by registry:
+
+- **dev branch** (`cloudbuild-prerelease.yaml`): publishes a per-commit prerelease `X.Y.Z-dev.<short-sha>` under dist-tag `next`, as the publish-only SA `ar-prerelease-publisher@kios-master`. Never moves `latest`.
+- **master branch** (`cloudbuild.yaml`): graduates to the plain release `X.Y.Z` under dist-tag `latest`, as the default Cloud Build SA.
+
+When creating a PR against `master` or `dev`, always bump the base version in `package.json` before pushing. Artifact Registry rejects duplicate versions — every master merge must publish a unique `X.Y.Z`. Use semver patch bumps for fixes, minor for features. (Prerelease versions are unique per commit automatically.)
+
+Consumers validating an unreleased change pin the exact `-dev.<sha>` in their dev branch only, then graduate to `^X.Y.Z` before their own prod promotion — process in `PROMOTION.md`.
 
 ## Verification
 

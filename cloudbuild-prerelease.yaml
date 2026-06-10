@@ -1,0 +1,53 @@
+# Prerelease lane (dev branch trigger, runs in kios-master).
+#
+# Stamps a per-commit prerelease version X.Y.Z-dev.<short-sha> and publishes
+# it to the single @kiosinc registry under dist-tag `next`. `latest` is never
+# moved by this lane. See PROMOTION.md.
+#
+# Runs as the publish-only prerelease service account (declared below), so the
+# trigger that references this file must live in the kios-master project.
+# Protected trigger on the dev branch only — fork PRs never publish.
+steps:
+  # Generate .npmrc pinned to the single kios-master registry
+  - name: 'node:18'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        cat > .npmrc << EOF
+        @kiosinc:registry=https://us-central1-npm.pkg.dev/kios-master/npm-packages/
+        //us-central1-npm.pkg.dev/kios-master/npm-packages/:always-auth=true
+        EOF
+
+  # Stamp the per-commit prerelease version X.Y.Z-dev.<short-sha>
+  - name: 'node:18'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        BASE="$$(node -p "require('./package.json').version")"
+        npm version "$${BASE}-dev.${SHORT_SHA}" --no-git-tag-version
+
+  # Install dependencies
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['install']
+
+  # Compile TypeScript
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['run', 'tsc']
+
+  # Authenticate with Artifact Registry
+  - name: 'node:18'
+    entrypoint: 'npx'
+    args: ['google-artifactregistry-auth', '.npmrc']
+
+  # Publish prerelease under dist-tag `next` (never moves `latest`)
+  - name: 'node:18'
+    entrypoint: 'npm'
+    args: ['publish', '--tag', 'next']
+
+serviceAccount: 'projects/kios-master/serviceAccounts/ar-prerelease-publisher@kios-master.iam.gserviceaccount.com'
+options:
+  logging: CLOUD_LOGGING_ONLY

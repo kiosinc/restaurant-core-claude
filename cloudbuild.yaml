@@ -1,13 +1,22 @@
+# Release lane (master branch trigger: restaurant-core-prod).
+#
+# Publishes the plain release version X.Y.Z from package.json to the single
+# @kiosinc registry under dist-tag `latest`. This is the graduation step of
+# the prerelease -> release promotion. See PROMOTION.md.
+#
+# No `serviceAccount` field: this lane runs as the project default Cloud Build
+# service account (730024124565@cloudbuild.gserviceaccount.com), which holds
+# roles/artifactregistry.writer on kios-master.
 steps:
-  # Generate .npmrc dynamically using the current project ID
+  # Generate .npmrc pinned to the single kios-master registry
   - name: 'node:18'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
         cat > .npmrc << EOF
-        @kiosinc:registry=https://us-central1-npm.pkg.dev/${PROJECT_ID}/npm-packages/
-        //us-central1-npm.pkg.dev/${PROJECT_ID}/npm-packages/:always-auth=true
+        @kiosinc:registry=https://us-central1-npm.pkg.dev/kios-master/npm-packages/
+        //us-central1-npm.pkg.dev/kios-master/npm-packages/:always-auth=true
         EOF
 
   # Install dependencies
@@ -25,7 +34,7 @@ steps:
     entrypoint: 'npx'
     args: ['google-artifactregistry-auth', '.npmrc']
 
-  # Publish to Artifact Registry
+  # Publish release X.Y.Z under dist-tag `latest` (the graduation)
   - name: 'node:18'
     entrypoint: 'npm'
-    args: ['publish']
+    args: ['publish', '--tag', 'latest']
