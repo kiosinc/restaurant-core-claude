@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getFlags, clearFlagCache, createFlagService, WriteModelFlags } from '../FeatureFlagService';
+import { getFlags, clearFlagCache, createFlagService } from '../FeatureFlagService';
 
 const mockDocGet = vi.fn();
 const mockDoc = vi.fn(() => ({ get: mockDocGet }));
@@ -25,6 +25,7 @@ describe('FeatureFlagService', () => {
       writeLegacyOptionInventory: false,
       useCascadeEndpoint: false,
       disableImageSync: false,
+      enableKioskPrincipals: false,
     });
   });
 
@@ -36,6 +37,7 @@ describe('FeatureFlagService', () => {
         enableAvailabilityDoc: true,
         writeLegacyOptionInventory: true,
         useCascadeEndpoint: true,
+        enableKioskPrincipals: true,
       }),
     });
 
@@ -44,6 +46,7 @@ describe('FeatureFlagService', () => {
     expect(flags.enableAvailabilityDoc).toBe(true);
     expect(flags.writeLegacyOptionInventory).toBe(true);
     expect(flags.useCascadeEndpoint).toBe(true);
+    expect(flags.enableKioskPrincipals).toBe(true);
   });
 
   it('uses defaults for missing fields in doc', async () => {
@@ -57,6 +60,7 @@ describe('FeatureFlagService', () => {
     expect(flags.enableAvailabilityDoc).toBe(true);
     expect(flags.writeLegacyOptionInventory).toBe(false);
     expect(flags.useCascadeEndpoint).toBe(false);
+    expect(flags.enableKioskPrincipals).toBe(false);
   });
 
   it('caches result within TTL', async () => {
