@@ -27,7 +27,6 @@ describe('FeatureFlagService', () => {
       disableImageSync: false,
       enableKioskPrincipals: false,
       enableAnonUserSweep: false,
-      kioskClaimsReconcilerCanonical: false,
     });
   });
 
@@ -41,7 +40,6 @@ describe('FeatureFlagService', () => {
         useCascadeEndpoint: true,
         enableKioskPrincipals: true,
         enableAnonUserSweep: true,
-        kioskClaimsReconcilerCanonical: true,
       }),
     });
 
@@ -52,7 +50,6 @@ describe('FeatureFlagService', () => {
     expect(flags.useCascadeEndpoint).toBe(true);
     expect(flags.enableKioskPrincipals).toBe(true);
     expect(flags.enableAnonUserSweep).toBe(true);
-    expect(flags.kioskClaimsReconcilerCanonical).toBe(true);
   });
 
   it('uses defaults for missing fields in doc', async () => {
@@ -68,7 +65,6 @@ describe('FeatureFlagService', () => {
     expect(flags.useCascadeEndpoint).toBe(false);
     expect(flags.enableKioskPrincipals).toBe(false);
     expect(flags.enableAnonUserSweep).toBe(false);
-    expect(flags.kioskClaimsReconcilerCanonical).toBe(false);
   });
 
   it('caches result within TTL', async () => {
