@@ -25,6 +25,7 @@ describe('FeatureFlagService', () => {
       writeLegacyOptionInventory: false,
       useCascadeEndpoint: false,
       disableImageSync: false,
+      isImageDownsample: false,
       enableKioskPrincipals: false,
       enableAnonUserSweep: false,
     });
@@ -65,6 +66,26 @@ describe('FeatureFlagService', () => {
     expect(flags.useCascadeEndpoint).toBe(false);
     expect(flags.enableKioskPrincipals).toBe(false);
     expect(flags.enableAnonUserSweep).toBe(false);
+  });
+
+  it('defaults isImageDownsample to false when absent in doc', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ enableMenuRebuild: true }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.isImageDownsample).toBe(false);
+  });
+
+  it('reads isImageDownsample as true when set in doc', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ isImageDownsample: true }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.isImageDownsample).toBe(true);
   });
 
   it('caches result within TTL', async () => {

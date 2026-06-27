@@ -6,6 +6,7 @@ export interface WriteModelFlags {
   writeLegacyOptionInventory: boolean;
   useCascadeEndpoint: boolean;
   disableImageSync: boolean;
+  isImageDownsample: boolean;
   enableKioskPrincipals: boolean;
   enableAnonUserSweep: boolean;
 }
@@ -16,6 +17,7 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   writeLegacyOptionInventory: false,
   useCascadeEndpoint: false,
   disableImageSync: false,
+  isImageDownsample: false,
   enableKioskPrincipals: false,
   enableAnonUserSweep: false,
 };
@@ -49,6 +51,7 @@ export function createFlagService() {
         writeLegacyOptionInventory: data.writeLegacyOptionInventory ?? DEFAULT_FLAGS.writeLegacyOptionInventory,
         useCascadeEndpoint: data.useCascadeEndpoint ?? DEFAULT_FLAGS.useCascadeEndpoint,
         disableImageSync: data.disableImageSync ?? DEFAULT_FLAGS.disableImageSync,
+        isImageDownsample: data.isImageDownsample ?? DEFAULT_FLAGS.isImageDownsample,
         enableKioskPrincipals: data.enableKioskPrincipals ?? DEFAULT_FLAGS.enableKioskPrincipals,
         enableAnonUserSweep: data.enableAnonUserSweep ?? DEFAULT_FLAGS.enableAnonUserSweep,
       };
