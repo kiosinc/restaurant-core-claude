@@ -8,6 +8,7 @@ export interface WriteModelFlags {
   disableImageSync: boolean;
   enableKioskPrincipals: boolean;
   enableAnonUserSweep: boolean;
+  writeLegacyFirestorePresence: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
@@ -18,6 +19,7 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   disableImageSync: false,
   enableKioskPrincipals: false,
   enableAnonUserSweep: false,
+  writeLegacyFirestorePresence: true,
 };
 
 const CACHE_TTL_MS = 60_000;
@@ -51,6 +53,7 @@ export function createFlagService() {
         disableImageSync: data.disableImageSync ?? DEFAULT_FLAGS.disableImageSync,
         enableKioskPrincipals: data.enableKioskPrincipals ?? DEFAULT_FLAGS.enableKioskPrincipals,
         enableAnonUserSweep: data.enableAnonUserSweep ?? DEFAULT_FLAGS.enableAnonUserSweep,
+        writeLegacyFirestorePresence: data.writeLegacyFirestorePresence ?? DEFAULT_FLAGS.writeLegacyFirestorePresence,
       };
       cacheTimestamp = now;
       return cachedFlags;
