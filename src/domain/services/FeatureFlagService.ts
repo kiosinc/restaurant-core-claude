@@ -6,9 +6,10 @@ export interface WriteModelFlags {
   writeLegacyOptionInventory: boolean;
   useCascadeEndpoint: boolean;
   disableImageSync: boolean;
-  isImageDownsample: boolean;
   enableKioskPrincipals: boolean;
   enableAnonUserSweep: boolean;
+  writeLegacyFirestorePresence: boolean;
+  isImageDownsample: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
@@ -17,9 +18,10 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   writeLegacyOptionInventory: false,
   useCascadeEndpoint: false,
   disableImageSync: false,
-  isImageDownsample: false,
   enableKioskPrincipals: false,
   enableAnonUserSweep: false,
+  writeLegacyFirestorePresence: true,
+  isImageDownsample: false,
 };
 
 const CACHE_TTL_MS = 60_000;
@@ -51,9 +53,10 @@ export function createFlagService() {
         writeLegacyOptionInventory: data.writeLegacyOptionInventory ?? DEFAULT_FLAGS.writeLegacyOptionInventory,
         useCascadeEndpoint: data.useCascadeEndpoint ?? DEFAULT_FLAGS.useCascadeEndpoint,
         disableImageSync: data.disableImageSync ?? DEFAULT_FLAGS.disableImageSync,
-        isImageDownsample: data.isImageDownsample ?? DEFAULT_FLAGS.isImageDownsample,
         enableKioskPrincipals: data.enableKioskPrincipals ?? DEFAULT_FLAGS.enableKioskPrincipals,
         enableAnonUserSweep: data.enableAnonUserSweep ?? DEFAULT_FLAGS.enableAnonUserSweep,
+        writeLegacyFirestorePresence: data.writeLegacyFirestorePresence ?? DEFAULT_FLAGS.writeLegacyFirestorePresence,
+        isImageDownsample: data.isImageDownsample ?? DEFAULT_FLAGS.isImageDownsample,
       };
       cacheTimestamp = now;
       return cachedFlags;
