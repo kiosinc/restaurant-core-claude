@@ -14,6 +14,9 @@ export * as Authentication from './user/Authentication';
 export * as Claims from './user/Claims';
 export * as User from './user/User';
 
+// Imaging — image overlay interfaces & derivative-size contract
+export * as Imaging from './imaging';
+
 // Utils — unchanged
 export * as Utils from './utils';
 
