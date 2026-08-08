@@ -125,6 +125,66 @@ describe('AvailabilityService', () => {
     });
   });
 
+  // #141: count/state/timestamp are optional — catalog sync writes partial
+  // entries ({isAvailable} for tracked, {isAvailable, state} for untracked);
+  // only the inventory webhook writes all four fields.
+  describe('partial OptionAvailability writes (#141)', () => {
+    it('accepts and writes an isAvailable-only option entry', async () => {
+      await setOptionAvailability('biz-1', 'loc-1', 'opt-1', { isAvailable: true });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { options: { 'opt-1': { isAvailable: true } } },
+        { merge: true },
+      );
+    });
+
+    it('accepts and writes an {isAvailable, state} option entry (untracked location)', async () => {
+      await setOptionAvailability('biz-1', 'loc-1', 'opt-1', { isAvailable: false, state: 'soldOut' });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { options: { 'opt-1': { isAvailable: false, state: 'soldOut' } } },
+        { merge: true },
+      );
+    });
+
+    it('accepts partial option entries through updateAvailability', async () => {
+      await updateAvailability('biz-1', 'loc-1', {
+        options: { 'opt-1': { isAvailable: true } },
+      });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { options: { 'opt-1': { isAvailable: true } } },
+        { merge: true },
+      );
+    });
+
+    it('reads back a partial option entry without the optional fields', async () => {
+      mockDocGet.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          options: { 'opt-1': { isAvailable: true } },
+        }),
+      });
+
+      const result = await getAvailability('biz-1', 'loc-1');
+      expect(result!.options['opt-1'].isAvailable).toBe(true);
+      expect(result!.options['opt-1'].count).toBeUndefined();
+      expect(result!.options['opt-1'].state).toBeUndefined();
+      expect(result!.options['opt-1'].timestamp).toBeUndefined();
+    });
+
+    it('getOptionTimestamp returns undefined for a partial entry without timestamp', async () => {
+      mockDocGet.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          options: { 'opt-1': { isAvailable: true } },
+        }),
+      });
+      const result = await getOptionTimestamp('biz-1', 'loc-1', 'opt-1');
+      expect(result).toBeUndefined();
+    });
+  });
+
   describe('setProductAvailabilityBatch', () => {
     it('merge-sets multiple products under products', async () => {
       await setProductAvailabilityBatch('biz-1', 'loc-1', {
