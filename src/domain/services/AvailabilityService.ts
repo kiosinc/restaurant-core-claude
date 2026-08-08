@@ -8,9 +8,9 @@ export interface ProductAvailability {
 
 export interface OptionAvailability {
   isAvailable: boolean;
-  count: number;
-  state: 'inStock' | 'soldOut';
-  timestamp: string;
+  count?: number;
+  state?: 'inStock' | 'soldOut';
+  timestamp?: string;
 }
 
 export interface AvailabilityDoc {
