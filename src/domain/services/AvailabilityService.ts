@@ -3,6 +3,9 @@ import { PathResolver } from '../../persistence/firestore/PathResolver';
 export interface ProductAvailability {
   isAvailable: boolean;
   state?: 'inStock' | 'soldOut';
+  // #134: Remy-owned merchant manual hide. Backend never writes it; clients
+  // treat isHidden === true as "do not render", independent of isAvailable/state.
+  isHidden?: boolean;
   timestamp?: string;
 }
 
@@ -10,6 +13,9 @@ export interface OptionAvailability {
   isAvailable: boolean;
   count?: number;
   state?: 'inStock' | 'soldOut';
+  // #134: Remy-owned merchant manual hide. Backend never writes it; clients
+  // treat isHidden === true as "do not render", independent of isAvailable/state.
+  isHidden?: boolean;
   timestamp?: string;
 }
 

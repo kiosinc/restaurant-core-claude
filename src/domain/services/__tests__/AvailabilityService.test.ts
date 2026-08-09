@@ -185,6 +185,49 @@ describe('AvailabilityService', () => {
     });
   });
 
+  // #134: isHidden is Remy-owned (merchant manual hide). Backend writers never
+  // set it, but the service must pass it through untouched when a caller does,
+  // and omit it entirely when absent (merge-set writes only provided keys).
+  describe('isHidden passthrough (#134)', () => {
+    it('setProductAvailability passes isHidden through the merge payload', async () => {
+      await setProductAvailability('biz-1', 'loc-1', 'prod-1', { isAvailable: true, isHidden: true });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { products: { 'prod-1': { isAvailable: true, isHidden: true } } },
+        { merge: true },
+      );
+    });
+
+    it('setOptionAvailability passes isHidden through the merge payload', async () => {
+      await setOptionAvailability('biz-1', 'loc-1', 'opt-1', { isAvailable: true, isHidden: false });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { options: { 'opt-1': { isAvailable: true, isHidden: false } } },
+        { merge: true },
+      );
+    });
+
+    it('omitting isHidden writes no isHidden key', async () => {
+      await setProductAvailability('biz-1', 'loc-1', 'prod-1', { isAvailable: true });
+
+      expect(mockDocSet.mock.calls[0][0].products['prod-1']).not.toHaveProperty('isHidden');
+    });
+
+    it('getAvailability reads back entries carrying isHidden', async () => {
+      mockDocGet.mockResolvedValue({
+        exists: true,
+        data: () => ({
+          products: { 'prod-1': { isAvailable: true, isHidden: true } },
+          options: { 'opt-1': { isAvailable: true, isHidden: true } },
+        }),
+      });
+
+      const result = await getAvailability('biz-1', 'loc-1');
+      expect(result!.products['prod-1'].isHidden).toBe(true);
+      expect(result!.options['opt-1'].isHidden).toBe(true);
+    });
+  });
+
   describe('setProductAvailabilityBatch', () => {
     it('merge-sets multiple products under products', async () => {
       await setProductAvailabilityBatch('biz-1', 'loc-1', {
