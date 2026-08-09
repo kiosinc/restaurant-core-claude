@@ -13,8 +13,7 @@ export interface OptionAvailability {
   isAvailable: boolean;
   count?: number;
   state?: 'inStock' | 'soldOut';
-  // #134: Remy-owned merchant manual hide. Backend never writes it; clients
-  // treat isHidden === true as "do not render", independent of isAvailable/state.
+  // #134: same semantics as ProductAvailability.isHidden above.
   isHidden?: boolean;
   timestamp?: string;
 }
