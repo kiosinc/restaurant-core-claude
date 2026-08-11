@@ -39,4 +39,7 @@ export {
   setProductAvailabilityBatch,
   updateAvailability,
   getOptionTimestamp,
+  removeOptionAvailability,
+  removeProductAvailability,
+  deleteAvailabilityDoc,
 } from './AvailabilityService';
