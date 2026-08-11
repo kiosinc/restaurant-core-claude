@@ -292,9 +292,8 @@ describe('AvailabilityService', () => {
   });
 });
 
-// Removal is the deliberate inversion of the #70 merge-set convention: dotted
-// root-level keys + update(), so that pruning a location with no availability
-// doc is a no-op instead of materialising an empty document.
+// Removal deliberately inverts the #70 merge-set convention — see the
+// "Entry removal (#133)" comment block in AvailabilityService.ts for why.
 describe('entry removal (#133)', () => {
   describe('removeOptionAvailability', () => {
     it('deletes a single option via a root-level dotted field path', async () => {

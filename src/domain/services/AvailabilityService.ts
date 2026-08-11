@@ -126,11 +126,9 @@ async function removeAvailabilityEntries(
   // be updated."), so guard before issuing any RPC.
   if (ids.length === 0) return;
 
-  // One accumulator, one update() call per location, regardless of id count.
-  const deletes: Record<string, FieldValue> = {};
-  for (const id of ids) {
-    deletes[`${field}.${id}`] = FieldValue.delete();
-  }
+  // All ids for one location coalesce into a single update() — same delete-map
+  // idiom as CascadeRelationshipHandler.
+  const deletes = Object.fromEntries(ids.map((id) => [`${field}.${id}`, FieldValue.delete()]));
 
   const docRef = PathResolver.availabilityDoc(businessId, locationId);
   try {
