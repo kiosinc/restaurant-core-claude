@@ -18,10 +18,8 @@ import { getFirestore } from 'firebase-admin/firestore';
  * - The index signature disables compile-time typo checking on flag property
  *   access, so consumers must spell flag names carefully.
  *
- * Sanitization: non-boolean doc values are dropped. For known keys this means
- * they fall back to their `DEFAULT_FLAGS` value (an intentional change from the
- * previous raw `??` pass-through, which let non-boolean truthy/falsy values
- * through).
+ * Sanitization: non-boolean doc values are dropped (logged as a warning);
+ * known keys with a non-boolean value fall back to their `DEFAULT_FLAGS` value.
  */
 export interface WriteModelFlags {
   [key: string]: boolean | undefined;
@@ -64,16 +62,16 @@ export function createFlagService() {
       const db = getFirestore();
       const doc = await db.collection('config').doc('writeModelFlags').get();
 
-      if (!doc.exists) {
-        cachedFlags = { ...DEFAULT_FLAGS };
-        cacheTimestamp = now;
-        return cachedFlags;
-      }
-
-      const data = doc.data()!;
+      const data = doc.exists ? doc.data()! : {};
       const booleanFields = Object.fromEntries(
         Object.entries(data).filter(([, v]) => typeof v === 'boolean'),
       );
+      const droppedKeys = Object.keys(data).filter((k) => typeof data[k] !== 'boolean');
+      if (droppedKeys.length > 0) {
+        console.warn(
+          `FeatureFlagService: dropped non-boolean fields from config/writeModelFlags: ${droppedKeys.join(', ')}`,
+        );
+      }
       cachedFlags = { ...DEFAULT_FLAGS, ...booleanFields };
       cacheTimestamp = now;
       return cachedFlags;

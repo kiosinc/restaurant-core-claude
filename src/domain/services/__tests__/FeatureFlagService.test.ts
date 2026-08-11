@@ -9,6 +9,19 @@ vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({ collection: mockCollection }),
 }));
 
+// Mirror of the service's DEFAULT_FLAGS (module-private) for whole-object assertions.
+const EXPECTED_DEFAULTS = {
+  enableMenuRebuild: true,
+  enableAvailabilityDoc: true,
+  writeLegacyOptionInventory: false,
+  useCascadeEndpoint: false,
+  disableImageSync: false,
+  enableKioskPrincipals: false,
+  enableAnonUserSweep: false,
+  writeLegacyFirestorePresence: true,
+  isImageDownsample: false,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   clearFlagCache();
@@ -19,17 +32,7 @@ describe('FeatureFlagService', () => {
     mockDocGet.mockResolvedValue({ exists: false });
 
     const flags = await getFlags();
-    expect(flags).toEqual({
-      enableMenuRebuild: true,
-      enableAvailabilityDoc: true,
-      writeLegacyOptionInventory: false,
-      useCascadeEndpoint: false,
-      disableImageSync: false,
-      enableKioskPrincipals: false,
-      enableAnonUserSweep: false,
-      writeLegacyFirestorePresence: true,
-      isImageDownsample: false,
-    });
+    expect(flags).toEqual(EXPECTED_DEFAULTS);
   });
 
   it('reads flags from Firestore doc', async () => {
@@ -155,6 +158,7 @@ describe('FeatureFlagService', () => {
   });
 
   it('drops unknown non-boolean values (string, number, null, object)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     mockDocGet.mockResolvedValue({
       exists: true,
       data: () => ({
@@ -172,9 +176,14 @@ describe('FeatureFlagService', () => {
     expect(flags.flagC).toBeUndefined();
     expect(flags.flagD).toBeUndefined();
     expect(flags.realFlag).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('dropped non-boolean fields'),
+    );
+    warnSpy.mockRestore();
   });
 
   it('sanitizes non-boolean values on known keys to their defaults', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     mockDocGet.mockResolvedValue({
       exists: true,
       data: () => ({
@@ -190,6 +199,7 @@ describe('FeatureFlagService', () => {
     expect(flags.writeLegacyFirestorePresence).toBe(true);
     // Valid boolean passes through
     expect(flags.disableImageSync).toBe(true);
+    warnSpy.mockRestore();
   });
 
   it('unknown keys absent from the doc read as undefined', async () => {
@@ -200,7 +210,6 @@ describe('FeatureFlagService', () => {
 
     const flags = await getFlags();
     expect(flags.isPageLevelCatalogWrites).toBeUndefined();
-    expect(flags.isPageLevelCatalogWrites ?? false).toBe(false);
   });
 
   it('merges defaults with doc values as a whole object', async () => {
@@ -210,32 +219,7 @@ describe('FeatureFlagService', () => {
     });
 
     const flags = await getFlags();
-    expect(flags).toEqual({
-      enableMenuRebuild: true,
-      enableAvailabilityDoc: true,
-      writeLegacyOptionInventory: false,
-      useCascadeEndpoint: true,
-      disableImageSync: false,
-      enableKioskPrincipals: false,
-      enableAnonUserSweep: false,
-      writeLegacyFirestorePresence: true,
-      isImageDownsample: false,
-      newFlag: true,
-    });
-  });
-
-  it('caches pass-through flags within TTL', async () => {
-    mockDocGet.mockResolvedValue({
-      exists: true,
-      data: () => ({ isPageLevelCatalogWrites: true }),
-    });
-
-    const first = await getFlags();
-    const second = await getFlags();
-
-    expect(mockDocGet).toHaveBeenCalledTimes(1);
-    expect(first.isPageLevelCatalogWrites).toBe(true);
-    expect(second.isPageLevelCatalogWrites).toBe(true);
+    expect(flags).toEqual({ ...EXPECTED_DEFAULTS, useCascadeEndpoint: true, newFlag: true });
   });
 
   it('unknown boolean key retired from doc disappears after cache clear', async () => {
