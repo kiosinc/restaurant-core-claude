@@ -141,4 +141,119 @@ describe('FeatureFlagService', () => {
     await service2.getFlags();
     expect(mockDocGet).toHaveBeenCalledTimes(3);
   });
+
+  it('passes through unknown boolean keys from the doc', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ isPageLevelCatalogWrites: true, someOtherNewFlag: false }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.isPageLevelCatalogWrites).toBe(true);
+    expect(flags.someOtherNewFlag).toBe(false);
+    expect(flags.enableMenuRebuild).toBe(true);
+  });
+
+  it('drops unknown non-boolean values (string, number, null, object)', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        flagA: 'yes',
+        flagB: 1,
+        flagC: null,
+        flagD: { nested: true },
+        realFlag: true,
+      }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.flagA).toBeUndefined();
+    expect(flags.flagB).toBeUndefined();
+    expect(flags.flagC).toBeUndefined();
+    expect(flags.flagD).toBeUndefined();
+    expect(flags.realFlag).toBe(true);
+  });
+
+  it('sanitizes non-boolean values on known keys to their defaults', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({
+        enableMenuRebuild: 'false',
+        writeLegacyFirestorePresence: 0,
+        disableImageSync: true,
+      }),
+    });
+
+    const flags = await getFlags();
+    // Non-boolean values on known keys fall back to defaults, not raw pass-through
+    expect(flags.enableMenuRebuild).toBe(true);
+    expect(flags.writeLegacyFirestorePresence).toBe(true);
+    // Valid boolean passes through
+    expect(flags.disableImageSync).toBe(true);
+  });
+
+  it('unknown keys absent from the doc read as undefined', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ enableMenuRebuild: false }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.isPageLevelCatalogWrites).toBeUndefined();
+    expect(flags.isPageLevelCatalogWrites ?? false).toBe(false);
+  });
+
+  it('merges defaults with doc values as a whole object', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ useCascadeEndpoint: true, newFlag: true }),
+    });
+
+    const flags = await getFlags();
+    expect(flags).toEqual({
+      enableMenuRebuild: true,
+      enableAvailabilityDoc: true,
+      writeLegacyOptionInventory: false,
+      useCascadeEndpoint: true,
+      disableImageSync: false,
+      enableKioskPrincipals: false,
+      enableAnonUserSweep: false,
+      writeLegacyFirestorePresence: true,
+      isImageDownsample: false,
+      newFlag: true,
+    });
+  });
+
+  it('caches pass-through flags within TTL', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ isPageLevelCatalogWrites: true }),
+    });
+
+    const first = await getFlags();
+    const second = await getFlags();
+
+    expect(mockDocGet).toHaveBeenCalledTimes(1);
+    expect(first.isPageLevelCatalogWrites).toBe(true);
+    expect(second.isPageLevelCatalogWrites).toBe(true);
+  });
+
+  it('unknown boolean key retired from doc disappears after cache clear', async () => {
+    mockDocGet.mockResolvedValueOnce({
+      exists: true,
+      data: () => ({ tempFlag: true }),
+    });
+
+    const before = await getFlags();
+    expect(before.tempFlag).toBe(true);
+
+    clearFlagCache();
+    mockDocGet.mockResolvedValueOnce({
+      exists: true,
+      data: () => ({}),
+    });
+
+    const after = await getFlags();
+    expect(after.tempFlag).toBeUndefined();
+  });
 });
