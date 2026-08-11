@@ -1,6 +1,28 @@
 import { getFirestore } from 'firebase-admin/firestore';
 
+/**
+ * Open-read feature flags contract.
+ *
+ * Flags are read from the Firestore doc `/config/writeModelFlags`. Any boolean
+ * field present in that doc is returned by `getFlags()` — consumers define a new
+ * flag by writing the doc field and reading it as `flags.myFlag ?? false`
+ * (defaults-off). Retiring a flag is deleting the doc field. No library change
+ * or publish is needed to add or retire a flag.
+ *
+ * `DEFAULT_FLAGS` covers only the legacy known keys below; unknown keys have no
+ * default (absent → `undefined`).
+ *
+ * Trade-offs of the open contract:
+ * - The doc is flags-only by convention: any boolean field written to
+ *   `/config/writeModelFlags` will appear in `getFlags()` output.
+ * - The index signature disables compile-time typo checking on flag property
+ *   access, so consumers must spell flag names carefully.
+ *
+ * Sanitization: non-boolean doc values are dropped (logged as a warning);
+ * known keys with a non-boolean value fall back to their `DEFAULT_FLAGS` value.
+ */
 export interface WriteModelFlags {
+  [key: string]: boolean | undefined;
   enableMenuRebuild: boolean;
   enableAvailabilityDoc: boolean;
   writeLegacyOptionInventory: boolean;
@@ -48,25 +70,17 @@ export function createFlagService() {
       const db = getFirestore();
       const doc = await db.collection('config').doc('writeModelFlags').get();
 
-      if (!doc.exists) {
-        cachedFlags = { ...DEFAULT_FLAGS };
-        cacheTimestamp = now;
-        return cachedFlags;
+      const data = doc.exists ? doc.data()! : {};
+      const booleanFields = Object.fromEntries(
+        Object.entries(data).filter(([, v]) => typeof v === 'boolean'),
+      );
+      const droppedKeys = Object.keys(data).filter((k) => typeof data[k] !== 'boolean');
+      if (droppedKeys.length > 0) {
+        console.warn(
+          `FeatureFlagService: dropped non-boolean fields from config/writeModelFlags: ${droppedKeys.join(', ')}`,
+        );
       }
-
-      const data = doc.data()!;
-      cachedFlags = {
-        enableMenuRebuild: data.enableMenuRebuild ?? DEFAULT_FLAGS.enableMenuRebuild,
-        enableAvailabilityDoc: data.enableAvailabilityDoc ?? DEFAULT_FLAGS.enableAvailabilityDoc,
-        writeLegacyOptionInventory: data.writeLegacyOptionInventory ?? DEFAULT_FLAGS.writeLegacyOptionInventory,
-        useCascadeEndpoint: data.useCascadeEndpoint ?? DEFAULT_FLAGS.useCascadeEndpoint,
-        disableImageSync: data.disableImageSync ?? DEFAULT_FLAGS.disableImageSync,
-        enableKioskPrincipals: data.enableKioskPrincipals ?? DEFAULT_FLAGS.enableKioskPrincipals,
-        enableAnonUserSweep: data.enableAnonUserSweep ?? DEFAULT_FLAGS.enableAnonUserSweep,
-        writeLegacyFirestorePresence: data.writeLegacyFirestorePresence ?? DEFAULT_FLAGS.writeLegacyFirestorePresence,
-        isImageDownsample: data.isImageDownsample ?? DEFAULT_FLAGS.isImageDownsample,
-        pruneMenuAssetsOnRebuild: data.pruneMenuAssetsOnRebuild ?? DEFAULT_FLAGS.pruneMenuAssetsOnRebuild,
-      };
+      cachedFlags = { ...DEFAULT_FLAGS, ...booleanFields };
       cacheTimestamp = now;
       return cachedFlags;
     },
