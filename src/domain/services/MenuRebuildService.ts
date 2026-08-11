@@ -70,16 +70,21 @@ interface PrunedMenuRefs {
  * collection docs. Recompute them from the docs that actually came back rather than carrying
  * the previous values forward. materializedGroups / materializedCollections are keyed by
  * exactly the ids whose doc existed and was not isDeleted, so they are the survivor set.
+ *
+ * Both the kill-switch-off path and the nothing-to-prune path return the caller's own
+ * references, so a menu with no dangling refs is rewritten byte-identically.
  */
 function pruneDanglingAssetRefs(
+  isPruningEnabled: boolean,
   menuAssets: Record<string, MenuAsset>,
   menuAssetDisplayOrder: string[],
   groupDisplayOrder: string[],
   materializedGroups: Record<string, MenuGroupMeta>,
   materializedCollections: Record<string, MenuCollectionMeta>,
 ): PrunedMenuRefs {
-  const survivingGroupIds = new Set(Object.keys(materializedGroups));
-  const survivingCollectionIds = new Set(Object.keys(materializedCollections));
+  if (!isPruningEnabled) {
+    return { menuAssets, menuAssetDisplayOrder, groupDisplayOrder, prunedIds: [] };
+  }
 
   const keptAssets: Record<string, MenuAsset> = {};
   const prunedIds: string[] = [];
@@ -89,10 +94,10 @@ function pruneDanglingAssetRefs(
       keptAssets[id] = asset;
       continue;
     }
-    const survives = asset.assetType === 'group'
-      ? survivingGroupIds.has(id)
-      : survivingCollectionIds.has(id);
-    if (survives) keptAssets[id] = asset;
+    // The materialized maps are already keyed by the survivor ids — own-key membership is
+    // the survival test, so there is no second index to build.
+    const survivors = asset.assetType === 'group' ? materializedGroups : materializedCollections;
+    if (Object.prototype.hasOwnProperty.call(survivors, id)) keptAssets[id] = asset;
     else prunedIds.push(id);
   }
 
@@ -391,6 +396,11 @@ async function attemptRebuild(
   let prunedIds: string[] = [];
 
   await db.runTransaction(async (t) => {
+    // Firestore retries this callback on contention, and the divergence branch below returns
+    // without setting prunedIds. Reset per attempt so the warn after commit can never report
+    // a prune from an attempt that was rolled back.
+    prunedIds = [];
+
     const freshMenuSnap = await t.get(menuDocRef);
     const existingData = freshMenuSnap.data() ?? {};
 
@@ -404,20 +414,14 @@ async function attemptRebuild(
     const freshGroupDisplayOrder: string[] = existingData.groupDisplayOrder ?? [];
     const freshMenuAssetDisplayOrder: string[] = existingData.menuAssetDisplayOrder ?? [];
 
-    const refs = pruneMenuAssetsOnRebuild
-      ? pruneDanglingAssetRefs(
-        freshMenuAssets,
-        freshMenuAssetDisplayOrder,
-        freshGroupDisplayOrder,
-        materializedGroups,
-        materializedCollections,
-      )
-      : {
-        menuAssets: freshMenuAssets,
-        menuAssetDisplayOrder: freshMenuAssetDisplayOrder,
-        groupDisplayOrder: freshGroupDisplayOrder,
-        prunedIds: [] as string[],
-      };
+    const refs = pruneDanglingAssetRefs(
+      pruneMenuAssetsOnRebuild,
+      freshMenuAssets,
+      freshMenuAssetDisplayOrder,
+      freshGroupDisplayOrder,
+      materializedGroups,
+      materializedCollections,
+    );
     prunedIds = refs.prunedIds;
 
     const merged: MaterializedMenuDoc = {
@@ -446,8 +450,8 @@ async function attemptRebuild(
     t.set(menuDocRef, merged);
   });
 
-  // #132/UC13: log only when something was actually pruned — this runs for every menu on
-  // every rebuild, and a no-op line per menu would drown the signal.
+  // #132: log only when something was actually pruned — this runs for every menu on every
+  // rebuild, and a no-op line per menu would drown the signal.
   if (prunedIds.length > 0) {
     console.warn('[MenuRebuildService] pruned dangling asset refs', {
       businessId,
