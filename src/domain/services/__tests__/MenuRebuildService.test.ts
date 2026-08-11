@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { rebuildMenus, resolveChangedProducts, resolveChangedCategories } from '../MenuRebuildService';
 import {
   BUSINESS_ID,
@@ -22,6 +22,12 @@ vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mockDb,
   FieldValue: { delete: () => '$$FIELD_DELETE$$' },
 }));
+
+// #132: MenuRebuildService reads the pruneMenuAssetsOnRebuild kill switch via getFlags().
+// helpers/mockFirestore's doc refs have no .get(), so the real FeatureFlagService cannot run
+// here — and every test needs to toggle the flag anyway.
+const { mockGetFlags } = vi.hoisted(() => ({ mockGetFlags: vi.fn() }));
+vi.mock('../FeatureFlagService', () => ({ getFlags: mockGetFlags }));
 
 // Build the PathResolver collection path mappings
 const MENUS_PATH = `businesses/${BUSINESS_ID}/public/surfaces/menus`;
@@ -49,6 +55,10 @@ vi.mock('../../../persistence/firestore/PathResolver', () => ({
 
 beforeEach(() => {
   resetMockFirestore();
+
+  // #132: resetMockFirestore() calls vi.clearAllMocks(), which drops the mock's resolved
+  // value — restore the default (flag on) after it.
+  mockGetFlags.mockResolvedValue({ pruneMenuAssetsOnRebuild: true });
 
   // Register fixture data
   registerCollection(MENUS_PATH, menus);
@@ -584,6 +594,10 @@ describe('MenuRebuildService', () => {
       await rebuildMenus(BUSINESS_ID);
       expect(transactionSets).toHaveLength(1);
       expect(transactionSets[0].data.groups).toEqual({});
+      // #132: the deleted group's asset ref and display-order entries go with it
+      expect(transactionSets[0].data.menuAssets).toEqual({});
+      expect(transactionSets[0].data.menuAssetDisplayOrder).toEqual([]);
+      expect(transactionSets[0].data.groupDisplayOrder).toEqual([]);
     });
 
     it('includes menu group added without legacy assetId field', async () => {
@@ -628,6 +642,347 @@ describe('MenuRebuildService', () => {
       expect(transactionSets).toHaveLength(3);
       const menuIds = transactionSets.map((s) => s.ref._docId).sort();
       expect(menuIds).toEqual(['CcUqgkBxEnk1qYaNZ3K2', 'LShRjmDOXBNL7yVSD65V', 'TdGQqmNhA3AjNeoyYrQn'].sort());
+    });
+  });
+
+  // ─── #132 — prunes dangling menuAssets refs ─────────────────────────
+
+  describe('#132 — prunes dangling menuAssets refs', () => {
+    const PRUNE_MENU = 'prune-menu';
+    const LIVE_GROUP = '0YRxtglWpkDyxcW8WCTD';
+    const LIVE_GROUP_2 = 'mg4';
+    const LIVE_COLLECTION = 'I6XLVNjKrBAcBEmqQV0q';
+
+    type AssetMap = Record<string, { assetType: string }>;
+    interface MenuAssetOverrides {
+      menuAssets: AssetMap;
+      menuAssetDisplayOrder?: string[];
+      groupDisplayOrder?: string[];
+    }
+
+    // Pruning is expected in most of these tests; keep its console.warn out of the test output
+    // while still making it assertable (T7/T8).
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    /**
+     * Builds one menu doc with the given asset/display-order shape and structural defaults.
+     * Display-order fields are omitted entirely when not supplied, so a caller can exercise
+     * the legacy "field absent from the doc" shape.
+     */
+    function makePruneMenuDoc(overrides: MenuAssetOverrides) {
+      const data: Record<string, unknown> = {
+        name: 'Prune Menu',
+        displayName: 'Prune',
+        coverImageGsl: null,
+        coverBackgroundImageGsl: null,
+        coverVideoGsl: null,
+        logoImageGsl: null,
+        gratuityRates: [],
+        managedBy: null,
+        isDeleted: false,
+        created: new Date('2024-01-01'),
+        updated: new Date('2024-06-01'),
+        version: '2.0',
+        groups: {},
+        collections: {},
+        menuAssets: overrides.menuAssets,
+      };
+      if (overrides.menuAssetDisplayOrder !== undefined) {
+        data.menuAssetDisplayOrder = overrides.menuAssetDisplayOrder;
+      }
+      if (overrides.groupDisplayOrder !== undefined) {
+        data.groupDisplayOrder = overrides.groupDisplayOrder;
+      }
+      return { id: PRUNE_MENU, data };
+    }
+
+    function registerMenuWithAssets(overrides: MenuAssetOverrides) {
+      registerCollection(MENUS_PATH, [makePruneMenuDoc(overrides)]);
+    }
+
+    function written() {
+      return transactionSets.find((s) => s.ref._docId === PRUNE_MENU)?.data;
+    }
+
+    // T1
+    it('prunes a group-typed asset whose menuGroup doc does not exist from menuAssets, menuAssetDisplayOrder and groupDisplayOrder', async () => {
+      registerMenuWithAssets({
+        menuAssets: {
+          [LIVE_GROUP]: { assetType: 'group' },
+          ghost: { assetType: 'group' },
+          [LIVE_GROUP_2]: { assetType: 'group' },
+        },
+        menuAssetDisplayOrder: [LIVE_GROUP, 'ghost', LIVE_GROUP_2],
+        groupDisplayOrder: ['ghost', LIVE_GROUP, LIVE_GROUP_2],
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      const data = written();
+      expect(Object.keys(data.menuAssets).sort()).toEqual([LIVE_GROUP, LIVE_GROUP_2].sort());
+      expect(data.menuAssetDisplayOrder).toEqual([LIVE_GROUP, LIVE_GROUP_2]);
+      expect(data.groupDisplayOrder).toEqual([LIVE_GROUP, LIVE_GROUP_2]);
+    });
+
+    // T2
+    it('prunes a collection-typed asset whose collection doc does not exist', async () => {
+      registerMenuWithAssets({
+        menuAssets: {
+          [LIVE_GROUP]: { assetType: 'group' },
+          [LIVE_COLLECTION]: { assetType: 'collection' },
+          ghostCol: { assetType: 'collection' },
+        },
+        menuAssetDisplayOrder: [LIVE_GROUP, 'ghostCol', LIVE_COLLECTION],
+        groupDisplayOrder: [LIVE_GROUP],
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      const data = written();
+      expect(Object.keys(data.menuAssets).sort()).toEqual([LIVE_GROUP, LIVE_COLLECTION].sort());
+      expect(data.menuAssetDisplayOrder).toEqual([LIVE_GROUP, LIVE_COLLECTION]);
+      // groupDisplayOrder never contained the collection id, so it is untouched
+      expect(data.groupDisplayOrder).toEqual([LIVE_GROUP]);
+    });
+
+    // T3
+    it('prunes a group whose doc exists but is isDeleted, same as a missing doc', async () => {
+      registerCollection(MENU_GROUPS_PATH, [
+        ...menuGroups,
+        {
+          id: 'deletedGroup',
+          data: {
+            name: 'Deleted Group',
+            displayName: 'Deleted',
+            imageGsls: [],
+            productDisplayOrder: [],
+            mirrorCategoryId: null,
+            isDeleted: true,
+          },
+        },
+      ]);
+      registerMenuWithAssets({
+        menuAssets: {
+          [LIVE_GROUP]: { assetType: 'group' },
+          deletedGroup: { assetType: 'group' },
+        },
+        menuAssetDisplayOrder: [LIVE_GROUP, 'deletedGroup'],
+        groupDisplayOrder: [LIVE_GROUP, 'deletedGroup'],
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      const data = written();
+      expect(Object.keys(data.menuAssets)).toEqual([LIVE_GROUP]);
+      expect(data.menuAssetDisplayOrder).toEqual([LIVE_GROUP]);
+      expect(data.groupDisplayOrder).toEqual([LIVE_GROUP]);
+    });
+
+    // T4
+    it('preserves menuAssets, menuAssetDisplayOrder and groupDisplayOrder verbatim when pruneMenuAssetsOnRebuild is false', async () => {
+      mockGetFlags.mockResolvedValue({ pruneMenuAssetsOnRebuild: false });
+
+      const menuAssets = {
+        [LIVE_GROUP]: { assetType: 'group' },
+        ghost: { assetType: 'group' },
+        [LIVE_GROUP_2]: { assetType: 'group' },
+      };
+      registerMenuWithAssets({
+        menuAssets,
+        menuAssetDisplayOrder: [LIVE_GROUP, 'ghost', LIVE_GROUP_2],
+        groupDisplayOrder: ['ghost', LIVE_GROUP, LIVE_GROUP_2],
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      const data = written();
+      expect(data.menuAssets).toEqual(menuAssets);
+      expect(data.menuAssetDisplayOrder).toEqual([LIVE_GROUP, 'ghost', LIVE_GROUP_2]);
+      expect(data.groupDisplayOrder).toEqual(['ghost', LIVE_GROUP, LIVE_GROUP_2]);
+    });
+
+    // T5 (R1)
+    it('preserves product- and htmlText-typed assets whose ids have no backing group or collection doc', async () => {
+      registerMenuWithAssets({
+        menuAssets: {
+          p_only: { assetType: 'product' },
+          html1: { assetType: 'htmlText' },
+          ghost: { assetType: 'group' },
+        },
+        menuAssetDisplayOrder: ['p_only', 'ghost', 'html1'],
+        groupDisplayOrder: ['ghost'],
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      const data = written();
+      expect(Object.keys(data.menuAssets).sort()).toEqual(['html1', 'p_only']);
+      expect(data.menuAssetDisplayOrder).toEqual(['p_only', 'html1']);
+      expect(data.groupDisplayOrder).toEqual([]);
+    });
+
+    // T6 (R2)
+    it('leaves groupDisplayOrder untouched for legacy menus with an empty menuAssets map', async () => {
+      registerMenuWithAssets({
+        menuAssets: {},
+        menuAssetDisplayOrder: [],
+        groupDisplayOrder: [LIVE_GROUP, LIVE_GROUP_2],
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      const data = written();
+      expect(data.groupDisplayOrder).toEqual([LIVE_GROUP, LIVE_GROUP_2]);
+      expect(data.menuAssets).toEqual({});
+      expect(data.menuAssetDisplayOrder).toEqual([]);
+    });
+
+    // T7
+    it('logs the pruned ids with businessId and menuId', async () => {
+      registerMenuWithAssets({
+        menuAssets: {
+          [LIVE_GROUP]: { assetType: 'group' },
+          ghost: { assetType: 'group' },
+        },
+        menuAssetDisplayOrder: [LIVE_GROUP, 'ghost'],
+        groupDisplayOrder: [LIVE_GROUP, 'ghost'],
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[MenuRebuildService] pruned dangling asset refs',
+        { businessId: BUSINESS_ID, menuId: PRUNE_MENU, prunedIds: ['ghost'] },
+      );
+    });
+
+    // T8
+    it('does not log when nothing was pruned', async () => {
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        '[MenuRebuildService] pruned dangling asset refs',
+        expect.anything(),
+      );
+    });
+
+    // T9
+    it('rebuilds clean fixture menus with menuAssets, menuAssetDisplayOrder and groupDisplayOrder byte-identical to the source docs', async () => {
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(transactionSets).toHaveLength(menus.length);
+      for (const source of menus) {
+        const data = transactionSets.find((s) => s.ref._docId === source.id)?.data;
+        expect(data).toBeDefined();
+        expect(data.menuAssets).toEqual(source.data.menuAssets);
+        expect(data.menuAssetDisplayOrder).toEqual(source.data.menuAssetDisplayOrder);
+        expect(data.groupDisplayOrder).toEqual(source.data.groupDisplayOrder);
+      }
+    });
+
+    // T10
+    it('removes every group and collection asset when none of the backing docs exist', async () => {
+      registerMenuWithAssets({
+        menuAssets: {
+          ghost1: { assetType: 'group' },
+          ghost2: { assetType: 'group' },
+          ghostCol: { assetType: 'collection' },
+        },
+        menuAssetDisplayOrder: ['ghost1', 'ghostCol', 'ghost2'],
+        groupDisplayOrder: ['ghost1', 'ghost2'],
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      const data = written();
+      expect(data.menuAssets).toEqual({});
+      expect(data.menuAssetDisplayOrder).toEqual([]);
+      expect(data.groupDisplayOrder).toEqual([]);
+    });
+
+    // T11
+    it('is a no-op for a menu with empty menuAssets and empty display orders', async () => {
+      registerMenuWithAssets({
+        menuAssets: {},
+        menuAssetDisplayOrder: [],
+        groupDisplayOrder: [],
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      const data = written();
+      expect(data.menuAssets).toEqual({});
+      expect(data.menuAssetDisplayOrder).toEqual([]);
+      expect(data.groupDisplayOrder).toEqual([]);
+    });
+
+    // T12
+    it('handles a menu doc missing menuAssetDisplayOrder and groupDisplayOrder entirely', async () => {
+      registerMenuWithAssets({
+        menuAssets: {
+          [LIVE_GROUP]: { assetType: 'group' },
+          ghost: { assetType: 'group' },
+        },
+      });
+
+      await rebuildMenus(BUSINESS_ID);
+
+      const data = written();
+      expect(Object.keys(data.menuAssets)).toEqual([LIVE_GROUP]);
+      expect(data.menuAssetDisplayOrder).toEqual([]);
+      expect(data.groupDisplayOrder).toEqual([]);
+    });
+
+    // T13
+    it('keeps every group/collection menuAssets key present in the written groups or collections map', async () => {
+      registerCollection(MENUS_PATH, [
+        ...menus,
+        makePruneMenuDoc({
+          menuAssets: {
+            [LIVE_GROUP]: { assetType: 'group' },
+            ghost: { assetType: 'group' },
+            ghostCol: { assetType: 'collection' },
+            [LIVE_COLLECTION]: { assetType: 'collection' },
+          },
+          menuAssetDisplayOrder: [LIVE_GROUP, 'ghost', 'ghostCol', LIVE_COLLECTION],
+          groupDisplayOrder: [LIVE_GROUP, 'ghost'],
+        }),
+      ]);
+
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(transactionSets).toHaveLength(menus.length + 1);
+      for (const set of transactionSets) {
+        const assets: AssetMap = set.data.menuAssets;
+        for (const [id, asset] of Object.entries(assets)) {
+          if (asset.assetType === 'group') {
+            expect(set.data.groups[id]).toBeDefined();
+          } else if (asset.assetType === 'collection') {
+            expect(set.data.collections[id]).toBeDefined();
+          }
+        }
+      }
+    });
+
+    // E3
+    it('propagates a feature-flag read failure instead of pruning or preserving silently', async () => {
+      mockGetFlags.mockRejectedValue(new Error('flag read failed'));
+      registerMenuWithAssets({
+        menuAssets: { [LIVE_GROUP]: { assetType: 'group' } },
+        menuAssetDisplayOrder: [LIVE_GROUP],
+        groupDisplayOrder: [LIVE_GROUP],
+      });
+
+      await expect(rebuildMenus(BUSINESS_ID)).rejects.toThrow('flag read failed');
+      expect(transactionSets).toHaveLength(0);
     });
   });
 
@@ -750,6 +1105,47 @@ describe('MenuRebuildService', () => {
       expect(mockDb.runTransaction).toHaveBeenCalledTimes(2);
       // Only the second attempt should have written
       expect(transactionSets).toHaveLength(1);
+    });
+
+    // #132 / T14
+    it('aborts and retries when menuAssets change between bulk read and transaction while pruning is active', async () => {
+      const bulkData = setupSingleMenu();
+
+      // 'newAsset' is a collection id with no backing collection doc — the retry attempt must
+      // write the FRESH asset set with that dangling id pruned.
+      const freshMenuAssets = {
+        '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' as const },
+        newAsset: { assetType: 'collection' as const },
+      };
+
+      mockDb.runTransaction.mockImplementation(async (fn: (t: any) => Promise<void>) => {
+        mockTransaction.get.mockResolvedValueOnce({
+          id: 'toctou-menu',
+          exists: true,
+          data: () => ({
+            ...bulkData,
+            menuAssets: freshMenuAssets,
+            menuAssetDisplayOrder: ['0YRxtglWpkDyxcW8WCTD', 'newAsset'],
+            groupDisplayOrder: ['0YRxtglWpkDyxcW8WCTD', 'newAsset'],
+          }),
+        });
+        await fn(mockTransaction);
+      });
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+      await rebuildMenus(BUSINESS_ID, { menuIds: ['toctou-menu'] });
+
+      warnSpy.mockRestore();
+
+      // First attempt aborts on divergence; second attempt re-reads with the fresh assets.
+      expect(mockDb.runTransaction).toHaveBeenCalledTimes(2);
+      expect(transactionSets).toHaveLength(1);
+
+      const written = transactionSets[0].data;
+      expect(written.menuAssets).toEqual({ '0YRxtglWpkDyxcW8WCTD': { assetType: 'group' } });
+      expect(written.menuAssetDisplayOrder).toEqual(['0YRxtglWpkDyxcW8WCTD']);
+      expect(written.groupDisplayOrder).toEqual(['0YRxtglWpkDyxcW8WCTD']);
     });
 
     it('writes fresh version from transaction, not stale snapshot version', async () => {
