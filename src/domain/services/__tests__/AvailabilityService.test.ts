@@ -6,13 +6,21 @@ import {
   setProductAvailabilityBatch,
   updateAvailability,
   getOptionTimestamp,
+  removeOptionAvailability,
+  removeProductAvailability,
+  deleteAvailabilityDoc,
 } from '../AvailabilityService';
+import { PathResolver } from '../../../persistence/firestore/PathResolver';
 
 const mockDocGet = vi.fn();
 const mockDocSet = vi.fn();
+const mockDocUpdate = vi.fn();
+const mockDocDelete = vi.fn();
 const mockAvailabilityDoc = {
   get: mockDocGet,
   set: mockDocSet,
+  update: mockDocUpdate,
+  delete: mockDocDelete,
 };
 
 vi.mock('../../../persistence/firestore/PathResolver', () => ({
@@ -21,9 +29,16 @@ vi.mock('../../../persistence/firestore/PathResolver', () => ({
   },
 }));
 
+vi.mock('firebase-admin/firestore', () => ({
+  FieldValue: { delete: () => '$$FIELD_DELETE$$' },
+  GrpcStatus: { NOT_FOUND: 5 },
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockDocSet.mockResolvedValue(undefined);
+  mockDocUpdate.mockResolvedValue(undefined);
+  mockDocDelete.mockResolvedValue(undefined);
 });
 
 describe('AvailabilityService', () => {
@@ -273,6 +288,159 @@ describe('AvailabilityService', () => {
       });
       const result = await getOptionTimestamp('biz-1', 'loc-1', 'opt-1');
       expect(result).toBeUndefined();
+    });
+  });
+});
+
+// Removal deliberately inverts the #70 merge-set convention — see the
+// "Entry removal (#133)" comment block in AvailabilityService.ts for why.
+describe('entry removal (#133)', () => {
+  describe('removeOptionAvailability', () => {
+    it('deletes a single option via a root-level dotted field path', async () => {
+      await removeOptionAvailability('biz-1', 'loc-1', ['opt-1']);
+
+      expect(mockDocUpdate).toHaveBeenCalledWith({ 'options.opt-1': '$$FIELD_DELETE$$' });
+      const payload = mockDocUpdate.mock.calls[0][0];
+      expect(Object.keys(payload)).not.toContain('options');
+    });
+
+    it('coalesces multiple option ids into exactly one update() call', async () => {
+      await removeOptionAvailability('biz-1', 'loc-1', ['opt-1', 'opt-2', 'opt-3']);
+
+      expect(mockDocUpdate).toHaveBeenCalledTimes(1);
+      const payload = mockDocUpdate.mock.calls[0][0];
+      expect(Object.keys(payload)).toHaveLength(3);
+      expect(payload).toEqual({
+        'options.opt-1': '$$FIELD_DELETE$$',
+        'options.opt-2': '$$FIELD_DELETE$$',
+        'options.opt-3': '$$FIELD_DELETE$$',
+      });
+    });
+
+    it('issues no write when the id list is empty', async () => {
+      await expect(removeOptionAvailability('biz-1', 'loc-1', [])).resolves.toBeUndefined();
+
+      expect(mockDocUpdate).not.toHaveBeenCalled();
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('resolves silently when the location doc does not exist (NOT_FOUND)', async () => {
+      mockDocUpdate.mockRejectedValue(
+        Object.assign(new Error('5 NOT_FOUND: no entity to update'), { code: 5 }),
+      );
+
+      await expect(removeOptionAvailability('biz-1', 'loc-1', ['opt-1'])).resolves.toBeUndefined();
+    });
+
+    it('propagates PERMISSION_DENIED instead of swallowing it', async () => {
+      mockDocUpdate.mockRejectedValue(
+        Object.assign(new Error('7 PERMISSION_DENIED: missing permissions'), { code: 7 }),
+      );
+
+      await expect(removeOptionAvailability('biz-1', 'loc-1', ['opt-1'])).rejects.toThrow('PERMISSION_DENIED');
+    });
+
+    it('propagates RESOURCE_EXHAUSTED instead of swallowing it', async () => {
+      mockDocUpdate.mockRejectedValue(
+        Object.assign(new Error('8 RESOURCE_EXHAUSTED: quota exceeded'), { code: 8 }),
+      );
+
+      await expect(removeOptionAvailability('biz-1', 'loc-1', ['opt-1'])).rejects.toThrow('RESOURCE_EXHAUSTED');
+    });
+
+    it('propagates an error that carries no code', async () => {
+      mockDocUpdate.mockRejectedValue(new Error('boom'));
+
+      await expect(removeOptionAvailability('biz-1', 'loc-1', ['opt-1'])).rejects.toThrow('boom');
+    });
+
+    it('never upserts via set() (a merge-set would materialise an empty doc)', async () => {
+      await removeOptionAvailability('biz-1', 'loc-1', ['opt-1']);
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('targets the per-location availability doc', async () => {
+      await removeOptionAvailability('biz-1', 'loc-1', ['opt-1']);
+
+      expect(vi.mocked(PathResolver.availabilityDoc)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(PathResolver.availabilityDoc)).toHaveBeenCalledWith('biz-1', 'loc-1');
+    });
+  });
+
+  describe('removeProductAvailability', () => {
+    it('deletes a single product via a root-level dotted field path', async () => {
+      await removeProductAvailability('biz-1', 'loc-1', ['prod-1']);
+
+      expect(mockDocUpdate).toHaveBeenCalledWith({ 'products.prod-1': '$$FIELD_DELETE$$' });
+      const payload = mockDocUpdate.mock.calls[0][0];
+      expect(Object.keys(payload)).not.toContain('products');
+    });
+
+    it('coalesces multiple product ids into exactly one update() call', async () => {
+      await removeProductAvailability('biz-1', 'loc-1', ['prod-1', 'prod-2', 'prod-3']);
+
+      expect(mockDocUpdate).toHaveBeenCalledTimes(1);
+      const payload = mockDocUpdate.mock.calls[0][0];
+      expect(Object.keys(payload)).toHaveLength(3);
+      expect(payload).toEqual({
+        'products.prod-1': '$$FIELD_DELETE$$',
+        'products.prod-2': '$$FIELD_DELETE$$',
+        'products.prod-3': '$$FIELD_DELETE$$',
+      });
+    });
+
+    it('issues no write when the id list is empty', async () => {
+      await expect(removeProductAvailability('biz-1', 'loc-1', [])).resolves.toBeUndefined();
+
+      expect(mockDocUpdate).not.toHaveBeenCalled();
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('resolves silently when the location doc does not exist (NOT_FOUND)', async () => {
+      mockDocUpdate.mockRejectedValue(
+        Object.assign(new Error('5 NOT_FOUND: no entity to update'), { code: 5 }),
+      );
+
+      await expect(removeProductAvailability('biz-1', 'loc-1', ['prod-1'])).resolves.toBeUndefined();
+    });
+
+    it('propagates non-NOT_FOUND errors', async () => {
+      mockDocUpdate.mockRejectedValue(
+        Object.assign(new Error('7 PERMISSION_DENIED: missing permissions'), { code: 7 }),
+      );
+
+      await expect(removeProductAvailability('biz-1', 'loc-1', ['prod-1'])).rejects.toThrow('PERMISSION_DENIED');
+    });
+
+    it('writes only under products, never options', async () => {
+      await removeProductAvailability('biz-1', 'loc-1', ['prod-1', 'prod-2']);
+
+      const payload = mockDocUpdate.mock.calls[0][0];
+      expect(Object.keys(payload).some((key) => key.startsWith('options.'))).toBe(false);
+    });
+  });
+
+  describe('deleteAvailabilityDoc', () => {
+    it('deletes the whole per-location doc', async () => {
+      await deleteAvailabilityDoc('biz-1', 'loc-1');
+
+      expect(mockDocDelete).toHaveBeenCalledTimes(1);
+      expect(mockDocDelete).toHaveBeenCalledWith();
+      expect(vi.mocked(PathResolver.availabilityDoc)).toHaveBeenCalledWith('biz-1', 'loc-1');
+    });
+
+    it('does not pre-read the doc (delete() is already idempotent)', async () => {
+      await deleteAvailabilityDoc('biz-1', 'loc-1');
+
+      expect(mockDocGet).not.toHaveBeenCalled();
+      expect(mockDocUpdate).not.toHaveBeenCalled();
+    });
+
+    it('propagates delete() failures', async () => {
+      mockDocDelete.mockRejectedValue(new Error('boom'));
+
+      await expect(deleteAvailabilityDoc('biz-1', 'loc-1')).rejects.toThrow('boom');
     });
   });
 });
