@@ -29,6 +29,7 @@ describe('FeatureFlagService', () => {
       enableAnonUserSweep: false,
       writeLegacyFirestorePresence: true,
       isImageDownsample: false,
+      pruneMenuAssetsOnRebuild: true,
     });
   });
 
@@ -90,6 +91,26 @@ describe('FeatureFlagService', () => {
 
     const flags = await getFlags();
     expect(flags.isImageDownsample).toBe(true);
+  });
+
+  it('defaults pruneMenuAssetsOnRebuild to true when absent in the doc', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ enableMenuRebuild: true }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.pruneMenuAssetsOnRebuild).toBe(true);
+  });
+
+  it('reads pruneMenuAssetsOnRebuild as false when set in the doc', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ pruneMenuAssetsOnRebuild: false }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.pruneMenuAssetsOnRebuild).toBe(false);
   });
 
   it('caches result within TTL', async () => {

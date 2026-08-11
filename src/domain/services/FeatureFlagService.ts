@@ -10,6 +10,13 @@ export interface WriteModelFlags {
   enableAnonUserSweep: boolean;
   writeLegacyFirestorePresence: boolean;
   isImageDownsample: boolean;
+  /**
+   * #132 kill switch. When true (default), rebuildMenus prunes menuAssets /
+   * menuAssetDisplayOrder / groupDisplayOrder entries whose backing menuGroup or
+   * collection doc is missing or isDeleted. Flip to false to restore verbatim
+   * preservation; pruning is loss-free, so rollback needs no data restoration.
+   */
+  pruneMenuAssetsOnRebuild: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
@@ -22,6 +29,7 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   enableAnonUserSweep: false,
   writeLegacyFirestorePresence: true,
   isImageDownsample: false,
+  pruneMenuAssetsOnRebuild: true,
 };
 
 const CACHE_TTL_MS = 60_000;
@@ -57,6 +65,7 @@ export function createFlagService() {
         enableAnonUserSweep: data.enableAnonUserSweep ?? DEFAULT_FLAGS.enableAnonUserSweep,
         writeLegacyFirestorePresence: data.writeLegacyFirestorePresence ?? DEFAULT_FLAGS.writeLegacyFirestorePresence,
         isImageDownsample: data.isImageDownsample ?? DEFAULT_FLAGS.isImageDownsample,
+        pruneMenuAssetsOnRebuild: data.pruneMenuAssetsOnRebuild ?? DEFAULT_FLAGS.pruneMenuAssetsOnRebuild,
       };
       cacheTimestamp = now;
       return cachedFlags;

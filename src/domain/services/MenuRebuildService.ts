@@ -2,6 +2,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { PathResolver } from '../../persistence/firestore/PathResolver';
 import type { MenuAsset, MenuProductMeta, MenuCollectionMeta } from '../surfaces/Menu';
 import type { MenuGroupMeta } from '../surfaces/MenuGroup';
+import { getFlags } from './FeatureFlagService';
 
 export interface RebuildScope {
   menuIds?: string[];
@@ -48,6 +49,67 @@ function extractAssetIdsByType(
   return Object.entries(menuAssets)
     .filter(([, asset]) => asset.assetType === type)
     .map(([id]) => id);
+}
+
+/**
+ * #132: the only asset types attemptRebuild batch-reads backing docs for, and therefore the
+ * only ones it has evidence to prune. 'product' and 'htmlText' assets have no backing doc in
+ * this read set, so they are always preserved verbatim — pruning them would be data loss.
+ */
+const PRUNABLE_ASSET_TYPES: ReadonlySet<MenuAsset['assetType']> = new Set<MenuAsset['assetType']>(['group', 'collection']);
+
+interface PrunedMenuRefs {
+  menuAssets: Record<string, MenuAsset>;
+  menuAssetDisplayOrder: string[];
+  groupDisplayOrder: string[];
+  prunedIds: string[];
+}
+
+/**
+ * #132: menuAssets and its two display orders are a derived index over the menuGroup and
+ * collection docs. Recompute them from the docs that actually came back rather than carrying
+ * the previous values forward. materializedGroups / materializedCollections are keyed by
+ * exactly the ids whose doc existed and was not isDeleted, so they are the survivor set.
+ */
+function pruneDanglingAssetRefs(
+  menuAssets: Record<string, MenuAsset>,
+  menuAssetDisplayOrder: string[],
+  groupDisplayOrder: string[],
+  materializedGroups: Record<string, MenuGroupMeta>,
+  materializedCollections: Record<string, MenuCollectionMeta>,
+): PrunedMenuRefs {
+  const survivingGroupIds = new Set(Object.keys(materializedGroups));
+  const survivingCollectionIds = new Set(Object.keys(materializedCollections));
+
+  const keptAssets: Record<string, MenuAsset> = {};
+  const prunedIds: string[] = [];
+
+  for (const [id, asset] of Object.entries(menuAssets)) {
+    if (!PRUNABLE_ASSET_TYPES.has(asset.assetType)) {
+      keptAssets[id] = asset;
+      continue;
+    }
+    const survives = asset.assetType === 'group'
+      ? survivingGroupIds.has(id)
+      : survivingCollectionIds.has(id);
+    if (survives) keptAssets[id] = asset;
+    else prunedIds.push(id);
+  }
+
+  if (prunedIds.length === 0) {
+    return { menuAssets, menuAssetDisplayOrder, groupDisplayOrder, prunedIds };
+  }
+
+  // Remove only ids we actually pruned, preserving the relative order of survivors. Ids that
+  // were never in menuAssets (legacy menus predate menuAssets and carry only groupDisplayOrder)
+  // are left untouched — pruning must never destroy an order it has no evidence about.
+  const prunedSet = new Set(prunedIds);
+  return {
+    menuAssets: keptAssets,
+    menuAssetDisplayOrder: menuAssetDisplayOrder.filter((id) => !prunedSet.has(id)),
+    groupDisplayOrder: groupDisplayOrder.filter((id) => !prunedSet.has(id)),
+    prunedIds,
+  };
 }
 
 const MAX_REBUILD_RETRIES = 3;
@@ -318,9 +380,15 @@ async function attemptRebuild(
   const materializedGroups = materializeGroups(menuGroups, productMap, categoryMap);
   const materializedCollections = materializeCollections(collections);
 
+  // #132: read the kill switch once, outside the transaction — transaction callbacks are
+  // retried, and a non-transactional read inside a transaction is an anti-pattern. Pruning is
+  // still COMPUTED inside the transaction from the fresh in-transaction read (existingData).
+  const { pruneMenuAssetsOnRebuild } = await getFlags();
+
   // Phase B: Atomic write (inside transaction)
   const menuDocRef = PathResolver.menusCollection(businessId).doc(menu.id);
   let freshData: FirebaseFirestore.DocumentData | undefined;
+  let prunedIds: string[] = [];
 
   await db.runTransaction(async (t) => {
     const freshMenuSnap = await t.get(menuDocRef);
@@ -332,6 +400,25 @@ async function attemptRebuild(
       freshData = existingData;
       return; // Skip write; transaction commits as read-only
     }
+
+    const freshGroupDisplayOrder: string[] = existingData.groupDisplayOrder ?? [];
+    const freshMenuAssetDisplayOrder: string[] = existingData.menuAssetDisplayOrder ?? [];
+
+    const refs = pruneMenuAssetsOnRebuild
+      ? pruneDanglingAssetRefs(
+        freshMenuAssets,
+        freshMenuAssetDisplayOrder,
+        freshGroupDisplayOrder,
+        materializedGroups,
+        materializedCollections,
+      )
+      : {
+        menuAssets: freshMenuAssets,
+        menuAssetDisplayOrder: freshMenuAssetDisplayOrder,
+        groupDisplayOrder: freshGroupDisplayOrder,
+        prunedIds: [] as string[],
+      };
+    prunedIds = refs.prunedIds;
 
     const merged: MaterializedMenuDoc = {
       // Preserve structural fields
@@ -349,15 +436,25 @@ async function attemptRebuild(
 
       // Materialized sections
       groups: materializedGroups,
-      groupDisplayOrder: existingData.groupDisplayOrder ?? [],
+      groupDisplayOrder: refs.groupDisplayOrder,
       collections: materializedCollections,
-      menuAssets: existingData.menuAssets ?? {},
-      menuAssetDisplayOrder: existingData.menuAssetDisplayOrder ?? [],
+      menuAssets: refs.menuAssets,
+      menuAssetDisplayOrder: refs.menuAssetDisplayOrder,
       version: existingData.version ?? menu.data.version,
     };
 
     t.set(menuDocRef, merged);
   });
+
+  // #132/UC13: log only when something was actually pruned — this runs for every menu on
+  // every rebuild, and a no-op line per menu would drown the signal.
+  if (prunedIds.length > 0) {
+    console.warn('[MenuRebuildService] pruned dangling asset refs', {
+      businessId,
+      menuId: menu.id,
+      prunedIds,
+    });
+  }
 
   if (freshData) {
     return { success: false, freshData };
