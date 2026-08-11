@@ -1,3 +1,4 @@
+import { FieldValue, GrpcStatus } from 'firebase-admin/firestore';
 import { PathResolver } from '../../persistence/firestore/PathResolver';
 
 export interface ProductAvailability {
@@ -88,4 +89,67 @@ export async function getOptionTimestamp(
   const doc = await getAvailability(businessId, locationId);
   const ts = doc?.options?.[optionId]?.timestamp;
   return ts ? new Date(ts) : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Entry removal (#133)
+//
+// Removal is the ONE deliberate exception to this file's merge-set convention
+// (see the "#70 regression" tests). Two reasons, both load-bearing:
+//
+// 1. FieldValue.delete() is honoured ONLY at the root of an update() map, so
+//    the key must be the dotted string `options.<id>` / `products.<id>`. The
+//    nested form — update({ options: { <id>: FieldValue.delete() } }) — is
+//    rejected by the client before it ever reaches the server.
+// 2. Do NOT "fix" this back to set(..., { merge: true }). A merge-set upserts,
+//    so pruning a location that has no AvailabilityDoc would materialise an
+//    empty document and flip getAvailability() from null to {products:{},
+//    options:{}}. A referential-integrity cleanup must not create garbage docs.
+// ---------------------------------------------------------------------------
+
+// update() carries an implicit "document must exist" precondition; a missing
+// doc surfaces as gRPC NOT_FOUND (5), which is the expected no-op for a prune.
+// The check stays narrow on purpose: a blanket swallow would also hide
+// PERMISSION_DENIED (7), RESOURCE_EXHAUSTED (8), INVALID_ARGUMENT (3) and
+// deadline errors, silently turning a broken sync into a successful no-op.
+function isDocumentNotFound(err: unknown): boolean {
+  return (err as { code?: number }).code === GrpcStatus.NOT_FOUND;
+}
+
+async function removeAvailabilityEntries(
+  businessId: string,
+  locationId: string,
+  field: 'products' | 'options',
+  ids: string[],
+): Promise<void> {
+  // update() rejects an empty field map SYNCHRONOUSLY ("At least one field must
+  // be updated."), so guard before issuing any RPC.
+  if (ids.length === 0) return;
+
+  // One accumulator, one update() call per location, regardless of id count.
+  const deletes: Record<string, FieldValue> = {};
+  for (const id of ids) {
+    deletes[`${field}.${id}`] = FieldValue.delete();
+  }
+
+  const docRef = PathResolver.availabilityDoc(businessId, locationId);
+  try {
+    await docRef.update(deletes);
+  } catch (err) {
+    if (!isDocumentNotFound(err)) throw err;
+  }
+}
+
+export async function removeOptionAvailability(businessId: string, locationId: string, optionIds: string[]): Promise<void> {
+  await removeAvailabilityEntries(businessId, locationId, 'options', optionIds);
+}
+
+export async function removeProductAvailability(businessId: string, locationId: string, productIds: string[]): Promise<void> {
+  await removeAvailabilityEntries(businessId, locationId, 'products', productIds);
+}
+
+export async function deleteAvailabilityDoc(businessId: string, locationId: string): Promise<void> {
+  // delete() has no existence precondition — it is already idempotent on a
+  // missing document, so an exists-check or try/catch here would be dead code.
+  await PathResolver.availabilityDoc(businessId, locationId).delete();
 }
