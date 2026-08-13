@@ -27,6 +27,18 @@
  *   - `mgClassic`        — a plain operator group, must never be touched
  * and `classicMenu` references BOTH `mgUnmanaged` and `mgOrphanManaged`, which is what proves an
  * operator's classic menu keeps its reference to a group this service demotes.
+ *
+ * #100 ORDERING WORLD (`orderedCategoriesOnly` / `withOrderedSquareMenu`, and the `ORDERED_*`
+ * constants) — a second, self-contained world used only by the order-preservation tests. It exists
+ * because the worlds above cannot express "a Square Menu whose asset order the OPERATOR set":
+ * `withExistingSquareMenu()` passes no `groupIds`, so its display orders are always `[]`.
+ *   - Four menu categories, Alpha…Delta, one mirror group each.
+ *   - The mirror group ids sort in the REVERSE of the category names (see `ORDERED_GROUP_ID`), so a
+ *     regression that ordered by `groupId` instead of `(categoryName, categoryId)` is caught.
+ *   - The `menu()` helper takes a RAW `menuAssetDisplayOrder` override independent of `groupIds`,
+ *     which is how a fixture models Remy's `useReorderMenuAssets` merge-write — it touches that one
+ *     field and leaves `groupDisplayOrder` stale — and how it models Firestore data that is
+ *     duplicated, stale, non-string, non-array, or missing entirely.
  */
 
 export interface FixtureDoc {
@@ -137,14 +149,39 @@ function menuGroup(
   };
 }
 
+/**
+ * A Menu doc. `menuAssets`, `groupDisplayOrder` and `menuAssetDisplayOrder` are all derived from
+ * `groupIds` — the three-identical-sequences steady state — unless a `menuAssetDisplayOrder`
+ * override breaks that symmetry on purpose.
+ */
 function menu(
   id: string,
   name: string,
-  overrides?: { managedBy?: string | null; groupIds?: string[]; isDeleted?: boolean },
+  overrides?: {
+    managedBy?: string | null;
+    groupIds?: string[];
+    isDeleted?: boolean;
+    /**
+     * #100: RAW override for `menuAssetDisplayOrder` ALONE, left deliberately `unknown` so a
+     * fixture can express what Firestore can actually hold — an operator order that disagrees with
+     * `groupDisplayOrder`, a duplicated id, a stale id, or a value that is not even an array.
+     * `menuAssets` and `groupDisplayOrder` still come from `groupIds`, and that asymmetry is the
+     * whole point: it is exactly the state Remy's `useReorderMenuAssets` leaves behind, since it
+     * merge-writes this one field and nothing else, leaving `groupDisplayOrder` stale.
+     *
+     * `undefined` means "not overridden" (the default `[...groupIds]` applies); to express a doc
+     * with no such key at all, use `omitMenuAssetDisplayOrder`.
+     */
+    menuAssetDisplayOrder?: unknown;
+    /** #100: omit the key entirely — a menu doc written before the field existed. */
+    omitMenuAssetDisplayOrder?: boolean;
+  },
 ): FixtureDoc {
   const groupIds = overrides?.groupIds ?? [];
   const menuAssets: Record<string, unknown> = {};
   for (const gid of groupIds) menuAssets[gid] = { assetType: 'group' };
+  const menuAssetDisplayOrder =
+    overrides?.menuAssetDisplayOrder !== undefined ? overrides.menuAssetDisplayOrder : [...groupIds];
   return {
     id,
     data: {
@@ -161,7 +198,7 @@ function menu(
       groupDisplayOrder: [...groupIds],
       collections: {},
       menuAssets,
-      menuAssetDisplayOrder: [...groupIds],
+      ...(overrides?.omitMenuAssetDisplayOrder ? {} : { menuAssetDisplayOrder }),
       products: {},
       version: null,
       ...(overrides?.isDeleted !== undefined ? { isDeleted: overrides.isDeleted } : {}),
@@ -370,4 +407,109 @@ export function withDeletedSquareMenu(): FixtureSet {
     menu(DELETED_SQUARE_MENU_ID, 'Square Menu', { managedBy: 'square', isDeleted: true }),
   );
   return fixture;
+}
+
+/**
+ * #100 ordering world. A key names one category and its mirror group at once, so a test spells an
+ * expected sequence as keys (`[G.c, G.a, G.b]`) and never as literal doc ids.
+ */
+export type OrderedKey = 'a' | 'b' | 'c' | 'd';
+
+/** All four keys, in the alphabetical order the DEFAULT (no operator order) ordering produces. */
+export const ORDERED_KEYS: OrderedKey[] = ['a', 'b', 'c', 'd'];
+
+export const ORDERED_CATEGORY_ID: Record<OrderedKey, string> = {
+  a: 'catOrdA',
+  b: 'catOrdB',
+  c: 'catOrdC',
+  d: 'catOrdD',
+};
+
+export const ORDERED_CATEGORY_NAME: Record<OrderedKey, string> = {
+  a: 'Alpha',
+  b: 'Bravo',
+  c: 'Charlie',
+  d: 'Delta',
+};
+
+/**
+ * Doc ids of the pre-existing mirror groups, chosen to sort in the REVERSE of the category-name
+ * order (Alpha → 'mgOrdZ' … Delta → 'mgOrdW'). Ordering is by (categoryName, categoryId) and only
+ * then mapped to groupId, so an implementation that sorted the group ids instead would produce
+ * d, c, b, a — caught by every default-order test whose mirror groups already exist. (Worlds that
+ * mint their groups cannot catch it: a minted group's doc id is generated, not from this map.)
+ */
+export const ORDERED_GROUP_ID: Record<OrderedKey, string> = {
+  a: 'mgOrdZ',
+  b: 'mgOrdY',
+  c: 'mgOrdX',
+  d: 'mgOrdW',
+};
+
+function orderedCategories(categoryKeys: OrderedKey[]): FixtureDoc[] {
+  return categoryKeys.map((k) =>
+    category(ORDERED_CATEGORY_ID[k], ORDERED_CATEGORY_NAME[k], { categoryType: 'menu' }),
+  );
+}
+
+function orderedMirrorGroups(groupKeys: OrderedKey[]): FixtureDoc[] {
+  return groupKeys.map((k) =>
+    menuGroup(ORDERED_GROUP_ID[k], ORDERED_CATEGORY_NAME[k], {
+      mirrorCategoryId: ORDERED_CATEGORY_ID[k],
+      managedBy: 'square',
+    }),
+  );
+}
+
+/**
+ * #100: the four menu categories with NO mirror groups and NO Square Menu — the create path of the
+ * ordering world, where every group is a newcomer and the whole assembly is the default order.
+ */
+export function orderedCategoriesOnly(): FixtureSet {
+  return {
+    categories: orderedCategories(ORDERED_KEYS),
+    products: [],
+    menuGroups: [],
+    menus: [],
+  };
+}
+
+/**
+ * #100: the ordering world plus an existing `managedBy: 'square'` Menu, so a run takes the REUSE
+ * path and has an observed order to merge against.
+ *
+ * The two key lists are deliberately independent, because that is how membership changes are
+ * expressed:
+ *   - `categoryKeys` is the DESIRED set — the menu categories that exist this run. A key present in
+ *     `groupKeys` but ABSENT here is a group whose category was DEMOTED this run.
+ *   - `groupKeys` (default: `categoryKeys`) is which mirror groups ALREADY exist. A key present in
+ *     `categoryKeys` but ABSENT here gets its group MINTED this run — a NEWCOMER, whose generated
+ *     id the test resolves from the run's output rather than from `ORDERED_GROUP_ID`.
+ *
+ * The Menu reuses `EXISTING_SQUARE_MENU_ID`, so tests assert through the existing
+ * `writesFor(MENUS_PATH, EXISTING_SQUARE_MENU_ID)` helper.
+ */
+export function withOrderedSquareMenu(options: {
+  categoryKeys: OrderedKey[];
+  groupKeys?: OrderedKey[];
+  /** RAW `menuAssetDisplayOrder`. Defaults to `groupKeys`' group ids (i.e. no operator reorder). */
+  existingMenuAssetDisplayOrder?: unknown;
+  /** Drop `menuAssetDisplayOrder` from the doc entirely — a Menu written before the field existed. */
+  omitMenuAssetDisplayOrder?: boolean;
+}): FixtureSet {
+  const groupKeys = options.groupKeys ?? options.categoryKeys;
+  return {
+    categories: orderedCategories(options.categoryKeys),
+    products: [],
+    menuGroups: orderedMirrorGroups(groupKeys),
+    menus: [
+      // `menu()` reads both overrides as "absent means default", so they pass straight through.
+      menu(EXISTING_SQUARE_MENU_ID, 'Square Menu', {
+        managedBy: 'square',
+        groupIds: groupKeys.map((k) => ORDERED_GROUP_ID[k]),
+        menuAssetDisplayOrder: options.existingMenuAssetDisplayOrder,
+        omitMenuAssetDisplayOrder: options.omitMenuAssetDisplayOrder,
+      }),
+    ],
+  };
 }

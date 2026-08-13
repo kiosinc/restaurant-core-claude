@@ -14,16 +14,22 @@ import {
   DUPLICATE_SQUARE_MENU_IDS,
   EXISTING_SQUARE_MENU_ID,
   MISSING_CATEGORY_ID,
+  ORDERED_CATEGORY_ID,
+  ORDERED_CATEGORY_NAME,
+  ORDERED_GROUP_ID,
+  ORDERED_KEYS,
   TIE_CATEGORY_IDS,
   baseFixture,
   menuCategoriesOnly,
   noQualifyingCategories,
+  orderedCategoriesOnly,
   withCodepointCategories,
   withDeletedMenuGroup,
   withDeletedSquareMenu,
   withDuplicateMirrors,
   withExistingSquareMenu,
   withManagedGroupForCatA,
+  withOrderedSquareMenu,
   withSoftDeletedMirrorCategory,
   withTieCategories,
   withTwoSquareMenus,
@@ -164,6 +170,62 @@ function createdGroupIdFor(categoryId: string): string {
   const match = groupCreates().filter((w) => w.data.mirrorCategoryId === categoryId);
   expect(match).toHaveLength(1);
   return match[0].id;
+}
+
+/** #100: shorthand for the ordering world's mirror-group ids — `G.c` reads as "Charlie's group". */
+const G = ORDERED_GROUP_ID;
+
+/**
+ * #100: the Square Menu doc AS STORED after the run — the three fields that must agree with each
+ * other and with the returned `managedGroupIds`.
+ */
+async function storedAssembly(menuId: string) {
+  const doc = await readDoc(MENUS_PATH, menuId);
+  return {
+    menuAssetDisplayOrder: doc.menuAssetDisplayOrder,
+    groupDisplayOrder: doc.groupDisplayOrder,
+    assetKeys: Object.keys(doc.menuAssets),
+  };
+}
+
+/**
+ * #100 acceptance criterion, asserted once here and used by every TC11 test: the stored
+ * `menuAssetDisplayOrder`, the stored `groupDisplayOrder`, the stored `menuAssets` KEY ORDER and
+ * the returned `managedGroupIds` are all one and the same sequence. On the create path #88 already
+ * pins this (TC1's "writes menuAssets, groupDisplayOrder and menuAssetDisplayOrder as identical
+ * sequences"); asserting it here pins it on the REUSE path too, which is where the observed-order
+ * merge runs.
+ */
+async function expectConsistentAssembly(
+  menuId: string,
+  result: { managedGroupIds: string[] },
+  expected: string[],
+) {
+  const stored = await storedAssembly(menuId);
+  expect(result.managedGroupIds).toEqual(expected);
+  expect(stored.menuAssetDisplayOrder).toEqual(expected);
+  expect(stored.groupDisplayOrder).toEqual(expected);
+  expect(stored.assetKeys).toEqual(expected);
+}
+
+/**
+ * #100: the sequence the operator dragged the Square Menu's assets into — Charlie, Alpha, Bravo,
+ * deliberately NOT the alphabetical order. Every world below that seeds an operator reorder seeds
+ * this one, so the observed order and the expected order can never drift apart.
+ */
+const OPERATOR_ORDER = [G.c, G.a, G.b];
+
+/**
+ * #100: the canonical operator-reorder world — Alpha, Bravo and Charlie mirrored onto an existing
+ * Square Menu whose `menuAssetDisplayOrder` is `OPERATOR_ORDER`. `groupDisplayOrder` is left at the
+ * pre-reorder sequence on purpose: Remy's `useReorderMenuAssets` merge-writes
+ * `menuAssetDisplayOrder` alone, so that is the state a real reorder leaves behind.
+ */
+function reorderedSquareMenuWorld(): FixtureSet {
+  return withOrderedSquareMenu({
+    categoryKeys: ['a', 'b', 'c'],
+    existingMenuAssetDisplayOrder: [...OPERATOR_ORDER],
+  });
 }
 
 beforeEach(() => {
@@ -484,6 +546,39 @@ describe('ManagedMenuService', () => {
       expect(payloads).toHaveLength(2);
       expect(payloads[1]).toEqual(payloads[0]);
     });
+
+    it('performs zero document writes on a second run after an operator reorder', async () => {
+      registerFixture(reorderedSquareMenuWorld());
+
+      // Run 1 heals the stale `groupDisplayOrder`, so it necessarily writes.
+      await syncManagedSquareMenu(BUSINESS_ID);
+      expect(writesFor(MENUS_PATH, EXISTING_SQUARE_MENU_ID)).toHaveLength(1);
+      docWrites.length = 0;
+      warnSpy.mockClear();
+
+      await syncManagedSquareMenu(BUSINESS_ID);
+
+      // The merge is a FIXED POINT: fed its own output back with an unchanged desired set it
+      // returns the same array, `assemblyEquals` matches, and the reconciler stays silent.
+      expect(docWrites).toHaveLength(0);
+      expect(warnSpy).not.toHaveBeenCalled();
+      // The mock's `mockTransaction.set` never writes back into the doc stores, so the closest
+      // available proof that the rebuild is also at a fixed point is its two payloads.
+      const payloads = materializedWrites(EXISTING_SQUARE_MENU_ID);
+      expect(payloads).toHaveLength(2);
+      expect(payloads[1]).toEqual(payloads[0]);
+    });
+
+    it('leaves the reordered Square Menu doc byte-identical after a second run', async () => {
+      registerFixture(reorderedSquareMenuWorld());
+      await syncManagedSquareMenu(BUSINESS_ID);
+      const before = JSON.stringify(await readDoc(MENUS_PATH, EXISTING_SQUARE_MENU_ID));
+
+      const second = await syncManagedSquareMenu(BUSINESS_ID);
+
+      expect(JSON.stringify(await readDoc(MENUS_PATH, EXISTING_SQUARE_MENU_ID))).toBe(before);
+      expect(second.managedGroupIds).toEqual(OPERATOR_ORDER);
+    });
   });
 
   // ─── TC5: materialization ──────────────────────────────────────────
@@ -749,6 +844,294 @@ describe('ManagedMenuService', () => {
       for (const index of groupWriteIndexes) {
         expect(index).toBeLessThan(menuWriteIndex);
       }
+    });
+  });
+
+  // ─── TC11: #100 operator-set order preservation ────────────────────
+
+  /**
+   * #100 / remy#349. Membership and sequence have different owners: this reconciler owns which
+   * group ids are on the Square Menu, the OPERATOR owns their relative order. Every test here goes
+   * through the exported `syncManagedSquareMenu` — `computeAssemblyOrder` stays module-private, as
+   * #88's suite established — and every one ends on `expectConsistentAssembly`, so the
+   * "three fields plus the return value are one sequence" invariant is re-proved in every one of
+   * the states below — all of them but the no-existing-menu world on the REUSE path, which is
+   * where the observed-order merge runs.
+   */
+  describe('TC11 — #100: operator-set order preservation', () => {
+    it('preserves an operator-set menuAssetDisplayOrder across a sync', async () => {
+      registerFixture(reorderedSquareMenuWorld());
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // NOT the alphabetical [Alpha, Bravo, Charlie] #88 would have re-derived.
+      expect(OPERATOR_ORDER).not.toEqual([G.a, G.b, G.c]);
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, OPERATOR_ORDER);
+    });
+
+    it('heals a groupDisplayOrder left stale by an operator reorder', async () => {
+      registerFixture(reorderedSquareMenuWorld());
+      const beforeRun = await readDoc(MENUS_PATH, EXISTING_SQUARE_MENU_ID);
+      // The premise: Remy merge-wrote one field, so the doc arrives self-inconsistent.
+      expect(beforeRun.groupDisplayOrder).toEqual([G.a, G.b, G.c]);
+      expect(beforeRun.menuAssetDisplayOrder).toEqual(OPERATOR_ORDER);
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      const menuWrites = writesFor(MENUS_PATH, EXISTING_SQUARE_MENU_ID);
+      expect(menuWrites).toHaveLength(1);
+      expect(menuWrites[0].op).toBe('update');
+      expect(Object.keys(menuWrites[0].data).sort()).toEqual([
+        'groupDisplayOrder', 'menuAssetDisplayOrder', 'menuAssets', 'updated',
+      ]);
+      // Healing means `groupDisplayOrder` is re-derived FROM the operator order, never the reverse.
+      expect(menuWrites[0].data.groupDisplayOrder).toEqual(OPERATOR_ORDER);
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, OPERATOR_ORDER);
+    });
+
+    it('returns managedGroupIds in the preserved operator order', async () => {
+      registerFixture(reorderedSquareMenuWorld());
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // The documented return contract — "in Square-Menu assembly order" — on the REUSE path;
+      // TC1's "returns { menuId, managedGroupIds } matching the written assembly order" only
+      // covers the create path.
+      expect(result.menuId).toBe(EXISTING_SQUARE_MENU_ID);
+      expect(result.managedGroupIds).toEqual(OPERATOR_ORDER);
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, OPERATOR_ORDER);
+    });
+
+    it('appends a newly created group at the end of the operator order', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ['a', 'b', 'c', 'd'],
+        groupKeys: ['a', 'b', 'c'],
+        existingMenuAssetDisplayOrder: [...OPERATOR_ORDER],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // Delta's group is minted this run, so its id only exists in the run's own output.
+      const newDelta = createdGroupIdFor(ORDERED_CATEGORY_ID.d);
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, [...OPERATOR_ORDER, newDelta]);
+    });
+
+    it('sorts multiple newcomers among themselves without re-sorting the existing order', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ['a', 'b', 'c', 'd'],
+        groupKeys: ['a', 'c'],
+        existingMenuAssetDisplayOrder: [G.c, G.a],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // Bravo and Delta sort alphabetically AMONG THEMSELVES and land after Charlie, Alpha — a
+      // global re-sort would have produced Alpha, Bravo, Charlie, Delta instead.
+      const newBravo = createdGroupIdFor(ORDERED_CATEGORY_ID.b);
+      const newDelta = createdGroupIdFor(ORDERED_CATEGORY_ID.d);
+      await expectConsistentAssembly(
+        EXISTING_SQUARE_MENU_ID,
+        result,
+        [G.c, G.a, newBravo, newDelta],
+      );
+    });
+
+    it('drops a demoted group without re-alphabetizing the rest', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ['b', 'c', 'd'],
+        groupKeys: ['a', 'b', 'c', 'd'],
+        existingMenuAssetDisplayOrder: [G.c, G.a, G.b, G.d],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // Alpha's category is gone, so its group is demoted in place — never deleted.
+      const demotedWrites = writesFor(MENU_GROUPS_PATH, G.a);
+      expect(demotedWrites).toHaveLength(1);
+      expect(demotedWrites[0].op).toBe('update');
+      expect(demotedWrites[0].data.managedBy).toBeNull();
+      expect(await docExists(MENU_GROUPS_PATH, G.a)).toBe(true);
+      // The survivors keep the operator's relative order; alphabetical would be Bravo, Charlie, Delta.
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, [G.c, G.b, G.d]);
+    });
+
+    it('appends a re-promoted group at the end rather than restoring its old slot', async () => {
+      const fixture = withOrderedSquareMenu({
+        categoryKeys: ORDERED_KEYS,
+        existingMenuAssetDisplayOrder: [G.c, G.a, G.b, G.d],
+      });
+      const alpha = requireFixtureDoc(fixture.categories, ORDERED_CATEGORY_ID.a);
+      alpha.data.categoryType = 'regular';
+      registerFixture(fixture);
+
+      const first = await syncManagedSquareMenu(BUSINESS_ID);
+      expect(first.managedGroupIds).toEqual([G.c, G.b, G.d]);
+
+      // Same trick as TC3's "re-promotes the very same doc when the category becomes a menu
+      // category again" — registerCollection stores the fixture's own data object, so this is an
+      // operator flipping the category back in Firestore between runs.
+      alpha.data.categoryType = 'menu';
+      docWrites.length = 0;
+
+      const second = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // INTENTIONAL behaviour change (#100): a returning group is indistinguishable from a new one
+      // — the reconciler keeps no memory of removed positions — so it appends rather than
+      // reclaiming its original second slot.
+      expect(writesFor(MENU_GROUPS_PATH, G.a)[0].data.managedBy).toBe('square');
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, second, [G.c, G.b, G.d, G.a]);
+    });
+
+    it('orders alphabetically when there is no existing Square Menu', async () => {
+      registerFixture(orderedCategoriesOnly());
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // Two fixture premises. The keys run in category-NAME order, so mapping them to this run's
+      // created ids below spells the alphabetical assembly. And `ORDERED_GROUP_ID` runs the
+      // REVERSE of that order — the property the pre-existing-group worlds rely on to catch a sort
+      // by groupId; here every group is minted, so its doc id is generated rather than `G[k]`.
+      const names = ORDERED_KEYS.map((k) => ORDERED_CATEGORY_NAME[k]);
+      expect(names).toEqual([...names].sort());
+      const groupIds = ORDERED_KEYS.map((k) => G[k]);
+      expect(groupIds).toEqual([...groupIds].sort().reverse());
+
+      const expected = ORDERED_KEYS.map((k) => createdGroupIdFor(ORDERED_CATEGORY_ID[k]));
+      await expectConsistentAssembly(result.menuId, result, expected);
+    });
+
+    it('orders alphabetically when the existing menuAssetDisplayOrder is empty', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ORDERED_KEYS,
+        groupKeys: [],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      const expected = ORDERED_KEYS.map((k) => createdGroupIdFor(ORDERED_CATEGORY_ID[k]));
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, expected);
+    });
+
+    it('orders alphabetically when menuAssetDisplayOrder is missing from the doc', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ORDERED_KEYS,
+        groupKeys: [],
+        omitMenuAssetDisplayOrder: true,
+      }));
+      // A Menu doc written before the field existed: the key is ABSENT, not empty.
+      expect(await readDoc(MENUS_PATH, EXISTING_SQUARE_MENU_ID))
+        .not.toHaveProperty('menuAssetDisplayOrder');
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      const expected = ORDERED_KEYS.map((k) => createdGroupIdFor(ORDERED_CATEGORY_ID[k]));
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, expected);
+    });
+
+    // Firestore data written by another process: `unknown` is the honest type, and none of these
+    // may throw — a corrupt order field must heal, not break every future catalog sync.
+    it.each<[string, unknown]>([
+      ['null', null],
+      ['a comma-joined string', `${G.c},${G.a}`],
+      ['a number', 42],
+      ['an object', {}],
+    ])('ignores a non-array menuAssetDisplayOrder (%s)', async (_label, raw) => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ORDERED_KEYS,
+        existingMenuAssetDisplayOrder: raw,
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      await expectConsistentAssembly(
+        EXISTING_SQUARE_MENU_ID,
+        result,
+        ORDERED_KEYS.map((k) => G[k]),
+      );
+    });
+
+    it('ignores non-string entries in menuAssetDisplayOrder', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ['a', 'b', 'c'],
+        existingMenuAssetDisplayOrder: [42, null, G.c, {}, G.a],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // The two readable ids keep their observed order; Bravo is left over and appends.
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, [G.c, G.a, G.b]);
+    });
+
+    it('emits a duplicated id exactly once', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ['a', 'b', 'c'],
+        existingMenuAssetDisplayOrder: [G.c, G.c, G.a, G.b],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // The invariant-breaking case: `menuAssets` is a MAP, so a doubled id would make the order
+      // array longer than the asset key set and desynchronize the three fields for good.
+      const stored = await storedAssembly(EXISTING_SQUARE_MENU_ID);
+      expect(stored.assetKeys).toHaveLength(stored.menuAssetDisplayOrder.length);
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, [G.c, G.a, G.b]);
+    });
+
+    it('ignores ids that are not in the managed group set', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ['a', 'b', 'c'],
+        // A deleted asset and an operator group that never belonged on the Square Menu.
+        existingMenuAssetDisplayOrder: ['ghostAsset', G.c, 'mgClassic', G.a, G.b],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, [G.c, G.a, G.b]);
+    });
+
+    it('handles a single managed group', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ['a'],
+        existingMenuAssetDisplayOrder: [G.a],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // A one-element order is already its own fixed point, so the no-churn guard writes nothing.
+      expect(docWrites).toHaveLength(0);
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, [G.a]);
+    });
+
+    it('produces an empty assembly when every group is demoted', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: [],
+        groupKeys: ['a', 'b', 'c'],
+        existingMenuAssetDisplayOrder: [G.c, G.a, G.b],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      for (const key of ['a', 'b', 'c'] as const) {
+        expect(writesFor(MENU_GROUPS_PATH, G[key])[0].data.managedBy).toBeNull();
+      }
+      expect((await readDoc(MENUS_PATH, EXISTING_SQUARE_MENU_ID)).menuAssets).toEqual({});
+      await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, []);
+    });
+
+    it('treats every group as a newcomer when the order holds no managed ids', async () => {
+      registerFixture(withOrderedSquareMenu({
+        categoryKeys: ORDERED_KEYS,
+        existingMenuAssetDisplayOrder: ['ghost1', 'ghost2'],
+      }));
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      // Nothing survives the intersection, so the merge degenerates to #88's default order.
+      await expectConsistentAssembly(
+        EXISTING_SQUARE_MENU_ID,
+        result,
+        ORDERED_KEYS.map((k) => G[k]),
+      );
     });
   });
 });
