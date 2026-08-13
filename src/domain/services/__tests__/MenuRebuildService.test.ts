@@ -24,8 +24,8 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 // #132: MenuRebuildService reads the pruneMenuAssetsOnRebuild kill switch via getFlags().
-// helpers/mockFirestore's doc refs have no .get(), so the real FeatureFlagService cannot run
-// here — and every test needs to toggle the flag anyway.
+// Tests need to toggle that flag per test, and the real FeatureFlagService memoizes its
+// config/writeModelFlags read for 60s in module-level state, so getFlags is mocked outright.
 const { mockGetFlags } = vi.hoisted(() => ({ mockGetFlags: vi.fn() }));
 vi.mock('../FeatureFlagService', () => ({ getFlags: mockGetFlags }));
 

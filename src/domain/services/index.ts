@@ -43,3 +43,7 @@ export {
   removeProductAvailability,
   deleteAvailabilityDoc,
 } from './AvailabilityService';
+
+export {
+  syncManagedSquareMenu,
+} from './ManagedMenuService';
