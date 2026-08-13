@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createMenuGroup, menuGroupMeta } from '../MenuGroup';
+import { createMenuGroup, menuGroupMeta, MenuGroupMeta } from '../MenuGroup';
 import { createTestMenuGroupInput } from '../../__tests__/helpers/SurfacesFixtures';
 import { ValidationError } from '../../validation';
 
@@ -76,6 +76,16 @@ describe('MenuGroup (domain)', () => {
       name: 'Entrees',
       displayName: 'Main Dishes',
     });
+  });
+
+  it('MenuGroupMeta carries managedBy', () => {
+    const meta: MenuGroupMeta = { name: 'G', displayName: null, managedBy: 'square' };
+    expect(meta.managedBy).toBe('square');
+  });
+
+  it('menuGroupMeta() does not project managedBy (rebuild owns it)', () => {
+    const mg = createMenuGroup(createTestMenuGroupInput({ managedBy: 'square' }));
+    expect('managedBy' in menuGroupMeta(mg)).toBe(false);
   });
 
   it('products stores ProductMeta', () => {

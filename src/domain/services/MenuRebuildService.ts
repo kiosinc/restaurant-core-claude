@@ -281,6 +281,7 @@ function materializeGroups(
       imageGsls: group.data.imageGsls ?? [],
       productDisplayOrder,
       mirrorCategoryId: group.data.mirrorCategoryId ?? null,
+      managedBy: group.data.managedBy ?? null,
       products: groupProducts,
     };
   }
