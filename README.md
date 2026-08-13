@@ -143,7 +143,8 @@ Each business has 8 singleton root documents that hold denormalized maps of thei
 │   ├── /options/{id}
 │   ├── /taxRates/{id}
 │   ├── /discounts/{id}
-│   └── /serviceCharges/{id}
+│   ├── /serviceCharges/{id}
+│   └── /inventory/{locationId}         (availability per location)
 ├── /public/surfaces
 │   ├── /menus/{id}
 │   ├── /menuGroups/{id}
@@ -151,8 +152,6 @@ Each business has 8 singleton root documents that hold denormalized maps of thei
 │   ├── /surfaceConfigurations/{id}
 │   ├── /checkoutOptions/{id}
 │   └── /collections/{id}
-├── /public/inventory
-│   └── /inventory/{locationId}         (availability per location)
 ├── /public/locations
 │   └── /locations/{id}
 ├── /private/connectedAccounts
