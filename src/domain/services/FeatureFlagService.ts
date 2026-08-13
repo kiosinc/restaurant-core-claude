@@ -7,9 +7,12 @@ import { getFirestore } from 'firebase-admin/firestore';
  * field present in that doc is returned by `getFlags()` — consumers define a new
  * flag by writing the doc field and reading it as `flags.myFlag ?? false`
  * (defaults-off). Retiring a flag is deleting the doc field. No library change
- * or publish is needed to add or retire a flag.
+ * or publish is needed to add or retire a flag that way.
  *
- * `DEFAULT_FLAGS` covers only the legacy known keys below; unknown keys have no
+ * A flag is additionally *declared* below — one key on `WriteModelFlags` plus
+ * one key on `DEFAULT_FLAGS` — when it needs a concrete default (e.g. defaults-on)
+ * or compile-time checking for library-internal consumers. Declared keys always
+ * resolve to their default when absent from the doc; undeclared keys have no
  * default (absent → `undefined`).
  *
  * Trade-offs of the open contract:
@@ -39,6 +42,14 @@ export interface WriteModelFlags {
    * preservation; pruning is loss-free, so rollback needs no data restoration.
    */
   pruneMenuAssetsOnRebuild: boolean;
+  /**
+   * #87 / P18 produce gate. When true, square-gateway-claude dispatches the
+   * managed Square-menu assembly task after catalog sync; managed Menus/MenuGroups
+   * are created and reconciled. Default false = behavior byte-for-byte unchanged.
+   * Rollback = flip false; the managed Menu doc simply stops being updated,
+   * nothing is deleted, no data restore needed.
+   */
+  syncSquareMenuCategories: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
@@ -52,6 +63,7 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   writeLegacyFirestorePresence: true,
   isImageDownsample: false,
   pruneMenuAssetsOnRebuild: true,
+  syncSquareMenuCategories: false,
 };
 
 const CACHE_TTL_MS = 60_000;
