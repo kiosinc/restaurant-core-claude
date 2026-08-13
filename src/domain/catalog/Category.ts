@@ -14,6 +14,7 @@ export interface CategoryInput {
   imageUrls?: string[];
   imageGsls?: string[];
   linkedObjects?: LinkedObjectMap;
+  categoryType?: 'menu' | 'regular' | 'kitchen';
 }
 
 export interface Category extends BaseEntity {
@@ -23,6 +24,12 @@ export interface Category extends BaseEntity {
   imageUrls: string[];
   imageGsls: string[];
   linkedObjects: LinkedObjectMap;
+  /**
+   * Square category classification. Defaults to 'regular'; 'menu' and 'kitchen' are
+   * stamped by square-gateway-claude from Square `categoryData.categoryType` (#85).
+   * Legacy docs without the field deserialize to 'regular' via createCategory().
+   */
+  categoryType: 'menu' | 'regular' | 'kitchen';
 }
 
 export function createCategory(input: CategoryInput & Partial<BaseEntity>): Category {
@@ -35,6 +42,7 @@ export function createCategory(input: CategoryInput & Partial<BaseEntity>): Cate
     imageUrls: input.imageUrls ?? [],
     imageGsls: input.imageGsls ?? [],
     linkedObjects: input.linkedObjects ?? {},
+    categoryType: input.categoryType ?? 'regular',
   };
 }
 
