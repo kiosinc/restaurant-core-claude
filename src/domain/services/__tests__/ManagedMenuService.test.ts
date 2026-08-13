@@ -208,20 +208,24 @@ async function expectConsistentAssembly(
 }
 
 /**
+ * #100: the sequence the operator dragged the Square Menu's assets into — Charlie, Alpha, Bravo,
+ * deliberately NOT the alphabetical order. Every world below that seeds an operator reorder seeds
+ * this one, so the observed order and the expected order can never drift apart.
+ */
+const OPERATOR_ORDER = [G.c, G.a, G.b];
+
+/**
  * #100: the canonical operator-reorder world — Alpha, Bravo and Charlie mirrored onto an existing
- * Square Menu whose `menuAssetDisplayOrder` the operator has dragged into Charlie, Alpha, Bravo.
- * `groupDisplayOrder` is left at the pre-reorder sequence on purpose: Remy's `useReorderMenuAssets`
- * merge-writes `menuAssetDisplayOrder` alone, so that is the state a real reorder leaves behind.
+ * Square Menu whose `menuAssetDisplayOrder` is `OPERATOR_ORDER`. `groupDisplayOrder` is left at the
+ * pre-reorder sequence on purpose: Remy's `useReorderMenuAssets` merge-writes
+ * `menuAssetDisplayOrder` alone, so that is the state a real reorder leaves behind.
  */
 function reorderedSquareMenuWorld(): FixtureSet {
   return withOrderedSquareMenu({
     categoryKeys: ['a', 'b', 'c'],
-    existingMenuAssetDisplayOrder: [G.c, G.a, G.b],
+    existingMenuAssetDisplayOrder: [...OPERATOR_ORDER],
   });
 }
-
-/** The order the operator set in `reorderedSquareMenuWorld()`. */
-const OPERATOR_ORDER = [G.c, G.a, G.b];
 
 beforeEach(() => {
   resetMockFirestore();
@@ -850,7 +854,7 @@ describe('ManagedMenuService', () => {
    * through the exported `syncManagedSquareMenu` — `computeAssemblyOrder` stays module-private, as
    * #88's suite established — and every one ends on `expectConsistentAssembly`, so the
    * "three fields plus the return value are one sequence" invariant is re-proved on the reuse path
-   * in each of the seventeen states below.
+   * in every one of the states below.
    */
   describe('TC11 — #100: operator-set order preservation', () => {
     it('preserves an operator-set menuAssetDisplayOrder across a sync', async () => {
@@ -899,7 +903,7 @@ describe('ManagedMenuService', () => {
       registerFixture(withOrderedSquareMenu({
         categoryKeys: ['a', 'b', 'c', 'd'],
         groupKeys: ['a', 'b', 'c'],
-        existingMenuAssetDisplayOrder: [G.c, G.a, G.b],
+        existingMenuAssetDisplayOrder: [...OPERATOR_ORDER],
       }));
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
@@ -994,7 +998,6 @@ describe('ManagedMenuService', () => {
       registerFixture(withOrderedSquareMenu({
         categoryKeys: ORDERED_KEYS,
         groupKeys: [],
-        existingAssetIds: [],
       }));
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
@@ -1007,7 +1010,6 @@ describe('ManagedMenuService', () => {
       registerFixture(withOrderedSquareMenu({
         categoryKeys: ORDERED_KEYS,
         groupKeys: [],
-        existingAssetIds: [],
         omitMenuAssetDisplayOrder: true,
       }));
       // A Menu doc written before the field existed: the key is ABSENT, not empty.

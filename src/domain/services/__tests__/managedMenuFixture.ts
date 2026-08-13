@@ -461,12 +461,12 @@ function orderedMirrorGroups(groupKeys: OrderedKey[]): FixtureDoc[] {
 }
 
 /**
- * #100: N menu categories with NO mirror groups and NO Square Menu — the create path of the
+ * #100: the four menu categories with NO mirror groups and NO Square Menu — the create path of the
  * ordering world, where every group is a newcomer and the whole assembly is the default order.
  */
-export function orderedCategoriesOnly(categoryKeys: OrderedKey[] = ORDERED_KEYS): FixtureSet {
+export function orderedCategoriesOnly(): FixtureSet {
   return {
-    categories: orderedCategories(categoryKeys),
+    categories: orderedCategories(ORDERED_KEYS),
     products: [],
     menuGroups: [],
     menus: [],
@@ -491,29 +491,23 @@ export function orderedCategoriesOnly(categoryKeys: OrderedKey[] = ORDERED_KEYS)
 export function withOrderedSquareMenu(options: {
   categoryKeys: OrderedKey[];
   groupKeys?: OrderedKey[];
-  /** Seeds `menuAssets` + `groupDisplayOrder`. Defaults to `groupKeys`' group ids. */
-  existingAssetIds?: string[];
-  /** RAW `menuAssetDisplayOrder`. Defaults to `existingAssetIds` (i.e. no operator reorder). */
+  /** RAW `menuAssetDisplayOrder`. Defaults to `groupKeys`' group ids (i.e. no operator reorder). */
   existingMenuAssetDisplayOrder?: unknown;
   /** Drop `menuAssetDisplayOrder` from the doc entirely — a Menu written before the field existed. */
   omitMenuAssetDisplayOrder?: boolean;
 }): FixtureSet {
   const groupKeys = options.groupKeys ?? options.categoryKeys;
-  const groupIds = options.existingAssetIds ?? groupKeys.map((k) => ORDERED_GROUP_ID[k]);
   return {
     categories: orderedCategories(options.categoryKeys),
     products: [],
     menuGroups: orderedMirrorGroups(groupKeys),
     menus: [
+      // `menu()` reads both overrides as "absent means default", so they pass straight through.
       menu(EXISTING_SQUARE_MENU_ID, 'Square Menu', {
         managedBy: 'square',
-        groupIds,
-        ...(options.existingMenuAssetDisplayOrder !== undefined
-          ? { menuAssetDisplayOrder: options.existingMenuAssetDisplayOrder }
-          : {}),
-        ...(options.omitMenuAssetDisplayOrder !== undefined
-          ? { omitMenuAssetDisplayOrder: options.omitMenuAssetDisplayOrder }
-          : {}),
+        groupIds: groupKeys.map((k) => ORDERED_GROUP_ID[k]),
+        menuAssetDisplayOrder: options.existingMenuAssetDisplayOrder,
+        omitMenuAssetDisplayOrder: options.omitMenuAssetDisplayOrder,
       }),
     ],
   };

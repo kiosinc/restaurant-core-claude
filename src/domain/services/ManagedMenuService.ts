@@ -430,7 +430,10 @@ export async function syncManagedSquareMenu(
   // ---------------------------------------------------------------------------
   // Phase E — resolve-or-create the Menu and write the assembly.
   // ---------------------------------------------------------------------------
-  const order = computeAssemblyOrder(plan.managed, existingMenu?.data.menuAssetDisplayOrder ?? []);
+  // No `?? []` fallback: `computeAssemblyOrder` already treats anything that is not an array —
+  // including the `undefined` of "no existing menu" — as "no observed order", and normalizing the
+  // same concern twice would leave two places to keep in agreement.
+  const order = computeAssemblyOrder(plan.managed, existingMenu?.data.menuAssetDisplayOrder);
   const assembly = buildAssembly(order);
   const menusRef = PathResolver.menusCollection(businessId);
 
