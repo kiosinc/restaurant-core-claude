@@ -192,8 +192,9 @@ async function storedAssembly(menuId: string) {
  * #100 acceptance criterion, asserted once here and used by every TC11 test: the stored
  * `menuAssetDisplayOrder`, the stored `groupDisplayOrder`, the stored `menuAssets` KEY ORDER and
  * the returned `managedGroupIds` are all one and the same sequence. On the create path #88 already
- * pins this (test:246); asserting it here pins it on the REUSE path too, which is where the
- * observed-order merge runs.
+ * pins this (TC1's "writes menuAssets, groupDisplayOrder and menuAssetDisplayOrder as identical
+ * sequences"); asserting it here pins it on the REUSE path too, which is where the observed-order
+ * merge runs.
  */
 async function expectConsistentAssembly(
   menuId: string,
@@ -853,8 +854,9 @@ describe('ManagedMenuService', () => {
    * group ids are on the Square Menu, the OPERATOR owns their relative order. Every test here goes
    * through the exported `syncManagedSquareMenu` — `computeAssemblyOrder` stays module-private, as
    * #88's suite established — and every one ends on `expectConsistentAssembly`, so the
-   * "three fields plus the return value are one sequence" invariant is re-proved on the reuse path
-   * in every one of the states below.
+   * "three fields plus the return value are one sequence" invariant is re-proved in every one of
+   * the states below — all of them but the no-existing-menu world on the REUSE path, which is
+   * where the observed-order merge runs.
    */
   describe('TC11 — #100: operator-set order preservation', () => {
     it('preserves an operator-set menuAssetDisplayOrder across a sync', async () => {
@@ -893,7 +895,8 @@ describe('ManagedMenuService', () => {
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
       // The documented return contract — "in Square-Menu assembly order" — on the REUSE path;
-      // test:269 only covers the create path.
+      // TC1's "returns { menuId, managedGroupIds } matching the written assembly order" only
+      // covers the create path.
       expect(result.menuId).toBe(EXISTING_SQUARE_MENU_ID);
       expect(result.managedGroupIds).toEqual(OPERATOR_ORDER);
       await expectConsistentAssembly(EXISTING_SQUARE_MENU_ID, result, OPERATOR_ORDER);
@@ -964,8 +967,9 @@ describe('ManagedMenuService', () => {
       const first = await syncManagedSquareMenu(BUSINESS_ID);
       expect(first.managedGroupIds).toEqual([G.c, G.b, G.d]);
 
-      // Same trick as test:383 — registerCollection stores the fixture's own data object, so this
-      // is an operator flipping the category back in Firestore between runs.
+      // Same trick as TC3's "re-promotes the very same doc when the category becomes a menu
+      // category again" — registerCollection stores the fixture's own data object, so this is an
+      // operator flipping the category back in Firestore between runs.
       alpha.data.categoryType = 'menu';
       docWrites.length = 0;
 
@@ -983,8 +987,10 @@ describe('ManagedMenuService', () => {
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
-      // The fixture's premise: group ids sort in the REVERSE of the category names, so an
-      // implementation that sorted by groupId would return Delta…Alpha here.
+      // Two fixture premises. The keys run in category-NAME order, so mapping them to this run's
+      // created ids below spells the alphabetical assembly. And `ORDERED_GROUP_ID` runs the
+      // REVERSE of that order — the property the pre-existing-group worlds rely on to catch a sort
+      // by groupId; here every group is minted, so its doc id is generated rather than `G[k]`.
       const names = ORDERED_KEYS.map((k) => ORDERED_CATEGORY_NAME[k]);
       expect(names).toEqual([...names].sort());
       const groupIds = ORDERED_KEYS.map((k) => G[k]);

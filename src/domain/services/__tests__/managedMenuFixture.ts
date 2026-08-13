@@ -436,7 +436,8 @@ export const ORDERED_CATEGORY_NAME: Record<OrderedKey, string> = {
  * Doc ids of the pre-existing mirror groups, chosen to sort in the REVERSE of the category-name
  * order (Alpha → 'mgOrdZ' … Delta → 'mgOrdW'). Ordering is by (categoryName, categoryId) and only
  * then mapped to groupId, so an implementation that sorted the group ids instead would produce
- * d, c, b, a — and the initial-creation test would catch it.
+ * d, c, b, a — caught by every default-order test whose mirror groups already exist. (Worlds that
+ * mint their groups cannot catch it: a minted group's doc id is generated, not from this map.)
  */
 export const ORDERED_GROUP_ID: Record<OrderedKey, string> = {
   a: 'mgOrdZ',

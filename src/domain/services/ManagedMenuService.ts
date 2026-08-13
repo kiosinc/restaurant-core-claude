@@ -22,6 +22,8 @@ import { rebuildMenus } from './MenuRebuildService';
  * SPLIT OWNERSHIP (#100): this reconciler owns MEMBERSHIP (which group ids are on the Square
  * Menu, re-derived from the catalog every run), while the OPERATOR owns ORDER (the relative
  * sequence of those ids, set in Remy and observed from the menu doc — never re-derived here).
+ * The one thing this service does order is a group the operator has never seen: a newcomer is
+ * appended in the default order below, and is never re-sorted once it is on the menu.
  *
  * FLAG-AGNOSTIC BY CONTRACT (#88): this service deliberately does NOT read the
  * `syncSquareMenuCategories` feature flag. Callers (the gateway / businesses cascade) gate on
