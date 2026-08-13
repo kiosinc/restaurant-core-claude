@@ -9,6 +9,15 @@ export interface MenuGroupMeta {
   imageGsls?: string[];
   productDisplayOrder?: string[];
   mirrorCategoryId?: string | null;
+  /**
+   * Optional on the interface so existing constructors (`menuGroupMeta()`,
+   * `Surfaces.menuGroups`, test literals) still typecheck, but
+   * `MenuRebuildService.materializeGroups()` always writes a concrete
+   * `string | null`, so consumers reading materialized `Menu.groups[id]`
+   * always see the key. kios-commons-types mirrors it as non-optional
+   * `string | null` (#85 shape 2).
+   */
+  managedBy?: string | null;
   products?: { [id: string]: MenuProductMeta };
 }
 
