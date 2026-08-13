@@ -117,13 +117,8 @@ describe('FeatureFlagService', () => {
     expect(flags.pruneMenuAssetsOnRebuild).toBe(false);
   });
 
-  it('returns syncSquareMenuCategories false when /config/writeModelFlags does not exist', async () => {
-    mockDocGet.mockResolvedValue({ exists: false });
-
-    const flags = await getFlags();
-    expect(flags.syncSquareMenuCategories).toBe(false);
-  });
-
+  // The missing-doc case (`exists: false` → false) is covered by the
+  // EXPECTED_DEFAULTS assertion in 'returns default flags when doc does not exist'.
   it('defaults syncSquareMenuCategories to false when absent in doc', async () => {
     mockDocGet.mockResolvedValue({
       exists: true,

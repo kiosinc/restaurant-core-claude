@@ -310,23 +310,20 @@ describe('MenuRebuildService', () => {
       expect(menu1.groups.lWWo8L7WmEiEJuZgf3dM.managedBy).toBe('square');
     });
 
-    it('materializes managedBy null when the source group is explicitly null', async () => {
+    // Covers both unmanaged shapes: an explicit null on the source doc, and a
+    // legacy doc predating the field. Both resolve through the same `?? null`.
+    it('materializes managedBy null for unmanaged and legacy groups', async () => {
       await rebuildMenus(BUSINESS_ID);
 
       const menu1 = transactionSets.find((s) => s.ref._docId === 'CcUqgkBxEnk1qYaNZ3K2')?.data;
       expect(menu1.groups['0YRxtglWpkDyxcW8WCTD'].managedBy).toBeNull();
-    });
-
-    it('materializes managedBy null when the source group doc has no managedBy field', async () => {
-      await rebuildMenus(BUSINESS_ID);
-
-      const menu1 = transactionSets.find((s) => s.ref._docId === 'CcUqgkBxEnk1qYaNZ3K2')?.data;
       expect(menu1.groups.mg4.managedBy).toBeNull();
     });
 
-    // The field is optional on MenuGroupMeta for back-compat, but rebuild must always write a
-    // concrete value: kios-commons-types mirrors it as non-optional, and a Firestore write of
-    // `undefined` throws.
+    // managedBy is optional on MenuGroupMeta only because menuGroupMeta() projects a
+    // narrower subset; the rebuild path must always write a concrete value. Two things
+    // depend on that: kios-commons-types mirrors the field as non-optional, and a
+    // Firestore write of `undefined` throws.
     it('every materialized group has a concrete managedBy key (never undefined)', async () => {
       await rebuildMenus(BUSINESS_ID);
 
@@ -335,7 +332,6 @@ describe('MenuRebuildService', () => {
         const groups: Record<string, { managedBy?: unknown }> = set.data.groups;
         for (const [, group] of Object.entries(groups)) {
           groupCount++;
-          expect(group).toHaveProperty('managedBy');
           const { managedBy } = group;
           expect(managedBy === null || typeof managedBy === 'string').toBe(true);
         }

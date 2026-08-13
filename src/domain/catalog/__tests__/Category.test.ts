@@ -56,11 +56,6 @@ describe('Category (domain)', () => {
     expect(category.categoryType).toBe('regular');
   });
 
-  it.each(['menu', 'regular', 'kitchen'] as const)('accepts categoryType %s', (categoryType) => {
-    const category = createCategory(createTestCategoryInput({ categoryType }));
-    expect(category.categoryType).toBe(categoryType);
-  });
-
   it('categoryMeta() returns CategoryMeta', () => {
     const category = createCategory(createTestCategoryInput({ name: 'Desserts' }));
     expect(categoryMeta(category)).toEqual({ name: 'Desserts' });

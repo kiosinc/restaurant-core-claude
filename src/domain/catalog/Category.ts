@@ -7,6 +7,14 @@ export interface CategoryMeta {
   name: string;
 }
 
+/**
+ * Square category classification. Mirrors Square's `categoryData.categoryType`
+ * (`MENU_CATEGORY` / `REGULAR_CATEGORY` / `KITCHEN_CATEGORY`) — see the P18
+ * integration contract (#85). A union rather than an enum so consuming packages
+ * (kios-commons-types, square-gateway-claude) mirror the same structural shape.
+ */
+export type CategoryType = 'menu' | 'regular' | 'kitchen';
+
 export interface CategoryInput {
   name: string;
   products?: { [id: string]: ProductMeta };
@@ -14,7 +22,7 @@ export interface CategoryInput {
   imageUrls?: string[];
   imageGsls?: string[];
   linkedObjects?: LinkedObjectMap;
-  categoryType?: 'menu' | 'regular' | 'kitchen';
+  categoryType?: CategoryType;
 }
 
 export interface Category extends BaseEntity {
@@ -25,11 +33,11 @@ export interface Category extends BaseEntity {
   imageGsls: string[];
   linkedObjects: LinkedObjectMap;
   /**
-   * Square category classification. Defaults to 'regular'; 'menu' and 'kitchen' are
-   * stamped by square-gateway-claude from Square `categoryData.categoryType` (#85).
-   * Legacy docs without the field deserialize to 'regular' via createCategory().
+   * Defaults to 'regular'; 'menu' and 'kitchen' are stamped by
+   * square-gateway-claude. Legacy docs written before this field existed
+   * deserialize to 'regular', because the converter reads through createCategory().
    */
-  categoryType: 'menu' | 'regular' | 'kitchen';
+  categoryType: CategoryType;
 }
 
 export function createCategory(input: CategoryInput & Partial<BaseEntity>): Category {
