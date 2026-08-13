@@ -19,6 +19,10 @@ import { rebuildMenus } from './MenuRebuildService';
  * plan (pure) → apply the diff → let the existing deriver recompute the projection. A run that
  * finds nothing to change performs zero writes.
  *
+ * SPLIT OWNERSHIP (#100): this reconciler owns MEMBERSHIP (which group ids are on the Square
+ * Menu, re-derived from the catalog every run), while the OPERATOR owns ORDER (the relative
+ * sequence of those ids, set in Remy and observed from the menu doc — never re-derived here).
+ *
  * FLAG-AGNOSTIC BY CONTRACT (#88): this service deliberately does NOT read the
  * `syncSquareMenuCategories` feature flag. Callers (the gateway / businesses cascade) gate on
  * it; a reconciler that reads its own enablement flag becomes edge-triggered and untestable,
@@ -175,32 +179,87 @@ function planReconciliation(categories: DocData[], groups: DocData[]): Reconcili
 }
 
 /**
- * #88: the single source of truth for the Square Menu's asset order. Sorted by the mirrored
- * category's `name`, tie-broken by category id, so the order is deterministic and stable across
- * runs regardless of Firestore's document order.
+ * #88: the DEFAULT order — the mirrored category's `name`, tie-broken by category id, so the
+ * default is deterministic and stable across runs regardless of Firestore's document order.
  *
  * Deliberately NOT `localeCompare`: its result depends on the runtime's ICU data and default
  * locale, so two Node builds (or a container with a trimmed ICU) would produce different orders
  * for the same input — which makes "deterministic and stable across runs" false and produces
  * pointless menu rewrites. Plain codepoint comparison is stable everywhere.
  *
- * `_existingMenuAssetDisplayOrder` is intentionally unused today. It is the seam for #100 /
- * remy#349 (preserve an operator-set order and append only the newcomers): that issue replaces
- * this function body and nothing else in the service moves. Do NOT pre-implement it here.
+ * #100 narrowed where this applies: it orders NEWCOMERS only (and, on initial creation, every
+ * group — which is the same thing). It is never a global re-sort of an existing menu.
+ */
+function compareByCategoryNameThenId(a: ManagedGroupPlanEntry, b: ManagedGroupPlanEntry): number {
+  if (a.categoryName < b.categoryName) return -1;
+  if (a.categoryName > b.categoryName) return 1;
+  if (a.categoryId < b.categoryId) return -1;
+  if (a.categoryId > b.categoryId) return 1;
+  return 0;
+}
+
+/**
+ * #100 / remy#349: the single source of truth for the Square Menu's asset order —
+ * OPERATOR ORDER FIRST, alphabetical only for groups the operator has never seen.
+ *
+ * Membership and sequence have DIFFERENT OWNERS. This reconciler owns membership: the assembly
+ * is exactly the managed group set, re-derived from the catalog every run. The operator owns the
+ * sequence, via Remy's reorder (`useReorderMenuAssets` merge-writes `menuAssetDisplayOrder` and
+ * nothing else). So the sequence is OBSERVED from the document instead of being re-derived, and
+ * `menuAssetDisplayOrder` — not `groupDisplayOrder` — is the field observed, because that is the
+ * one Remy actually writes. `buildAssembly` then re-derives `groupDisplayOrder` from it, which
+ * also HEALS a `groupDisplayOrder` left stale by a reorder.
+ *
+ * The merge is a stable partition, not a diff:
+ *   [existing order ∩ desired, relative order preserved] ++ [desired \ existing, default order]
+ * It is a fixed point — feeding its own output back in with an unchanged desired set returns a
+ * byte-identical array, which is what keeps `assemblyEquals` silent on a steady-state run — and
+ * it degenerates to #88's fully alphabetical order when there is no existing order at all.
+ *
+ * @param managedGroups the desired managed set, unordered
+ * @param existingMenuAssetDisplayOrder the RAW `menuAssetDisplayOrder` off the existing Square
+ *   Menu doc. Typed `unknown` on purpose: it is untyped Firestore data written by another
+ *   process, so it may be absent, a non-array, or hold duplicate / stale / non-group ids. A
+ *   `string[]` annotation here would be a lie TypeScript happily accepts, because
+ *   `DocumentData` is index-signature `any`.
  */
 function computeAssemblyOrder(
   managedGroups: ManagedGroupPlanEntry[],
-  _existingMenuAssetDisplayOrder: string[],
+  existingMenuAssetDisplayOrder: unknown,
 ): string[] {
-  return [...managedGroups]
-    .sort((a, b) => {
-      if (a.categoryName < b.categoryName) return -1;
-      if (a.categoryName > b.categoryName) return 1;
-      if (a.categoryId < b.categoryId) return -1;
-      if (a.categoryId > b.categoryId) return 1;
-      return 0;
-    })
-    .map((entry) => entry.groupId);
+  // Keyed by groupId, so the desired set is de-duplicated BY CONSTRUCTION and the newcomer pass
+  // below needs no second guard of its own.
+  const desiredByGroupId = new Map<string, ManagedGroupPlanEntry>();
+  for (const entry of managedGroups) desiredByGroupId.set(entry.groupId, entry);
+
+  const order: string[] = [];
+  const placed = new Set<string>();
+
+  const rawOrder: readonly unknown[] = Array.isArray(existingMenuAssetDisplayOrder)
+    ? existingMenuAssetDisplayOrder
+    : [];
+  for (const id of rawOrder) {
+    // Three independent skip reasons, every one of them a real state of a live document:
+    //  - not a string: hand-edited or corrupt data;
+    //  - not desired:  demoted or dropped this run, or a stale / non-group asset id left behind;
+    //  - already placed: a duplicate id. Emitting it twice would make `order` LONGER than the
+    //    `menuAssets` map `buildAssembly` derives from it, breaking the "three identical
+    //    sequences" invariant that `assemblyEquals` and Remy both depend on.
+    if (typeof id !== 'string') continue;
+    if (!desiredByGroupId.has(id)) continue;
+    if (placed.has(id)) continue;
+    placed.add(id);
+    order.push(id);
+  }
+
+  // Newcomers sort AMONG THEMSELVES ONLY. A global re-sort here is precisely the bug this issue
+  // fixes. On initial creation `placed` is empty, every group is a newcomer, and this is #88's
+  // fully alphabetical order.
+  const newcomers = [...desiredByGroupId.values()].filter((entry) => !placed.has(entry.groupId));
+  newcomers.sort(compareByCategoryNameThenId);
+  for (const entry of newcomers) order.push(entry.groupId);
+
+  return order;
 }
 
 /**
