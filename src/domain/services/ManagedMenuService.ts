@@ -35,6 +35,13 @@ interface DocData {
   data: FirebaseFirestore.DocumentData;
 }
 
+/** A query snapshot as `DocData[]`, with soft-deleted documents dropped. */
+function toLiveDocs(snapshot: FirebaseFirestore.QuerySnapshot): DocData[] {
+  return snapshot.docs
+    .map((d) => ({ id: d.id, data: d.data() }))
+    .filter((d) => !d.data.isDeleted);
+}
+
 /** One entry of the desired managed set — the group id plus the mirror category it came from. */
 interface ManagedGroupPlanEntry {
   groupId: string;
@@ -234,7 +241,7 @@ function arraysEqual(a: string[], b: string[]): boolean {
  * #88: no-churn guard for the reuse path — the menu doc is only updated when the assembly
  * actually differs, so a steady-state run writes nothing.
  *
- * This mirrors the idea of `menuAssetsEqual` (`MenuRebuildService.ts:291-311`) rather than
+ * This mirrors the idea of `menuAssetsEqual` (`MenuRebuildService.ts:310-329`) rather than
  * reusing the function: it is not exported, and exporting it purely for this caller would widen
  * `MenuRebuildService`'s public surface for no benefit. The comparison here is also narrower on
  * purpose — every asset we write is `{ assetType: 'group' }` with no `configuration`, so there
@@ -294,19 +301,13 @@ export async function syncManagedSquareMenu(
     PathResolver.menusCollection(businessId).where('managedBy', '==', MANAGED_BY).get(),
   ]);
 
-  // `isDeleted` is filtered IN MEMORY, deliberately not as a second `where()`: combining it
-  // with the equality clause above would require a composite index, and until that index is
-  // built Firestore returns an empty result set — the reconciler would silently see no
+  // `isDeleted` is filtered IN MEMORY (by `toLiveDocs`), deliberately not as a second `where()`:
+  // combining it with the equality clauses above would require a composite index, and until that
+  // index is built Firestore returns an empty result set — the reconciler would silently see no
   // categories and demote every managed group. In-memory filtering has no such failure mode.
-  const categories: DocData[] = categorySnap.docs
-    .map((d) => ({ id: d.id, data: d.data() }))
-    .filter((d) => !d.data.isDeleted);
-  const groups: DocData[] = groupSnap.docs
-    .map((d) => ({ id: d.id, data: d.data() }))
-    .filter((d) => !d.data.isDeleted);
-  const managedMenus: DocData[] = menuSnap.docs
-    .map((d) => ({ id: d.id, data: d.data() }))
-    .filter((d) => !d.data.isDeleted);
+  const categories = toLiveDocs(categorySnap);
+  const groups = toLiveDocs(groupSnap);
+  const managedMenus = toLiveDocs(menuSnap);
 
   // ---------------------------------------------------------------------------
   // Phase B — validate the invariant, still before the first write.

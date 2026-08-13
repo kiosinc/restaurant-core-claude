@@ -159,7 +159,7 @@ function writeForCategory(writes: typeof docWrites, categoryId: string) {
   return match[0];
 }
 
-/** The single created/updated group write whose `mirrorCategoryId` is `categoryId`. */
+/** The id of the single CREATED group write whose `mirrorCategoryId` is `categoryId`. */
 function createdGroupIdFor(categoryId: string): string {
   const match = groupCreates().filter((w) => w.data.mirrorCategoryId === categoryId);
   expect(match).toHaveLength(1);
