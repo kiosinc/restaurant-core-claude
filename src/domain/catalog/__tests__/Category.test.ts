@@ -15,6 +15,7 @@ describe('Category (domain)', () => {
       imageUrls: ['cat.jpg'],
       imageGsls: ['gs://cat'],
       linkedObjects: { square: { linkedObjectId: 'sq-1' } },
+      categoryType: 'menu',
       created: now,
       updated: now,
     });
@@ -26,6 +27,7 @@ describe('Category (domain)', () => {
     expect(category.imageUrls).toEqual(['cat.jpg']);
     expect(category.imageGsls).toEqual(['gs://cat']);
     expect(category.linkedObjects.square.linkedObjectId).toBe('sq-1');
+    expect(category.categoryType).toBe('menu');
   });
 
   it('defaults products to {}', () => {
@@ -47,6 +49,11 @@ describe('Category (domain)', () => {
   it('defaults linkedObjects to {}', () => {
     const category = createCategory(createTestCategoryInput());
     expect(category.linkedObjects).toEqual({});
+  });
+
+  it("defaults categoryType to 'regular'", () => {
+    const category = createCategory(createTestCategoryInput());
+    expect(category.categoryType).toBe('regular');
   });
 
   it('categoryMeta() returns CategoryMeta', () => {

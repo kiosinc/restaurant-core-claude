@@ -7,10 +7,17 @@ import { getFirestore } from 'firebase-admin/firestore';
  * field present in that doc is returned by `getFlags()` — consumers define a new
  * flag by writing the doc field and reading it as `flags.myFlag ?? false`
  * (defaults-off). Retiring a flag is deleting the doc field. No library change
- * or publish is needed to add or retire a flag.
+ * or publish is needed to add or retire a flag that way.
  *
- * `DEFAULT_FLAGS` covers only the legacy known keys below; unknown keys have no
- * default (absent → `undefined`).
+ * A flag may additionally be *declared* below — one key on `WriteModelFlags`
+ * plus one key on `DEFAULT_FLAGS`. Declaring is required only for a flag that
+ * must default to anything other than `false`, since a declared key resolves to
+ * its `DEFAULT_FLAGS` value when absent from the doc whereas an undeclared key
+ * is simply `undefined`. For a defaults-off flag, declaring changes no behavior
+ * (`undefined ?? false` and a `false` default agree); it is done to give the
+ * flag's semantics and rollback story a documented home in the library.
+ * Declaring buys no typo protection — the index signature below makes any
+ * property access typecheck either way.
  *
  * Trade-offs of the open contract:
  * - The doc is flags-only by convention: any boolean field written to
@@ -39,6 +46,14 @@ export interface WriteModelFlags {
    * preservation; pruning is loss-free, so rollback needs no data restoration.
    */
   pruneMenuAssetsOnRebuild: boolean;
+  /**
+   * #87 / P18 gate, consumed by square-gateway-claude. When true, the gateway
+   * dispatches the managed Square-menu assembly task after catalog sync and
+   * managed Menus/MenuGroups are created and reconciled. Defaults off; flipping
+   * back to false stops the managed Menu doc being updated but deletes nothing,
+   * so rollback needs no data restoration.
+   */
+  syncSquareMenuCategories: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
@@ -52,6 +67,7 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   writeLegacyFirestorePresence: true,
   isImageDownsample: false,
   pruneMenuAssetsOnRebuild: true,
+  syncSquareMenuCategories: false,
 };
 
 const CACHE_TTL_MS = 60_000;

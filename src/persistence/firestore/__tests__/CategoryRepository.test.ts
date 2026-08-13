@@ -19,6 +19,7 @@ function createFullSerializedCategory() {
     productDisplayOrder: ['prod-1'],
     imageUrls: ['cat.jpg'], imageGsls: ['gs://cat'],
     linkedObjects: { square: { linkedObjectId: 'sq-1' } },
+    categoryType: 'menu',
     created: ts, updated: ts, isDeleted: false,
   };
 }
@@ -61,6 +62,7 @@ describe('CategoryRepository', () => {
     const data = mockTransaction.set.mock.calls[0][1];
     expect(data.name).toBe('Entrees');
     expect(data.productDisplayOrder).toEqual(['prod-1']);
+    expect(data.categoryType).toBe('regular');
   });
 
   it('round-trip preserves data', async () => {
@@ -77,6 +79,28 @@ describe('CategoryRepository', () => {
     const restored = await repo.get('biz-1', 'cat-rt');
     expect(restored!.name).toBe(original.name);
     expect(restored!.imageUrls).toEqual(original.imageUrls);
+  });
+
+  it.each(['menu', 'regular', 'kitchen'] as const)('round-trip preserves categoryType %s', async (categoryType) => {
+    const original = createCategory({
+      ...createTestCategoryInput({ categoryType }),
+      Id: 'cat-ct', name: 'Entrees',
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect(serialized.categoryType).toBe(categoryType);
+
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-ct' });
+    const restored = await repo.get('biz-1', 'cat-ct');
+    expect(restored!.categoryType).toBe(categoryType);
+  });
+
+  it("fromFirestore defaults categoryType to 'regular' for legacy docs", async () => {
+    const data = createFullSerializedCategory();
+    delete (data as any).categoryType;
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => data, id: 'cat-1' });
+    const result = await repo.get('biz-1', 'cat-1');
+    expect(result!.categoryType).toBe('regular');
   });
 
   it('fromFirestore defaults products to {}', async () => {

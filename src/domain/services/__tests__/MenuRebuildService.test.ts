@@ -24,8 +24,8 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 // #132: MenuRebuildService reads the pruneMenuAssetsOnRebuild kill switch via getFlags().
-// helpers/mockFirestore's doc refs have no .get(), so the real FeatureFlagService cannot run
-// here — and every test needs to toggle the flag anyway.
+// Tests need to toggle that flag per test, and the real FeatureFlagService memoizes its
+// config/writeModelFlags read for 60s in module-level state, so getFlags is mocked outright.
 const { mockGetFlags } = vi.hoisted(() => ({ mockGetFlags: vi.fn() }));
 vi.mock('../FeatureFlagService', () => ({ getFlags: mockGetFlags }));
 
@@ -110,7 +110,7 @@ describe('MenuRebuildService', () => {
       expect(menu1Data.version).toBe('2.0');
     });
 
-    it('each group has required fields: displayName, name, imageGsls, productDisplayOrder, mirrorCategoryId', async () => {
+    it('each group has required fields: displayName, name, imageGsls, productDisplayOrder, mirrorCategoryId, managedBy', async () => {
       await rebuildMenus(BUSINESS_ID);
 
       for (const set of transactionSets) {
@@ -122,6 +122,7 @@ describe('MenuRebuildService', () => {
           expect(Array.isArray((group as any).imageGsls)).toBe(true);
           expect(group).toHaveProperty('productDisplayOrder');
           expect(group).toHaveProperty('mirrorCategoryId');
+          expect(group).toHaveProperty('managedBy');
         }
       }
     });
@@ -296,6 +297,46 @@ describe('MenuRebuildService', () => {
           ['isActive', 'name', 'imageGsls', 'minPrice', 'variationCount', 'description'].sort(),
         );
       }
+    });
+  });
+
+  // ─── TC12: managedBy on materialized groups ──────────────────────
+
+  describe('TC12 — managedBy on materialized groups', () => {
+    it("copies managedBy 'square' from the source MenuGroup into Menu.groups[id]", async () => {
+      await rebuildMenus(BUSINESS_ID);
+
+      const menu1 = transactionSets.find((s) => s.ref._docId === 'CcUqgkBxEnk1qYaNZ3K2')?.data;
+      expect(menu1.groups.lWWo8L7WmEiEJuZgf3dM.managedBy).toBe('square');
+    });
+
+    // Covers both unmanaged shapes: an explicit null on the source doc, and a
+    // legacy doc predating the field. Both resolve through the same `?? null`.
+    it('materializes managedBy null for unmanaged and legacy groups', async () => {
+      await rebuildMenus(BUSINESS_ID);
+
+      const menu1 = transactionSets.find((s) => s.ref._docId === 'CcUqgkBxEnk1qYaNZ3K2')?.data;
+      expect(menu1.groups['0YRxtglWpkDyxcW8WCTD'].managedBy).toBeNull();
+      expect(menu1.groups.mg4.managedBy).toBeNull();
+    });
+
+    // managedBy is optional on MenuGroupMeta only because menuGroupMeta() projects a
+    // narrower subset; the rebuild path must always write a concrete value. Two things
+    // depend on that: kios-commons-types mirrors the field as non-optional, and a
+    // Firestore write of `undefined` throws.
+    it('every materialized group has a concrete managedBy key (never undefined)', async () => {
+      await rebuildMenus(BUSINESS_ID);
+
+      let groupCount = 0;
+      for (const set of transactionSets) {
+        const groups: Record<string, { managedBy?: unknown }> = set.data.groups;
+        for (const [, group] of Object.entries(groups)) {
+          groupCount++;
+          const { managedBy } = group;
+          expect(managedBy === null || typeof managedBy === 'string').toBe(true);
+        }
+      }
+      expect(groupCount).toBeGreaterThan(0);
     });
   });
 

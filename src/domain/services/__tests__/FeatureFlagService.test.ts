@@ -21,6 +21,7 @@ const EXPECTED_DEFAULTS = {
   writeLegacyFirestorePresence: true,
   isImageDownsample: false,
   pruneMenuAssetsOnRebuild: true,
+  syncSquareMenuCategories: false,
 };
 
 beforeEach(() => {
@@ -114,6 +115,28 @@ describe('FeatureFlagService', () => {
 
     const flags = await getFlags();
     expect(flags.pruneMenuAssetsOnRebuild).toBe(false);
+  });
+
+  // The missing-doc case (`exists: false` → false) is covered by the
+  // EXPECTED_DEFAULTS assertion in 'returns default flags when doc does not exist'.
+  it('defaults syncSquareMenuCategories to false when absent in doc', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ enableMenuRebuild: true }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.syncSquareMenuCategories).toBe(false);
+  });
+
+  it('reads syncSquareMenuCategories as true when set in doc', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ syncSquareMenuCategories: true }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.syncSquareMenuCategories).toBe(true);
   });
 
   it('caches result within TTL', async () => {
