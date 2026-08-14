@@ -785,7 +785,7 @@ describe('ManagedMenuService', () => {
       expect(result.menus).toHaveLength(1);
       expect(result.menus[0].managedGroupIds).toEqual([]);
       expect(warnSpy).toHaveBeenCalledWith(
-        '[ManagedMenuService] skipped menu categories with no live root',
+        '[ManagedMenuService] menu categories with no live root: not mirrored, any managed group deleted',
         { businessId: BUSINESS_ID, categoryIds: ['orphan'] },
       );
     });
@@ -837,7 +837,7 @@ describe('ManagedMenuService', () => {
 
       expect(result.menus).toEqual([]);
       expect(warnSpy).toHaveBeenCalledWith(
-        '[ManagedMenuService] skipped menu categories with no live root',
+        '[ManagedMenuService] menu categories with no live root: not mirrored, any managed group deleted',
         { businessId: BUSINESS_ID, categoryIds: ['x', 'y'] },
       );
     });
@@ -1163,16 +1163,38 @@ describe('ManagedMenuService', () => {
       }
     });
 
-    it('writes managed group docs before the menu assemblies', async () => {
+    it('creates every managed group doc before the menu assemblies reference them', async () => {
       await syncManagedSquareMenu(BUSINESS_ID);
 
-      const lastGroupWrite = docWrites.map((w) => w.path).reduce(
-        (acc, path, i) => (path.startsWith(`${MENU_GROUPS_PATH}/`) ? i : acc),
+      const lastGroupCreate = docWrites.reduce(
+        (acc, w, i) => (w.path.startsWith(`${MENU_GROUPS_PATH}/`) && w.op === 'set' ? i : acc),
         -1,
       );
       const firstMenuWrite = docWrites.findIndex((w) => w.path.startsWith(`${MENUS_PATH}/`));
-      expect(lastGroupWrite).toBeGreaterThanOrEqual(0);
-      expect(firstMenuWrite).toBeGreaterThan(lastGroupWrite);
+      expect(lastGroupCreate).toBeGreaterThanOrEqual(0);
+      expect(firstMenuWrite).toBeGreaterThan(lastGroupCreate);
+    });
+
+    /**
+     * Deletions come last so that at EVERY crash point the tree is a superset of the desired state,
+     * never a subset — a leftover doc is deleted again next run, whereas a Menu written after its
+     * groups were deleted would reference docs that no longer exist.
+     */
+    it('deletes only after every surviving doc has been written', async () => {
+      const set = mirroredWorld();
+      set.categories = set.categories.filter((c) => c.id !== CHILD_12_ID);
+      // Force a menu write on the run as well, so the assertion has a real write to order against.
+      const survivor = set.menus.find((m) => m.id === MIRRORED_MENU_ID.r1) as FixtureDoc;
+      survivor.data.menuAssetDisplayOrder = [];
+      registerFixture(set);
+
+      await syncManagedSquareMenu(BUSINESS_ID);
+
+      const firstDelete = docWrites.findIndex((w) => w.op === 'delete');
+      const lastNonDelete = docWrites.reduce((acc, w, i) => (w.op === 'delete' ? acc : i), -1);
+      expect(firstDelete).toBeGreaterThanOrEqual(0);
+      expect(lastNonDelete).toBeGreaterThanOrEqual(0);
+      expect(firstDelete).toBeGreaterThan(lastNonDelete);
     });
 
     it('runs with syncSquareMenuCategories undefined', async () => {
@@ -1188,9 +1210,9 @@ describe('ManagedMenuService', () => {
         businessId: BUSINESS_ID,
         menuCount: 2,
         menusChanged: 2,
-        menusDeleted: 0,
+        menusDeleted: [],
         groupsCreated: 3,
-        groupsDeleted: 0,
+        groupsDeleted: [],
       });
     });
   });

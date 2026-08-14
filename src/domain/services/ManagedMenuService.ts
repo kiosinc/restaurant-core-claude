@@ -36,7 +36,15 @@ import { rebuildMenus } from './MenuRebuildService';
  * Per #79 a group's effective product list is the mirror CATEGORY's `productDisplayOrder` when
  * `mirrorCategoryId` is set and that category exists; a demoted group whose category was deleted
  * falls through to the group's OWN, now permanently stale list — a frozen ghost sitting in an
- * operator's menu with no live source and no signal that it is dead. Deleting is strictly better.
+ * operator's menu with no live source and no signal that it is dead.
+ *
+ * What deletion COSTS, stated plainly because the tradeoff is real and was accepted knowingly:
+ * a delete destroys the doc IDENTITY, not just the doc. If the same Square category reappears, its
+ * group is minted with a fresh id, so it re-enters the menu as a newcomer at the END of the
+ * operator's order rather than in its old slot; a re-created Menu likewise loses its
+ * `menuAssetDisplayOrder` and every Menu-level presentation field. That is the right trade when
+ * "gone" means the merchant deleted it in Square — and it is why this service must only ever run
+ * against a COMPLETE catalog read (see `resolveRootId`).
  *
  * SPLIT OWNERSHIP (#100): this reconciler owns MEMBERSHIP (which group ids are on which menu,
  * re-derived from the catalog every run), while the OPERATOR owns ORDER (the relative sequence of
@@ -80,10 +88,9 @@ interface CategoryNode {
   isTopLevel: boolean;
 }
 
-/** One entry of a menu's desired group set — the group id plus the child category it came from. */
+/** One entry of a menu's desired group set. */
 interface ManagedGroupPlanEntry {
   groupId: string;
-  categoryId: string;
   /**
    * Position in the root's pre-order DFS. This is the SEED order for groups the operator has
    * never seen; it is not a re-sort key (see `computeAssemblyOrder`).
@@ -124,11 +131,14 @@ interface MenuAssembly {
  * document ordering; every loser is deleted by the caller. Unlike #88's version this never has to
  * prefer an already-managed doc, because only managed docs are ever candidates — the mirror does
  * not adopt.
+ *
+ * Returns undefined for an empty candidate list, so "no doc mirrors this category yet" is a value
+ * the callers narrow on rather than a length check they have to remember to write.
  */
-function pickWinner(candidates: DocData[]): DocData {
-  let winner = candidates[0];
+function pickWinner(candidates: DocData[]): DocData | undefined {
+  let winner: DocData | undefined;
   for (const candidate of candidates) {
-    if (candidate.id < winner.id) winner = candidate;
+    if (!winner || candidate.id < winner.id) winner = candidate;
   }
   return winner;
 }
@@ -147,6 +157,13 @@ function asFiniteNumber(value: unknown): number | null {
  * Reads the raw Category docs into tree nodes. Every field is defended against untyped Firestore
  * data (absent, wrong type, empty string) rather than trusted, because these docs are written by
  * square-gateway-claude and by pre-#173 code that did not know the fields existed.
+ *
+ * `rootCategoryId` is mirrored from Square and deliberately NOT read. It is a DENORMALIZATION of
+ * the same parent chain this service walks, so trusting it would mean trusting two sources that
+ * can disagree — and the chain is the one that has to be intact anyway, since a depth-3 category
+ * needs its depth-2 ancestor to know where in the sequence it belongs. Walking the chain also
+ * fails CLOSED (an incomplete tree yields "unattached") where `rootCategoryId` would attach a
+ * category to a menu whose intermediate section was never read.
  */
 function toCategoryNodes(categories: DocData[]): CategoryNode[] {
   return categories.map((category) => ({
@@ -196,7 +213,16 @@ function compareSiblings(a: CategoryNode, b: CategoryNode): number {
  *
  * Each flattened descendant keeps its OWN group bound to its OWN category, so its products still
  * resolve through #79's `effectiveGroupProductIds`. The only thing lost is the nesting level —
- * never a category's contents, and never the authored order.
+ * never a descendant's contents, and never the authored order.
+ *
+ * THE ROOT ITSELF IS EXCLUDED, and that is a deliberate loss: a root becomes a `Menu`, a Menu has
+ * no product list, so any item Square attached directly to a top-level MENU_CATEGORY surfaces
+ * nowhere in the mirror. Square's own menu editor puts items in sections rather than on the menu
+ * itself, so this is empty in practice; giving the root a self-group would be the alternative, at
+ * the cost of a phantom group with the menu's own name in every mirrored menu.
+ *
+ * PRECONDITION: each `childrenByParentId` bucket is already sorted. This function only walks — the
+ * ordinal order comes from the caller's sort, not from here.
  */
 function orderedDescendants(rootId: string, childrenByParentId: Map<string, CategoryNode[]>): CategoryNode[] {
   const ordered: CategoryNode[] = [];
@@ -218,6 +244,14 @@ function orderedDescendants(rootId: string, childrenByParentId: Map<string, Cate
  * menu category, or a cycle. Such a category is skipped entirely and is never promoted to a Menu:
  * `isTopLevel: false` is Square's own statement that this object is not a menu, so minting a Menu
  * for it would invent a menu the merchant never authored.
+ *
+ * "Skipped" understates the consequence, and the caller's warning says so: an unattached category
+ * is not a winner for anything, so an existing managed group of its own is DELETED by the orphan
+ * rule below, and if the category is later re-attached its group is minted afresh under a new doc
+ * id — which loses that group's slot in the operator's `menuAssetDisplayOrder`. That is only ever
+ * correct if "unattached" means the merchant really did destroy the parent. A read that is merely
+ * INCOMPLETE (a partially-written catalog sync) looks identical from here, so the caller of this
+ * service must not invoke it against a half-synced catalog.
  */
 function resolveRootId(node: CategoryNode, nodesById: Map<string, CategoryNode>): string | null {
   const seen = new Set<string>([node.id]);
@@ -297,23 +331,24 @@ function planReconciliation(
   const keptMenuIds = new Set<string>();
   const keptGroupIds = new Set<string>();
 
-  // Roots in a deterministic sequence, so `menus` in the return value is stable across runs. Roots
-  // have no parent and therefore no `parent_category.ordinal`; `compareSiblings` degenerates to
-  // (name, id) for them, which is exactly the intended tie-break.
+  // Roots in a deterministic sequence, so `menus` in the return value is stable across runs.
+  // `compareSiblings` is reused rather than a root-specific comparator: Square omits
+  // `parent_category` on roots, so in practice `parentOrdinal` is null on all of them and the
+  // comparison degenerates to (name, id). A hand-edited doc that is BOTH top-level and carries a
+  // `parentOrdinal` would sort by that ordinal instead — still deterministic, which is the only
+  // property this ordering has to have, since root order affects nothing but the returned array.
   const roots = nodes.filter((node) => node.isTopLevel).sort(compareSiblings);
 
   for (const root of roots) {
-    const menuCandidates = managedMenusByCategoryId.get(root.id) ?? [];
-    const existingMenu = menuCandidates.length > 0 ? pickWinner(menuCandidates) : undefined;
+    const existingMenu = pickWinner(managedMenusByCategoryId.get(root.id) ?? []);
     if (existingMenu) keptMenuIds.add(existingMenu.id);
 
     const groupEntries: ManagedGroupPlanEntry[] = [];
     orderedDescendants(root.id, childrenByParentId).forEach((child, seedIndex) => {
-      const groupCandidates = managedGroupsByCategoryId.get(child.id) ?? [];
-      if (groupCandidates.length > 0) {
-        const winner = pickWinner(groupCandidates);
+      const winner = pickWinner(managedGroupsByCategoryId.get(child.id) ?? []);
+      if (winner) {
         keptGroupIds.add(winner.id);
-        groupEntries.push({ groupId: winner.id, categoryId: child.id, seedIndex });
+        groupEntries.push({ groupId: winner.id, seedIndex });
         return;
       }
       // productDisplayOrder stays [] on purpose: a mirror group's effective product list lives
@@ -327,7 +362,7 @@ function planReconciliation(
         managedBy: MANAGED_BY,
       });
       plan.groupCreates.push(group);
-      groupEntries.push({ groupId: group.Id, categoryId: child.id, seedIndex });
+      groupEntries.push({ groupId: group.Id, seedIndex });
     });
 
     plan.menus.push({
@@ -442,7 +477,10 @@ function computeAssemblyOrder(
  *
  * Consequence, and it is intended: the assembly is exactly the managed group set, so any
  * non-group asset (collection / product / htmlText) placed on a managed Menu is dropped. Managed
- * Menus are UI-locked read-only per #85, so operators cannot put one there.
+ * Menus are UI-locked per #85 — read-only in every respect EXCEPT the #100 group-order carve-out,
+ * which is the one operator write this service observes rather than overwrites. So an operator can
+ * reorder the assets but cannot add one, and a stray non-group asset can only arrive from outside
+ * Remy.
  */
 function buildAssembly(order: string[]): MenuAssembly {
   const menuAssets: Record<string, MenuAsset> = {};
@@ -510,7 +548,9 @@ export interface ManagedMenuResult {
 export async function syncManagedSquareMenu(
   businessId: string,
 ): Promise<{ menus: ManagedMenuResult[] }> {
-  // One timestamp for the whole run, so every doc this run touches carries the same `updated`.
+  // The `updated` stamp for the one narrow update() this service issues (a menu whose assembly
+  // changed). Created docs get their own stamp from `baseEntityDefaults`, and deletes carry none,
+  // so this is no longer a whole-run timestamp — it is hoisted only to keep it out of the loop.
   // Timestamps are ISO strings throughout this repo (`baseFieldsToFirestore` emits
   // `.toISOString()`), never Firestore Timestamps.
   const nowIso = new Date().toISOString();
@@ -546,8 +586,12 @@ export async function syncManagedSquareMenu(
   // ---------------------------------------------------------------------------
   const plan = planReconciliation(categories, groups, menus);
 
+  // Emitted on EVERY run that sees one, not only on runs that changed something. A category
+  // stranded from its root is a data problem that does not fix itself, and it silently costs the
+  // merchant a section of their menu, so the repetition is the point — a one-shot line would be
+  // gone from the logs long before anyone went looking.
   if (plan.unattachedCategoryIds.length > 0) {
-    console.warn('[ManagedMenuService] skipped menu categories with no live root', {
+    console.warn('[ManagedMenuService] menu categories with no live root: not mirrored, any managed group deleted', {
       businessId,
       categoryIds: plan.unattachedCategoryIds,
     });
@@ -568,14 +612,6 @@ export async function syncManagedSquareMenu(
   const groupsRef = PathResolver.menuGroupsCollection(businessId);
   for (const group of plan.groupCreates) {
     await groupsRef.doc(group.Id).set(menuGroupConverter.toFirestore(group));
-  }
-  // HARD delete, matching `FirestoreRepository.delete()`'s own semantics. A soft delete would
-  // leave the doc readable by anything that does not filter `isDeleted`, and would NOT trigger
-  // `pruneDanglingAssetRefs`, so a reference held by an operator's own menu would survive
-  // pointing at a dead group. Removing the doc makes that reference dangle, which the very next
-  // rebuild prunes — see the `changedMenuGroupIds` scope in Phase E.
-  for (const id of plan.groupDeletes) {
-    await groupsRef.doc(id).delete();
   }
 
   // ---------------------------------------------------------------------------
@@ -625,9 +661,23 @@ export async function syncManagedSquareMenu(
     results.push({ menuId, rootCategoryId: menuPlan.rootCategoryId, managedGroupIds: order });
   }
 
-  // Menu deletions come AFTER the surviving menus are written, for the same re-runnability reason
-  // as the group ordering: a crash between the two leaves an extra managed Menu that the next run
-  // deletes, never a business with no mirror at all.
+  // ---------------------------------------------------------------------------
+  // Phase E — apply the deletions, AFTER every surviving doc has been written.
+  // ---------------------------------------------------------------------------
+  // Deletions come last, and that ordering is the whole re-runnability argument: at every crash
+  // point the tree is a SUPERSET of the desired state, never a subset. Crash mid-deletion and the
+  // leftovers are simply deleted again next run; delete first and a crash could leave a live Menu
+  // pointing at a group that no longer exists.
+  //
+  // HARD deletes, matching `FirestoreRepository.delete()`'s own semantics. A soft delete would
+  // leave the doc readable by anything that does not filter `isDeleted`, and would NOT make an
+  // operator's reference dangle, so `pruneDanglingAssetRefs` would never clean it up. Caveat worth
+  // knowing: that pruning is itself gated on `pruneMenuAssetsOnRebuild` (#132). With the flag off,
+  // an operator menu that listed a deleted group keeps the dead id until the flag is enabled —
+  // the reference is inert either way, because the group doc is gone.
+  for (const id of plan.groupDeletes) {
+    await groupsRef.doc(id).delete();
+  }
   for (const id of plan.menuDeletes) {
     await menusRef.doc(id).delete();
   }
@@ -641,13 +691,17 @@ export async function syncManagedSquareMenu(
     || plan.menuDeletes.length > 0
     || changedMenuCount > 0
   ) {
+    // Deletions carry their IDS, not just a count. Everything else this run does is re-derivable
+    // from the catalog on the next run, so a count is enough; a hard delete is not — this line is
+    // the only record that the doc ever existed, and an incident review that can only see
+    // "groupsDeleted: 41" has nothing to work with.
     console.warn('[ManagedMenuService] mirrored Square menus', {
       businessId,
       menuCount: results.length,
       menusChanged: changedMenuCount,
-      menusDeleted: plan.menuDeletes.length,
+      menusDeleted: plan.menuDeletes,
       groupsCreated: plan.groupCreates.length,
-      groupsDeleted: plan.groupDeletes.length,
+      groupsDeleted: plan.groupDeletes,
     });
   }
 
