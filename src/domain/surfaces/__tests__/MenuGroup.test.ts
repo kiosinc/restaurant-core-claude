@@ -99,6 +99,20 @@ describe('MenuGroup (domain)', () => {
     expect(mg.products['prod-2'].isActive).toBe(false);
   });
 
+  it('productOrdinals stores the per-edge Square ordinals it is given', () => {
+    const mg = createMenuGroup(createTestMenuGroupInput({
+      productOrdinals: { 'prod-1': 3, 'prod-2': 68719476736, 'prod-3': -2250769021534208 },
+    }));
+    expect(mg.productOrdinals['prod-1']).toBe(3);
+    expect(mg.productOrdinals['prod-2']).toBe(68719476736);
+    expect(mg.productOrdinals['prod-3']).toBe(-2250769021534208);
+  });
+
+  it('defaults productOrdinals to {}', () => {
+    const mg = createMenuGroup(createTestMenuGroupInput());
+    expect(mg.productOrdinals).toEqual({});
+  });
+
   describe('validation', () => {
     it('allows empty name', () => {
       const mg = createMenuGroup(createTestMenuGroupInput({ name: '' }));

@@ -17,6 +17,7 @@ function createFullSerializedCategory() {
     name: 'Entrees',
     products: { 'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1 } },
     productDisplayOrder: ['prod-1'],
+    productOrdinals: { 'prod-1': 3 },
     imageUrls: ['cat.jpg'], imageGsls: ['gs://cat'],
     linkedObjects: { square: { linkedObjectId: 'sq-1' } },
     categoryType: 'menu',
@@ -170,5 +171,57 @@ describe('CategoryRepository', () => {
     mockDocRef.get.mockResolvedValue({ exists: true, data: () => data, id: 'cat-1' });
     const result = await repo.get('biz-1', 'cat-1');
     expect(result!.productDisplayOrder).toEqual([]);
+  });
+
+  it('round-trip preserves productOrdinals', async () => {
+    const original = createCategory({
+      ...createTestCategoryInput(),
+      Id: 'cat-ord', name: 'Entrees',
+      productOrdinals: { 'prod-1': 3, 'prod-2': 68719476736 },
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect(serialized.productOrdinals).toEqual({ 'prod-1': 3, 'prod-2': 68719476736 });
+
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-ord' });
+    const restored = await repo.get('biz-1', 'cat-ord');
+    expect(restored.productOrdinals).toEqual({ 'prod-1': 3, 'prod-2': 68719476736 });
+  });
+
+  it.each([0, 3, 68719476736, -2250769021534208, Number.MAX_SAFE_INTEGER])('round-trip preserves productOrdinals boundary value %s', async (ordinal) => {
+    const original = createCategory({
+      ...createTestCategoryInput(),
+      Id: 'cat-ord', name: 'Entrees',
+      productOrdinals: { 'prod-1': ordinal },
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect(serialized.productOrdinals['prod-1']).toBe(ordinal);
+
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-ord' });
+    const restored = await repo.get('biz-1', 'cat-ord');
+    expect(restored.productOrdinals['prod-1']).toBe(ordinal);
+  });
+
+  it('a productOrdinal past 2^53 degrades silently (the documented ceiling)', async () => {
+    const beyondCeiling = Number.MAX_SAFE_INTEGER + 2;
+    const original = createCategory({
+      ...createTestCategoryInput(),
+      Id: 'cat-ceiling', name: 'Entrees',
+      productOrdinals: { 'prod-1': beyondCeiling },
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-ceiling' });
+    const restored = await repo.get('biz-1', 'cat-ceiling');
+    expect(restored.productOrdinals['prod-1']).toBe(2 ** 53);
+  });
+
+  it('fromFirestore defaults productOrdinals to {} (legacy docs need no backfill)', async () => {
+    const data: Record<string, unknown> = createFullSerializedCategory();
+    delete data.productOrdinals;
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => data, id: 'cat-1' });
+    const result = await repo.get('biz-1', 'cat-1');
+    expect(result.productOrdinals).toEqual({});
   });
 });

@@ -4,6 +4,17 @@ import { LinkedObjectMap } from '../LinkedObjectRef';
 import { ProductOptionSetSetting, OptionSetMeta } from './OptionSet';
 import { LocationInventoryMap } from './InventoryCount';
 
+/**
+ * Denormalized product projection embedded at `Category.products[productId]` and
+ * `MenuGroup.products[productId]`.
+ *
+ * Square's per-category item ordinal deliberately does NOT live here.
+ * `CatalogCascadeService` regenerates the whole `products.{productId}` entry from
+ * `productMeta(product)` on every product save, and a Product carries no per-category value —
+ * so anything edge-scoped stored on this shape is erased by the next save. The ordinal lives in
+ * the sibling map `Category.productOrdinals` / `MenuGroup.productOrdinals`; see
+ * `Category.productOrdinals` for the full rationale.
+ */
 export interface ProductMeta {
   name: string;
   isActive: boolean;

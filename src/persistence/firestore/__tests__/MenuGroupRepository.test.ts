@@ -14,6 +14,7 @@ function createFullSerializedMenuGroup() {
     name: 'Appetizers',
     products: { 'prod-1': { name: 'Fries', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1 } },
     productDisplayOrder: ['prod-1'],
+    productOrdinals: { 'prod-1': 3 },
     displayName: 'Starters',
     parentGroup: null, childGroup: null, mirrorCategoryId: null,
     managedBy: null,
@@ -91,5 +92,28 @@ describe('MenuGroupRepository', () => {
     mockDocRef.get.mockResolvedValue({ exists: true, data: () => data, id: 'mg-1' });
     const result = await repo.get('biz-1', 'mg-1');
     expect(result!.productDisplayOrder).toEqual([]);
+  });
+
+  it('round-trip preserves productOrdinals', async () => {
+    const original = createMenuGroup({
+      ...createTestMenuGroupInput(),
+      Id: 'mg-ord', name: 'Entrees',
+      productOrdinals: { 'prod-1': -2250769021534208, 'prod-2': 3 },
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect(serialized.productOrdinals).toEqual({ 'prod-1': -2250769021534208, 'prod-2': 3 });
+
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'mg-ord' });
+    const restored = await repo.get('biz-1', 'mg-ord');
+    expect(restored.productOrdinals).toEqual({ 'prod-1': -2250769021534208, 'prod-2': 3 });
+  });
+
+  it('fromFirestore defaults productOrdinals to {} (legacy docs need no backfill)', async () => {
+    const data: Record<string, unknown> = createFullSerializedMenuGroup();
+    delete data.productOrdinals;
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => data, id: 'mg-1' });
+    const result = await repo.get('biz-1', 'mg-1');
+    expect(result.productOrdinals).toEqual({});
   });
 });

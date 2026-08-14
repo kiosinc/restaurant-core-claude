@@ -77,7 +77,7 @@ describe('ProductRelationshipHandler', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  it('onDelete removes from products map and productDisplayOrder', async () => {
+  it('onDelete removes from products map, productOrdinals map and productDisplayOrder', async () => {
     const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
     mockGet.mockResolvedValue({ docs: [{ id: 'cat-1' }] });
 
@@ -85,7 +85,17 @@ describe('ProductRelationshipHandler', () => {
 
     const updateArgs = mockUpdate.mock.calls[0][1];
     expect(updateArgs['products.prod-1']).toBe('$$FIELD_DELETE$$');
+    expect(updateArgs['productOrdinals.prod-1']).toBe('$$FIELD_DELETE$$');
     expect(updateArgs.productDisplayOrder).toBe('$$ARRAY_REMOVE:prod-1$$');
+  });
+
+  it('onSet writes only the products map entry, never productOrdinals', async () => {
+    const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
+    mockGet.mockResolvedValue({ docs: [{ id: 'cat-1' }] });
+
+    await ProductRelationshipHandler.onSet(product, 'biz-1', mockTransaction);
+
+    expect(Object.keys(mockUpdate.mock.calls[0][1])).toEqual(['products.prod-1']);
   });
 });
 
@@ -161,7 +171,7 @@ describe('ProductMenuGroupRelationshipHandler', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  it('onDelete removes from menuGroup products map and productDisplayOrder', async () => {
+  it('onDelete removes from menuGroup products map, productOrdinals map and productDisplayOrder', async () => {
     const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
     mockGet.mockResolvedValue({ docs: [{ id: 'mg-1' }] });
 
@@ -169,6 +179,7 @@ describe('ProductMenuGroupRelationshipHandler', () => {
 
     const updateArgs = mockUpdate.mock.calls[0][1];
     expect(updateArgs['products.prod-1']).toBe('$$FIELD_DELETE$$');
+    expect(updateArgs['productOrdinals.prod-1']).toBe('$$FIELD_DELETE$$');
     expect(updateArgs.productDisplayOrder).toBe('$$ARRAY_REMOVE:prod-1$$');
   });
 });
