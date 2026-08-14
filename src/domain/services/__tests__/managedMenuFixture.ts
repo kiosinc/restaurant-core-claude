@@ -1,44 +1,23 @@
 /**
- * #88 test fixture for `ManagedMenuService.syncManagedSquareMenu`.
+ * #174 test fixture for `ManagedMenuService.syncManagedSquareMenu`.
  *
  * Deliberately separate from `rebuildFixture.ts`: the 61 MenuRebuildService tests pin that
- * fixture's exact shape (4 menus / 11 groups / 39 products), so growing it to cover managed-menu
- * reconciliation would couple two unrelated suites.
+ * fixture's exact shape (4 menus / 11 groups / 39 products), so growing it to cover the Square
+ * menu mirror would couple two unrelated suites.
  *
- * Every exported helper BUILDS ITS DOCS ON EACH CALL, so a test may freely mutate the returned
- * documents (that is how the demote → re-promote round trip flips a category's `categoryType`
- * between runs — `registerCollection` stores the very object it is handed, so mutating the
- * returned doc data mutates the registered store) without leaking state into the next test.
+ * #174 replaced #88's hand-rolled worlds with a SPEC-DRIVEN builder. The mirror's desired state is
+ * now a function of a TREE, and a tree has far too many interesting shapes (two roots, depth 3, an
+ * orphaned child, a legacy flat doc, a duplicate) to enumerate one exported world per shape. A test
+ * therefore spells out the tree it needs inline — `world({ categories: [root('r'), child('c','r')] })`
+ * — and the shape under test is visible in the test itself rather than three files away.
  *
- * Category coverage, mirroring the desired-state input rule:
- *   - `catA` / `catB`   — `categoryType: 'menu'`, the only two that must ever be mirrored
- *   - `catKitchen`      — `'kitchen'`, excluded by the equality query
- *   - `catRegular`      — `'regular'`, excluded by the equality query
- *   - `catLegacy`       — NO `categoryType` KEY AT ALL (docs written before #87), so it can never
- *                         match `where('categoryType','==','menu')`
- *   - `catDeletedMenu`  — `'menu'` but `isDeleted`, excluded by the in-memory filter
+ * Every builder RETURNS FRESH DOCS ON EACH CALL, so a test may freely mutate the returned documents
+ * (`registerCollection` stores the very object it is handed, so mutating the returned doc data
+ * mutates the registered store) without leaking state into the next test.
  *
- * MenuGroup coverage in `baseFixture()`:
- *   - `mgUnmanaged`      — mirrors `catA`, `managedBy: null` → the convert-in-place path
- *   - `mgLegacyNoMirror` — no `mirrorCategoryId` key and no `managedBy` key, name-identical to a
- *                          menu category → proves matching is by id, never by name
- *   - `mgOrphanManaged`  — `managedBy: 'square'` mirroring a category that does not exist → the
- *                          demote-in-place path
- *   - `mgClassic`        — a plain operator group, must never be touched
- * and `classicMenu` references BOTH `mgUnmanaged` and `mgOrphanManaged`, which is what proves an
- * operator's classic menu keeps its reference to a group this service demotes.
- *
- * #100 ORDERING WORLD (`orderedCategoriesOnly` / `withOrderedSquareMenu`, and the `ORDERED_*`
- * constants) — a second, self-contained world used only by the order-preservation tests. It exists
- * because the worlds above cannot express "a Square Menu whose asset order the OPERATOR set":
- * `withExistingSquareMenu()` passes no `groupIds`, so its display orders are always `[]`.
- *   - Four menu categories, Alpha…Delta, one mirror group each.
- *   - The mirror group ids sort in the REVERSE of the category names (see `ORDERED_GROUP_ID`), so a
- *     regression that ordered by `groupId` instead of `(categoryName, categoryId)` is caught.
- *   - The `menu()` helper takes a RAW `menuAssetDisplayOrder` override independent of `groupIds`,
- *     which is how a fixture models Remy's `useReorderMenuAssets` merge-write — it touches that one
- *     field and leaves `groupDisplayOrder` stale — and how it models Firestore data that is
- *     duplicated, stale, non-string, non-array, or missing entirely.
+ * Absent keys are absent, never explicitly `undefined`: `category('x','X')` produces a genuine
+ * pre-#173 document with no `categoryType`, no `parentCategoryId` and no `isTopLevel` key at all,
+ * which is the only way to prove the service's "absent isTopLevel counts as a root" rule.
  */
 
 export interface FixtureDoc {
@@ -55,16 +34,6 @@ export interface FixtureSet {
 
 export const BUSINESS_ID = 'managed-menu-biz';
 
-/** Category ids and the values tests assert against, so no test reaches into the doc data. */
-export const CAT_A_ID = 'catA';
-export const CAT_A_NAME = 'Appetizers';
-export const CAT_A_PRODUCT_ORDER = ['pa1', 'pa2'];
-export const CAT_B_ID = 'catB';
-export const CAT_B_NAME = 'Beverages';
-export const CAT_B_PRODUCT_ORDER = ['pb1'];
-/** The `mirrorCategoryId` of `mgOrphanManaged` — intentionally has no Category document. */
-export const MISSING_CATEGORY_ID = 'catGone';
-
 const CREATED_ISO = '2026-01-01T00:00:00.000Z';
 const UPDATED_ISO = '2026-02-01T00:00:00.000Z';
 
@@ -72,7 +41,12 @@ function baseFields(): Record<string, unknown> {
   return { created: CREATED_ISO, updated: UPDATED_ISO, isDeleted: false };
 }
 
-function product(id: string, name: string, minPrice: number): FixtureDoc {
+// ─── Products ────────────────────────────────────────────────────────────────
+
+/** The three products the mirrored categories below hand to `rebuildMenus`. */
+export const PRODUCT_IDS = { pa1: 'pa1', pa2: 'pa2', pb1: 'pb1' };
+
+export function product(id: string, name: string, minPrice: number): FixtureDoc {
   return {
     id,
     data: {
@@ -88,100 +62,152 @@ function product(id: string, name: string, minPrice: number): FixtureDoc {
   };
 }
 
-/**
- * A Category doc. `categoryType` is only present when explicitly passed, so
- * `category('catLegacy', 'Legacy')` produces a genuine pre-#87 doc with the key ABSENT rather
- * than a doc with an explicit `undefined`.
- */
-function category(
-  id: string,
-  name: string,
-  overrides?: { categoryType?: string; productDisplayOrder?: string[]; isDeleted?: boolean },
-): FixtureDoc {
+export function fixtureProducts(): FixtureDoc[] {
+  return [
+    product(PRODUCT_IDS.pa1, 'Hummus', 600),
+    product(PRODUCT_IDS.pa2, 'Falafel', 700),
+    product(PRODUCT_IDS.pb1, 'Cola', 300),
+  ];
+}
+
+// ─── Categories ──────────────────────────────────────────────────────────────
+
+export interface CategoryOverrides {
+  /** Omitted entirely when absent — a pre-#87 doc that can never match the `'menu'` query. */
+  categoryType?: string;
+  /** Omitted entirely when absent — a pre-#173 doc, which the service must read as a ROOT. */
+  isTopLevel?: boolean;
+  parentCategoryId?: string | null;
+  parentOrdinal?: number | null;
+  rootCategoryId?: string | null;
+  productDisplayOrder?: string[];
+  isDeleted?: boolean;
+}
+
+export function category(id: string, name: string, overrides?: CategoryOverrides): FixtureDoc {
+  const o = overrides ?? {};
   return {
     id,
     data: {
       ...baseFields(),
       name,
       products: {},
-      productDisplayOrder: overrides?.productDisplayOrder ?? [],
+      productDisplayOrder: o.productDisplayOrder ?? [],
       imageUrls: [],
       imageGsls: [],
       linkedObjects: {},
-      ...(overrides?.categoryType !== undefined ? { categoryType: overrides.categoryType } : {}),
-      ...(overrides?.isDeleted !== undefined ? { isDeleted: overrides.isDeleted } : {}),
+      ...(o.categoryType !== undefined ? { categoryType: o.categoryType } : {}),
+      ...(o.isTopLevel !== undefined ? { isTopLevel: o.isTopLevel } : {}),
+      ...(o.parentCategoryId !== undefined ? { parentCategoryId: o.parentCategoryId } : {}),
+      ...(o.parentOrdinal !== undefined ? { parentOrdinal: o.parentOrdinal } : {}),
+      ...(o.rootCategoryId !== undefined ? { rootCategoryId: o.rootCategoryId } : {}),
+      ...(o.isDeleted !== undefined ? { isDeleted: o.isDeleted } : {}),
     },
   };
 }
 
 /**
- * A MenuGroup doc. `mirrorCategoryId` and `managedBy` are only present when explicitly passed,
- * so a legacy group really is missing both keys rather than carrying explicit nulls.
+ * A Square ROOT menu-category — `categoryType: 'menu'`, `isTopLevel: true`, and no parent link,
+ * exactly as Square emits a top-level menu. One of these mirrors to one managed `Menu`.
  */
-function menuGroup(
+export function root(id: string, name: string, overrides?: CategoryOverrides): FixtureDoc {
+  return category(id, name, { categoryType: 'menu', isTopLevel: true, ...overrides });
+}
+
+/**
+ * A Square CHILD menu-category — `isTopLevel: false` plus `parent_category.{id,ordinal}`. One of
+ * these mirrors to one managed `MenuGroup` on its root's Menu.
+ *
+ * `rootCategoryId` is set to `parentId` by default, which is only true at depth 2; a depth-3 spec
+ * passes it explicitly. The service never reads the field — it walks `parentCategoryId` — so the
+ * default's job is to keep the fixture honest about what Square actually writes, not to feed logic.
+ */
+export function child(
   id: string,
   name: string,
-  overrides?: {
-    displayName?: string;
-    productDisplayOrder?: string[];
-    mirrorCategoryId?: string | null;
-    managedBy?: string | null;
-    isDeleted?: boolean;
-  },
+  parentId: string,
+  ordinal: number | null,
+  overrides?: CategoryOverrides,
 ): FixtureDoc {
+  return category(id, name, {
+    categoryType: 'menu',
+    isTopLevel: false,
+    parentCategoryId: parentId,
+    parentOrdinal: ordinal,
+    rootCategoryId: parentId,
+    ...overrides,
+  });
+}
+
+// ─── MenuGroups ──────────────────────────────────────────────────────────────
+
+export interface MenuGroupOverrides {
+  displayName?: string;
+  productDisplayOrder?: string[];
+  /** Omitted entirely when absent — a legacy group that predates mirroring. */
+  mirrorCategoryId?: string | null;
+  /** Omitted entirely when absent — an OPERATOR-owned doc, which the mirror must never touch. */
+  managedBy?: string | null;
+  isDeleted?: boolean;
+}
+
+export function menuGroup(id: string, name: string, overrides?: MenuGroupOverrides): FixtureDoc {
+  const o = overrides ?? {};
   return {
     id,
     data: {
       ...baseFields(),
       name,
-      displayName: overrides?.displayName ?? name,
+      displayName: o.displayName ?? name,
       imageGsls: [],
       products: {},
-      productDisplayOrder: overrides?.productDisplayOrder ?? [],
+      productDisplayOrder: o.productDisplayOrder ?? [],
       parentGroup: null,
       childGroup: null,
-      ...(overrides?.mirrorCategoryId !== undefined
-        ? { mirrorCategoryId: overrides.mirrorCategoryId }
-        : {}),
-      ...(overrides?.managedBy !== undefined ? { managedBy: overrides.managedBy } : {}),
-      ...(overrides?.isDeleted !== undefined ? { isDeleted: overrides.isDeleted } : {}),
+      ...(o.mirrorCategoryId !== undefined ? { mirrorCategoryId: o.mirrorCategoryId } : {}),
+      ...(o.managedBy !== undefined ? { managedBy: o.managedBy } : {}),
+      ...(o.isDeleted !== undefined ? { isDeleted: o.isDeleted } : {}),
     },
   };
 }
 
-/**
- * A Menu doc. `menuAssets`, `groupDisplayOrder` and `menuAssetDisplayOrder` are all derived from
- * `groupIds` — the three-identical-sequences steady state — unless a `menuAssetDisplayOrder`
- * override breaks that symmetry on purpose.
- */
-function menu(
-  id: string,
-  name: string,
-  overrides?: {
-    managedBy?: string | null;
-    groupIds?: string[];
-    isDeleted?: boolean;
-    /**
-     * #100: RAW override for `menuAssetDisplayOrder` ALONE, left deliberately `unknown` so a
-     * fixture can express what Firestore can actually hold — an operator order that disagrees with
-     * `groupDisplayOrder`, a duplicated id, a stale id, or a value that is not even an array.
-     * `menuAssets` and `groupDisplayOrder` still come from `groupIds`, and that asymmetry is the
-     * whole point: it is exactly the state Remy's `useReorderMenuAssets` leaves behind, since it
-     * merge-writes this one field and nothing else, leaving `groupDisplayOrder` stale.
-     *
-     * `undefined` means "not overridden" (the default `[...groupIds]` applies); to express a doc
-     * with no such key at all, use `omitMenuAssetDisplayOrder`.
-     */
-    menuAssetDisplayOrder?: unknown;
-    /** #100: omit the key entirely — a menu doc written before the field existed. */
-    omitMenuAssetDisplayOrder?: boolean;
-  },
-): FixtureDoc {
-  const groupIds = overrides?.groupIds ?? [];
+/** A managed mirror group as the service itself would have written it on an earlier run. */
+export function managedGroup(id: string, name: string, categoryId: string, overrides?: MenuGroupOverrides): FixtureDoc {
+  return menuGroup(id, name, { mirrorCategoryId: categoryId, managedBy: 'square', ...overrides });
+}
+
+// ─── Menus ───────────────────────────────────────────────────────────────────
+
+export interface MenuOverrides {
+  managedBy?: string | null;
+  /** Omitted entirely when absent. `null` models the LEGACY flat "Square Menu" of #88. */
+  mirrorCategoryId?: string | null;
+  groupIds?: string[];
+  isDeleted?: boolean;
+  /**
+   * #100: RAW override for `menuAssetDisplayOrder` ALONE, left deliberately `unknown` so a fixture
+   * can express what Firestore can actually hold — an operator order that disagrees with
+   * `groupDisplayOrder`, a duplicated id, a stale id, or a value that is not even an array.
+   * `menuAssets` and `groupDisplayOrder` still come from `groupIds`, and that asymmetry is the whole
+   * point: it is exactly the state Remy's `useReorderMenuAssets` leaves behind, since it merge-writes
+   * this one field and nothing else, leaving `groupDisplayOrder` stale.
+   *
+   * `undefined` means "not overridden" (the default `[...groupIds]` applies); to express a doc with
+   * no such key at all, use `omitMenuAssetDisplayOrder`.
+   */
+  menuAssetDisplayOrder?: unknown;
+  /** #100: omit the key entirely — a menu doc written before the field existed. */
+  omitMenuAssetDisplayOrder?: boolean;
+}
+
+export function menu(id: string, name: string, overrides?: MenuOverrides): FixtureDoc {
+  const o = overrides ?? {};
+  const groupIds = o.groupIds ?? [];
   const menuAssets: Record<string, unknown> = {};
   for (const gid of groupIds) menuAssets[gid] = { assetType: 'group' };
-  const menuAssetDisplayOrder =
-    overrides?.menuAssetDisplayOrder !== undefined ? overrides.menuAssetDisplayOrder : [...groupIds];
+  const menuAssetDisplayOrder = o.menuAssetDisplayOrder !== undefined
+    ? o.menuAssetDisplayOrder
+    : [...groupIds];
   return {
     id,
     data: {
@@ -193,323 +219,132 @@ function menu(
       coverVideoGsl: null,
       logoImageGsl: null,
       gratuityRates: [],
-      managedBy: overrides?.managedBy ?? null,
+      managedBy: o.managedBy ?? null,
+      ...(o.mirrorCategoryId !== undefined ? { mirrorCategoryId: o.mirrorCategoryId } : {}),
       groups: {},
       groupDisplayOrder: [...groupIds],
       collections: {},
       menuAssets,
-      ...(overrides?.omitMenuAssetDisplayOrder ? {} : { menuAssetDisplayOrder }),
+      ...(o.omitMenuAssetDisplayOrder ? {} : { menuAssetDisplayOrder }),
       products: {},
       version: null,
-      ...(overrides?.isDeleted !== undefined ? { isDeleted: overrides.isDeleted } : {}),
+      ...(o.isDeleted !== undefined ? { isDeleted: o.isDeleted } : {}),
     },
   };
 }
 
-/** The three products referenced by `catA` / `catB`. */
-function fixtureProducts(): FixtureDoc[] {
-  return [
-    product('pa1', 'Hummus', 600),
-    product('pa2', 'Falafel', 700),
-    product('pb1', 'Cola', 300),
-  ];
+/** A managed mirror Menu as the service itself would have written it on an earlier run. */
+export function managedMenu(id: string, name: string, rootCategoryId: string, overrides?: MenuOverrides): FixtureDoc {
+  return menu(id, name, { managedBy: 'square', mirrorCategoryId: rootCategoryId, ...overrides });
 }
 
-/** Every category shape the desired-state query has to get right. */
-function fixtureCategories(): FixtureDoc[] {
+// ─── Worlds ──────────────────────────────────────────────────────────────────
+
+/**
+ * Assembles a `FixtureSet` from the parts a test cares about. `products` defaults to the three
+ * fixture products, so a world that only exercises topology never has to mention them.
+ */
+export function world(parts: {
+  categories?: FixtureDoc[];
+  products?: FixtureDoc[];
+  menuGroups?: FixtureDoc[];
+  menus?: FixtureDoc[];
+}): FixtureSet {
+  return {
+    categories: parts.categories ?? [],
+    products: parts.products ?? fixtureProducts(),
+    menuGroups: parts.menuGroups ?? [],
+    menus: parts.menus ?? [],
+  };
+}
+
+/**
+ * THE CANONICAL TREE, shared by most tests so their expectations can be spelled with the constants
+ * below instead of literals:
+ *
+ *   Breakfast (root R1)          Dinner (root R2)
+ *     ├─ 0 Appetizers  (C11)       └─ 0 Entrees (C21)
+ *     └─ 1 Beverages   (C12)
+ *
+ * Ordinals are deliberately NOT in alphabetical agreement everywhere else in the suite; here they
+ * are, so this world stays readable and the ordinal-vs-alphabetical distinction is made explicitly
+ * by the tests that care.
+ */
+export const ROOT_1_ID = 'catRootBreakfast';
+export const ROOT_1_NAME = 'Breakfast';
+export const ROOT_2_ID = 'catRootDinner';
+export const ROOT_2_NAME = 'Dinner';
+export const CHILD_11_ID = 'catAppetizers';
+export const CHILD_11_NAME = 'Appetizers';
+export const CHILD_12_ID = 'catBeverages';
+export const CHILD_12_NAME = 'Beverages';
+export const CHILD_21_ID = 'catEntrees';
+export const CHILD_21_NAME = 'Entrees';
+
+export const CHILD_11_PRODUCT_ORDER = [PRODUCT_IDS.pa1, PRODUCT_IDS.pa2];
+export const CHILD_12_PRODUCT_ORDER = [PRODUCT_IDS.pb1];
+
+/**
+ * Category shapes that must NEVER be mirrored, mixed into the canonical world so every test proves
+ * the exclusion rules by construction rather than by a dedicated case:
+ *   - `'kitchen'` and `'regular'` — excluded by the `categoryType` equality query;
+ *   - a doc with NO `categoryType` key — a pre-#87 document, likewise excluded;
+ *   - an `isDeleted` `'menu'` root — excluded by the in-memory live filter.
+ */
+export function nonMirroredCategories(): FixtureDoc[] {
   return [
-    category(CAT_A_ID, CAT_A_NAME, { categoryType: 'menu', productDisplayOrder: CAT_A_PRODUCT_ORDER }),
-    category(CAT_B_ID, CAT_B_NAME, { categoryType: 'menu', productDisplayOrder: CAT_B_PRODUCT_ORDER }),
     category('catKitchen', 'Expo Station', { categoryType: 'kitchen' }),
     category('catRegular', 'Back Office', { categoryType: 'regular' }),
-    // No `categoryType` key at all — a pre-#87 document.
     category('catLegacy', 'Legacy Category'),
-    category('catDeletedMenu', 'Retired Menu Category', { categoryType: 'menu', isDeleted: true }),
+    root('catDeletedRoot', 'Retired Menu', { isDeleted: true }),
   ];
 }
 
-/**
- * The default world: one convertible group, one legacy group that must never be matched, one
- * orphaned managed group to demote, one operator group, and a classic menu referencing two of
- * them. No `managedBy: 'square'` Menu exists yet, so a run against this set exercises create +
- * convert + demote at once.
- */
-export function baseFixture(): FixtureSet {
-  return {
-    categories: fixtureCategories(),
-    products: fixtureProducts(),
-    menuGroups: [
-      menuGroup('mgUnmanaged', CAT_A_NAME, {
-        mirrorCategoryId: CAT_A_ID,
-        managedBy: null,
-        productDisplayOrder: ['pa1'],
-      }),
-      // Name-identical to catB but with neither key — must never be adopted.
-      menuGroup('mgLegacyNoMirror', CAT_B_NAME, { displayName: 'Drinks' }),
-      menuGroup('mgOrphanManaged', 'Gone Category', {
-        mirrorCategoryId: MISSING_CATEGORY_ID,
-        managedBy: 'square',
-      }),
-      menuGroup('mgClassic', 'Operator Picks', { mirrorCategoryId: null, managedBy: null }),
-    ],
-    menus: [
-      menu('classicMenu', 'Classic Menu', {
-        managedBy: null,
-        groupIds: ['mgUnmanaged', 'mgOrphanManaged'],
-      }),
-    ],
-  };
-}
-
-/** Categories and products only — the pure create path, with nothing to adopt or demote. */
-export function menuCategoriesOnly(): FixtureSet {
-  return {
-    categories: fixtureCategories(),
-    products: fixtureProducts(),
-    menuGroups: [],
-    menus: [],
-  };
-}
-
-/** Only categories that must never be mirrored, so the assembly comes out empty. */
-export function noQualifyingCategories(): FixtureSet {
-  return {
-    categories: fixtureCategories().filter((c) => c.id !== CAT_A_ID && c.id !== CAT_B_ID),
-    products: fixtureProducts(),
-    menuGroups: [],
-    menus: [],
-  };
-}
-
-/**
- * A single already-managed group mirroring `catA`. Used for the steady-state "no write" case and,
- * by flipping `catA.categoryType` between runs, for the demote → re-promote round trip.
- */
-export function withManagedGroupForCatA(): FixtureSet {
-  return {
-    categories: fixtureCategories(),
-    products: fixtureProducts(),
-    menuGroups: [
-      menuGroup('mgManagedA', CAT_A_NAME, { mirrorCategoryId: CAT_A_ID, managedBy: 'square' }),
-    ],
-    menus: [],
-  };
-}
-
-/** A managed group whose mirror category is soft-deleted — it must be demoted, not deleted. */
-export function withSoftDeletedMirrorCategory(): FixtureSet {
-  const categories = fixtureCategories();
-  const catA = categories.find((c) => c.id === CAT_A_ID);
-  if (catA) catA.data.isDeleted = true;
-  return {
-    categories,
-    products: fixtureProducts(),
-    menuGroups: [
-      menuGroup('mgSoftDeleted', CAT_A_NAME, { mirrorCategoryId: CAT_A_ID, managedBy: 'square' }),
-    ],
-    menus: [],
-  };
-}
-
-/** An `isDeleted` group mirroring `catA` — invisible to matching, so a fresh group is created. */
-export function withDeletedMenuGroup(): FixtureSet {
-  return {
-    categories: fixtureCategories(),
-    products: fixtureProducts(),
-    menuGroups: [
-      menuGroup('mgDeletedMirror', CAT_A_NAME, {
-        mirrorCategoryId: CAT_A_ID,
-        managedBy: null,
-        isDeleted: true,
-      }),
-    ],
-    menus: [],
-  };
-}
-
-/**
- * Two groups mirroring `catA`, so exactly one must win. Ids are chosen so `dupA` sorts before
- * `dupB`, making the lowest-doc-id tie-break observable.
- */
-export function withDuplicateMirrors(
-  firstManagedBy: string | null,
-  secondManagedBy: string | null,
-): FixtureSet {
-  return {
-    categories: fixtureCategories().filter((c) => c.id !== CAT_B_ID),
-    products: fixtureProducts(),
-    menuGroups: [
-      menuGroup('dupA', CAT_A_NAME, { mirrorCategoryId: CAT_A_ID, managedBy: firstManagedBy }),
-      menuGroup('dupB', CAT_A_NAME, { mirrorCategoryId: CAT_A_ID, managedBy: secondManagedBy }),
-    ],
-    menus: [],
-  };
-}
-
-/** Ids of the two identically-named categories, in the order the category-id tie-break must produce. */
-export const TIE_CATEGORY_IDS = ['catTie1', 'catTie2'];
-
-/** Two menu categories with the SAME name, so ordering must fall through to the category id. */
-export function withTieCategories(): FixtureSet {
-  return {
-    categories: TIE_CATEGORY_IDS.map((id) => category(id, 'Tie Category', { categoryType: 'menu' })),
-    products: [],
-    menuGroups: [],
-    menus: [],
-  };
-}
-
-/**
- * 'Zebra' and 'apple': codepoint ordering puts 'Zebra' (U+005A) first, `localeCompare` puts
- * 'apple' first. The assembly order is the regression guard against `localeCompare` creeping back.
- */
-export const CODEPOINT_CATEGORY_IDS = { zebra: 'catZebra', apple: 'catApple' };
-
-export function withCodepointCategories(): FixtureSet {
-  return {
-    categories: [
-      category(CODEPOINT_CATEGORY_IDS.apple, 'apple', { categoryType: 'menu' }),
-      category(CODEPOINT_CATEGORY_IDS.zebra, 'Zebra', { categoryType: 'menu' }),
-    ],
-    products: [],
-    menuGroups: [],
-    menus: [],
-  };
-}
-
-/** Id of the pre-existing `managedBy: 'square'` Menu used by the reuse-path tests. */
-export const EXISTING_SQUARE_MENU_ID = 'sqMenu';
-
-/** The base world plus an already-existing managed Menu, so the run reuses it instead of creating. */
-export function withExistingSquareMenu(): FixtureSet {
-  const fixture = baseFixture();
-  fixture.menus.push(menu(EXISTING_SQUARE_MENU_ID, 'Square Menu', { managedBy: 'square' }));
-  return fixture;
-}
-
-/** Ids of the two managed Menus that violate the one-managed-Menu invariant. */
-export const DUPLICATE_SQUARE_MENU_IDS = ['sqMenuA', 'sqMenuB'];
-
-export function withTwoSquareMenus(): FixtureSet {
-  const fixture = menuCategoriesOnly();
-  for (const id of DUPLICATE_SQUARE_MENU_IDS) {
-    fixture.menus.push(menu(id, 'Square Menu', { managedBy: 'square' }));
-  }
-  return fixture;
-}
-
-/** Id of the soft-deleted managed Menu, which must be neither reused nor counted. */
-export const DELETED_SQUARE_MENU_ID = 'sqMenuDeleted';
-
-export function withDeletedSquareMenu(): FixtureSet {
-  const fixture = menuCategoriesOnly();
-  fixture.menus.push(
-    menu(DELETED_SQUARE_MENU_ID, 'Square Menu', { managedBy: 'square', isDeleted: true }),
-  );
-  return fixture;
-}
-
-/**
- * #100 ordering world. A key names one category and its mirror group at once, so a test spells an
- * expected sequence as keys (`[G.c, G.a, G.b]`) and never as literal doc ids.
- */
-export type OrderedKey = 'a' | 'b' | 'c' | 'd';
-
-/** All four keys, in the alphabetical order the DEFAULT (no operator order) ordering produces. */
-export const ORDERED_KEYS: OrderedKey[] = ['a', 'b', 'c', 'd'];
-
-export const ORDERED_CATEGORY_ID: Record<OrderedKey, string> = {
-  a: 'catOrdA',
-  b: 'catOrdB',
-  c: 'catOrdC',
-  d: 'catOrdD',
-};
-
-export const ORDERED_CATEGORY_NAME: Record<OrderedKey, string> = {
-  a: 'Alpha',
-  b: 'Bravo',
-  c: 'Charlie',
-  d: 'Delta',
-};
-
-/**
- * Doc ids of the pre-existing mirror groups, chosen to sort in the REVERSE of the category-name
- * order (Alpha → 'mgOrdZ' … Delta → 'mgOrdW'). Ordering is by (categoryName, categoryId) and only
- * then mapped to groupId, so an implementation that sorted the group ids instead would produce
- * d, c, b, a — caught by every default-order test whose mirror groups already exist. (Worlds that
- * mint their groups cannot catch it: a minted group's doc id is generated, not from this map.)
- */
-export const ORDERED_GROUP_ID: Record<OrderedKey, string> = {
-  a: 'mgOrdZ',
-  b: 'mgOrdY',
-  c: 'mgOrdX',
-  d: 'mgOrdW',
-};
-
-function orderedCategories(categoryKeys: OrderedKey[]): FixtureDoc[] {
-  return categoryKeys.map((k) =>
-    category(ORDERED_CATEGORY_ID[k], ORDERED_CATEGORY_NAME[k], { categoryType: 'menu' }),
-  );
-}
-
-function orderedMirrorGroups(groupKeys: OrderedKey[]): FixtureDoc[] {
-  return groupKeys.map((k) =>
-    menuGroup(ORDERED_GROUP_ID[k], ORDERED_CATEGORY_NAME[k], {
-      mirrorCategoryId: ORDERED_CATEGORY_ID[k],
-      managedBy: 'square',
+/** The canonical tree's categories, plus the never-mirrored noise. */
+export function canonicalCategories(): FixtureDoc[] {
+  return [
+    root(ROOT_1_ID, ROOT_1_NAME),
+    child(CHILD_11_ID, CHILD_11_NAME, ROOT_1_ID, 0, {
+      productDisplayOrder: CHILD_11_PRODUCT_ORDER,
     }),
-  );
+    child(CHILD_12_ID, CHILD_12_NAME, ROOT_1_ID, 1, {
+      productDisplayOrder: CHILD_12_PRODUCT_ORDER,
+    }),
+    root(ROOT_2_ID, ROOT_2_NAME),
+    child(CHILD_21_ID, CHILD_21_NAME, ROOT_2_ID, 0),
+    ...nonMirroredCategories(),
+  ];
 }
 
-/**
- * #100: the four menu categories with NO mirror groups and NO Square Menu — the create path of the
- * ordering world, where every group is a newcomer and the whole assembly is the default order.
- */
-export function orderedCategoriesOnly(): FixtureSet {
-  return {
-    categories: orderedCategories(ORDERED_KEYS),
-    products: [],
-    menuGroups: [],
-    menus: [],
-  };
+/** The canonical tree with nothing mirrored yet — the pure create path. */
+export function canonicalWorld(): FixtureSet {
+  return world({ categories: canonicalCategories() });
 }
 
+/** Doc ids of the pre-existing managed docs in `mirroredWorld()`. */
+export const MIRRORED_MENU_ID = { r1: 'sqMenuBreakfast', r2: 'sqMenuDinner' };
+export const MIRRORED_GROUP_ID = { c11: 'sqGrpAppetizers', c12: 'sqGrpBeverages', c21: 'sqGrpEntrees' };
+
 /**
- * #100: the ordering world plus an existing `managedBy: 'square'` Menu, so a run takes the REUSE
- * path and has an observed order to merge against.
- *
- * The two key lists are deliberately independent, because that is how membership changes are
- * expressed:
- *   - `categoryKeys` is the DESIRED set — the menu categories that exist this run. A key present in
- *     `groupKeys` but ABSENT here is a group whose category was DEMOTED this run.
- *   - `groupKeys` (default: `categoryKeys`) is which mirror groups ALREADY exist. A key present in
- *     `categoryKeys` but ABSENT here gets its group MINTED this run — a NEWCOMER, whose generated
- *     id the test resolves from the run's output rather than from `ORDERED_GROUP_ID`.
- *
- * The Menu reuses `EXISTING_SQUARE_MENU_ID`, so tests assert through the existing
- * `writesFor(MENUS_PATH, EXISTING_SQUARE_MENU_ID)` helper.
+ * The canonical tree ALREADY MIRRORED — the steady state a second run must leave untouched, and the
+ * starting point for every "something disappeared from Square" test (delete a category from
+ * `categories` and re-run).
  */
-export function withOrderedSquareMenu(options: {
-  categoryKeys: OrderedKey[];
-  groupKeys?: OrderedKey[];
-  /** RAW `menuAssetDisplayOrder`. Defaults to `groupKeys`' group ids (i.e. no operator reorder). */
-  existingMenuAssetDisplayOrder?: unknown;
-  /** Drop `menuAssetDisplayOrder` from the doc entirely — a Menu written before the field existed. */
-  omitMenuAssetDisplayOrder?: boolean;
-}): FixtureSet {
-  const groupKeys = options.groupKeys ?? options.categoryKeys;
-  return {
-    categories: orderedCategories(options.categoryKeys),
-    products: [],
-    menuGroups: orderedMirrorGroups(groupKeys),
+export function mirroredWorld(): FixtureSet {
+  return world({
+    categories: canonicalCategories(),
+    menuGroups: [
+      managedGroup(MIRRORED_GROUP_ID.c11, CHILD_11_NAME, CHILD_11_ID),
+      managedGroup(MIRRORED_GROUP_ID.c12, CHILD_12_NAME, CHILD_12_ID),
+      managedGroup(MIRRORED_GROUP_ID.c21, CHILD_21_NAME, CHILD_21_ID),
+    ],
     menus: [
-      // `menu()` reads both overrides as "absent means default", so they pass straight through.
-      menu(EXISTING_SQUARE_MENU_ID, 'Square Menu', {
-        managedBy: 'square',
-        groupIds: groupKeys.map((k) => ORDERED_GROUP_ID[k]),
-        menuAssetDisplayOrder: options.existingMenuAssetDisplayOrder,
-        omitMenuAssetDisplayOrder: options.omitMenuAssetDisplayOrder,
+      managedMenu(MIRRORED_MENU_ID.r1, ROOT_1_NAME, ROOT_1_ID, {
+        groupIds: [MIRRORED_GROUP_ID.c11, MIRRORED_GROUP_ID.c12],
+      }),
+      managedMenu(MIRRORED_MENU_ID.r2, ROOT_2_NAME, ROOT_2_ID, {
+        groupIds: [MIRRORED_GROUP_ID.c21],
       }),
     ],
-  };
+  });
 }

@@ -42,7 +42,12 @@ function getOrCreateStore(path: string): Map<string, any> {
  * `transactionSets`. Appended to by `docRef.set()` / `docRef.update()`, cleared by
  * `resetMockFirestore()`.
  */
-export const docWrites: Array<{ path: string; id: string; op: 'set' | 'update'; data: any }> = [];
+export const docWrites: Array<{
+  path: string;
+  id: string;
+  op: 'set' | 'update' | 'delete';
+  data: any;
+}> = [];
 
 export function registerCollection(path: string, docs: Array<{ id: string; data: Record<string, any> }>) {
   const store = new Map<string, any>();
@@ -88,6 +93,17 @@ function makeDocRef(collectionPath: string, docId: string) {
       }
       store.set(docId, { ...existing, ...data });
       docWrites.push({ path: docPath, id: docId, op: 'update', data: { ...data } });
+    },
+    // #174: real Firestore's `delete()` is a HARD delete and, unlike `update()`, carries NO
+    // "document must exist" precondition — deleting an absent doc resolves successfully. Mirror
+    // both properties, so a test cannot distinguish "deleted" from "never existed" by whether the
+    // call threw, only by the ledger. `data` is `{}` because a delete carries no payload; the
+    // ledger entry exists so ordering assertions ("groups deleted before the rebuild") can see it.
+    delete: async () => {
+      docStores.get(collectionPath)?.delete(docId);
+      docWrites.push({
+        path: docPath, id: docId, op: 'delete', data: {},
+      });
     },
   };
 }
