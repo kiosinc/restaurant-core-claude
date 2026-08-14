@@ -99,6 +99,24 @@ describe('MenuGroup (domain)', () => {
     expect(mg.products['prod-2'].isActive).toBe(false);
   });
 
+  it('products stores squareOrdinal on ProductMeta', () => {
+    const mg = createMenuGroup(createTestMenuGroupInput({
+      products: {
+        'prod-1': { name: 'Sauteed Kale', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1, squareOrdinal: 68719476736 },
+      },
+    }));
+    expect(mg.products['prod-1'].squareOrdinal).toBe(68719476736);
+  });
+
+  it('createMenuGroup does not rewrite products entries to inject squareOrdinal', () => {
+    const products = {
+      'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1 },
+    };
+    const mg = createMenuGroup(createTestMenuGroupInput({ products }));
+    expect(mg.products['prod-1']).toBe(products['prod-1']);
+    expect('squareOrdinal' in mg.products['prod-1']).toBe(false);
+  });
+
   describe('validation', () => {
     it('allows empty name', () => {
       const mg = createMenuGroup(createTestMenuGroupInput({ name: '' }));

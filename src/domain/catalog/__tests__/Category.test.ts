@@ -103,6 +103,24 @@ describe('Category (domain)', () => {
     expect(category.products['prod-1'].variationCount).toBe(3);
   });
 
+  it('products stores squareOrdinal on ProductMeta', () => {
+    const category = createCategory(createTestCategoryInput({
+      products: {
+        'prod-1': { name: 'Sauteed Kale', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1, squareOrdinal: -2250769021534208 },
+      },
+    }));
+    expect(category.products['prod-1'].squareOrdinal).toBe(-2250769021534208);
+  });
+
+  it('createCategory does not rewrite products entries to inject squareOrdinal', () => {
+    const products = {
+      'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1 },
+    };
+    const category = createCategory(createTestCategoryInput({ products }));
+    expect(category.products['prod-1']).toBe(products['prod-1']);
+    expect('squareOrdinal' in category.products['prod-1']).toBe(false);
+  });
+
   describe('validation', () => {
     it('allows empty name', () => {
       const category = createCategory(createTestCategoryInput({ name: '' }));

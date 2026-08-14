@@ -171,4 +171,84 @@ describe('CategoryRepository', () => {
     const result = await repo.get('biz-1', 'cat-1');
     expect(result!.productDisplayOrder).toEqual([]);
   });
+
+  it('round-trip preserves squareOrdinal on a products map entry', async () => {
+    const original = createCategory({
+      ...createTestCategoryInput(),
+      Id: 'cat-ord', name: 'Entrees',
+      products: { 'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1, squareOrdinal: 3 } },
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect(serialized.products['prod-1'].squareOrdinal).toBe(3);
+
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-ord' });
+    const restored = await repo.get('biz-1', 'cat-ord');
+    expect(restored.products['prod-1'].squareOrdinal).toBe(3);
+  });
+
+  it.each([0, 3, 68719476736, -2250769021534208, Number.MAX_SAFE_INTEGER])('round-trip preserves squareOrdinal boundary value %s', async (squareOrdinal) => {
+    const original = createCategory({
+      ...createTestCategoryInput(),
+      Id: 'cat-ord', name: 'Entrees',
+      products: { 'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1, squareOrdinal } },
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect(serialized.products['prod-1'].squareOrdinal).toBe(squareOrdinal);
+
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-ord' });
+    const restored = await repo.get('biz-1', 'cat-ord');
+    expect(restored.products['prod-1'].squareOrdinal).toBe(squareOrdinal);
+  });
+
+  it('round-trip preserves an explicitly null squareOrdinal', async () => {
+    const original = createCategory({
+      ...createTestCategoryInput(),
+      Id: 'cat-ord-null', name: 'Entrees',
+      products: { 'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1, squareOrdinal: null } },
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect('squareOrdinal' in serialized.products['prod-1']).toBe(true);
+    expect(serialized.products['prod-1'].squareOrdinal).toBeNull();
+
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-ord-null' });
+    const restored = await repo.get('biz-1', 'cat-ord-null');
+    expect(restored.products['prod-1'].squareOrdinal).toBeNull();
+  });
+
+  it('fromFirestore leaves squareOrdinal absent on a legacy products map entry (no backfill)', async () => {
+    mockDocRef.get.mockResolvedValue({
+      exists: true, data: () => createFullSerializedCategory(), id: 'cat-1',
+    });
+    const result = await repo.get('biz-1', 'cat-1');
+    expect('squareOrdinal' in result.products['prod-1']).toBe(false);
+    expect(result.products['prod-1'].squareOrdinal ?? null).toBeNull();
+  });
+
+  it('toFirestore does not invent squareOrdinal on a legacy products map entry', async () => {
+    const category = createCategory({
+      ...createTestCategoryInput(),
+      Id: 'cat-legacy', name: 'Entrees',
+      products: { 'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1 } },
+    });
+    await repo.set(category, 'biz-1');
+    const data = mockTransaction.set.mock.calls[0][1];
+    expect('squareOrdinal' in data.products['prod-1']).toBe(false);
+  });
+
+  it('squareOrdinal past 2^53 degrades silently (the documented ceiling)', async () => {
+    const beyondCeiling = Number.MAX_SAFE_INTEGER + 2;
+    const original = createCategory({
+      ...createTestCategoryInput(),
+      Id: 'cat-ceiling', name: 'Entrees',
+      products: { 'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1, squareOrdinal: beyondCeiling } },
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-ceiling' });
+    const restored = await repo.get('biz-1', 'cat-ceiling');
+    expect(restored.products['prod-1'].squareOrdinal).toBe(2 ** 53);
+  });
 });
