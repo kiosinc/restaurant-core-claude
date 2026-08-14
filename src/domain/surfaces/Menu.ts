@@ -41,6 +41,7 @@ export interface MenuInput {
   coverVideoGsl?: string | null;
   logoImageGsl?: string | null;
   gratuityRates?: number[];
+  mirrorCategoryId?: string | null;
   managedBy?: string | null;
   collections?: { [id: string]: MenuCollectionMeta };
   menuAssets?: { [id: string]: MenuAsset };
@@ -59,6 +60,18 @@ export interface Menu extends BaseEntity {
   coverVideoGsl: string | null;
   logoImageGsl: string | null;
   gratuityRates: number[];
+  /**
+   * Binds a managed Menu to the Square ROOT category it mirrors (#85 Amendment 1) — the
+   * stable identity multi-menu reconcile matches on, exactly as `MenuGroup.mirrorCategoryId`
+   * binds a group to its child category. Membership source, not an ownership lock; that is
+   * `managedBy` below. Defaults to null, so Menus written before this field existed
+   * deserialize to null through createMenu() and no backfill is required.
+   *
+   * Also declared in `MenuRebuildService`'s `MaterializedMenuDoc`: the rebuild `t.set()`s the
+   * whole menu document from that allowlist, so a Menu field missing there is erased on every
+   * rebuild. Add to both or neither.
+   */
+  mirrorCategoryId: string | null;
   managedBy: string | null;
   collections: { [id: string]: MenuCollectionMeta };
   menuAssets: { [id: string]: MenuAsset };
@@ -80,6 +93,7 @@ export function createMenu(input: MenuInput & Partial<BaseEntity>): Menu {
     coverVideoGsl: input.coverVideoGsl ?? null,
     logoImageGsl: input.logoImageGsl ?? null,
     gratuityRates: input.gratuityRates ?? [],
+    mirrorCategoryId: input.mirrorCategoryId ?? null,
     managedBy: input.managedBy ?? null,
     collections: input.collections ?? {},
     menuAssets: input.menuAssets ?? {},

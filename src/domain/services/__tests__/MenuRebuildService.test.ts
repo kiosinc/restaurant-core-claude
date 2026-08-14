@@ -105,9 +105,19 @@ describe('MenuRebuildService', () => {
       expect(menu1Data.coverImageGsl).toBe('gs://main-cover.jpg');
       expect(menu1Data.logoImageGsl).toBe('gs://logo.png');
       expect(menu1Data.gratuityRates).toEqual([15, 18, 20]);
+      expect(menu1Data.mirrorCategoryId).toBe('dKlTguVV2yNCVFJjH2sH');
       expect(menu1Data.managedBy).toBe('square');
       expect(menu1Data.isDeleted).toBe(false);
       expect(menu1Data.version).toBe('2.0');
+    });
+
+    it('materializes mirrorCategoryId as null on a menu that predates the field', async () => {
+      await rebuildMenus(BUSINESS_ID);
+
+      const menu4Data = transactionSets.find((s) => s.ref._docId === 'menu4')?.data;
+      expect(menu4Data).toBeDefined();
+      expect(menu4Data).toHaveProperty('mirrorCategoryId');
+      expect(menu4Data.mirrorCategoryId).toBeNull();
     });
 
     it('each group has required fields: displayName, name, imageGsls, productDisplayOrder, mirrorCategoryId, managedBy', async () => {

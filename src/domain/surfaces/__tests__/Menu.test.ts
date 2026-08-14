@@ -18,6 +18,7 @@ describe('Menu (domain)', () => {
       coverVideoGsl: 'gs://video',
       logoImageGsl: 'gs://logo',
       gratuityRates: [15, 18, 20],
+      mirrorCategoryId: 'cat-root',
       managedBy: 'square',
       created: now,
       updated: now,
@@ -33,6 +34,7 @@ describe('Menu (domain)', () => {
     expect(menu.coverVideoGsl).toBe('gs://video');
     expect(menu.logoImageGsl).toBe('gs://logo');
     expect(menu.gratuityRates).toEqual([15, 18, 20]);
+    expect(menu.mirrorCategoryId).toBe('cat-root');
     expect(menu.managedBy).toBe('square');
   });
 
@@ -74,6 +76,11 @@ describe('Menu (domain)', () => {
   it('defaults gratuityRates to []', () => {
     const menu = createMenu(createTestMenuInput());
     expect(menu.gratuityRates).toEqual([]);
+  });
+
+  it('defaults mirrorCategoryId to null', () => {
+    const menu = createMenu(createTestMenuInput());
+    expect(menu.mirrorCategoryId).toBeNull();
   });
 
   it('defaults managedBy to null', () => {

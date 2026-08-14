@@ -20,6 +20,11 @@ function createFullSerializedCategory() {
     imageUrls: ['cat.jpg'], imageGsls: ['gs://cat'],
     linkedObjects: { square: { linkedObjectId: 'sq-1' } },
     categoryType: 'menu',
+    parentCategoryId: 'cat-root',
+    parentOrdinal: 3,
+    rootCategoryId: 'cat-root',
+    isTopLevel: false,
+    managedBy: 'square',
     created: ts, updated: ts, isDeleted: false,
   };
 }
@@ -63,6 +68,9 @@ describe('CategoryRepository', () => {
     expect(data.name).toBe('Entrees');
     expect(data.productDisplayOrder).toEqual(['prod-1']);
     expect(data.categoryType).toBe('regular');
+    expect(data.isTopLevel).toBe(true);
+    expect(data.managedBy).toBeNull();
+    expect(data.parentCategoryId).toBeNull();
   });
 
   it('round-trip preserves data', async () => {
@@ -101,6 +109,51 @@ describe('CategoryRepository', () => {
     mockDocRef.get.mockResolvedValue({ exists: true, data: () => data, id: 'cat-1' });
     const result = await repo.get('biz-1', 'cat-1');
     expect(result!.categoryType).toBe('regular');
+  });
+
+  it('fromFirestore applies P18.1 defaults to a pre-P18.1 category doc', async () => {
+    const data = createFullSerializedCategory();
+    delete (data as any).parentCategoryId;
+    delete (data as any).parentOrdinal;
+    delete (data as any).rootCategoryId;
+    delete (data as any).isTopLevel;
+    delete (data as any).managedBy;
+    delete (data as any).categoryType;
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => data, id: 'cat-1' });
+    const result = await repo.get('biz-1', 'cat-1');
+    expect(result!.parentCategoryId).toBeNull();
+    expect(result!.parentOrdinal).toBeNull();
+    expect(result!.rootCategoryId).toBeNull();
+    expect(result!.isTopLevel).toBe(true);
+    expect(result!.managedBy).toBeNull();
+    expect(result!.categoryType).toBe('regular');
+  });
+
+  it('round-trip preserves hierarchy fields and managedBy', async () => {
+    const original = createCategory({
+      ...createTestCategoryInput(),
+      Id: 'cat-child', name: 'Tacos',
+      parentCategoryId: 'cat-root',
+      parentOrdinal: 3,
+      rootCategoryId: 'cat-root',
+      isTopLevel: false,
+      managedBy: 'square',
+    });
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect(serialized.parentCategoryId).toBe('cat-root');
+    expect(serialized.parentOrdinal).toBe(3);
+    expect(serialized.rootCategoryId).toBe('cat-root');
+    expect(serialized.isTopLevel).toBe(false);
+    expect(serialized.managedBy).toBe('square');
+
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => serialized, id: 'cat-child' });
+    const restored = await repo.get('biz-1', 'cat-child');
+    expect(restored!.parentCategoryId).toBe(original.parentCategoryId);
+    expect(restored!.parentOrdinal).toBe(original.parentOrdinal);
+    expect(restored!.rootCategoryId).toBe(original.rootCategoryId);
+    expect(restored!.isTopLevel).toBe(original.isTopLevel);
+    expect(restored!.managedBy).toBe(original.managedBy);
   });
 
   it('fromFirestore defaults products to {}', async () => {
