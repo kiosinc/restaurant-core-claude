@@ -23,6 +23,11 @@ export interface CategoryInput {
   imageGsls?: string[];
   linkedObjects?: LinkedObjectMap;
   categoryType?: CategoryType;
+  parentCategoryId?: string | null;
+  parentOrdinal?: number | null;
+  rootCategoryId?: string | null;
+  isTopLevel?: boolean;
+  managedBy?: string | null;
 }
 
 export interface Category extends BaseEntity {
@@ -38,6 +43,30 @@ export interface Category extends BaseEntity {
    * deserialize to 'regular', because the converter reads through createCategory().
    */
   categoryType: CategoryType;
+  /**
+   * Square's two-level MENU_CATEGORY tree, mirrored verbatim from
+   * `categoryData.parent_category.id` / `.ordinal`, `categoryData.root_category` and
+   * `categoryData.is_top_level` — see the P18.1 integration contract (#85, Amendment 1).
+   * A root category becomes a KIOS Menu; a child category becomes a MenuGroup under it.
+   *
+   * Square omits `parent_category` and `root_category` on roots, so both default to null.
+   * `isTopLevel` defaults to TRUE, not false: every doc written before this field existed
+   * predates the Square menu tree and is therefore flat, i.e. parentless. Legacy docs
+   * deserialize to these defaults because the converter reads through createCategory(),
+   * so no backfill is required.
+   */
+  parentCategoryId: string | null;
+  parentOrdinal: number | null;
+  rootCategoryId: string | null;
+  isTopLevel: boolean;
+  /**
+   * Ownership lock, not membership. Non-null (currently only 'square') means an external
+   * system owns this doc and KIOS surfaces render it read-only. Orthogonal to
+   * `MenuGroup.mirrorCategoryId` / `Menu.mirrorCategoryId`, which is the membership
+   * source (#79). Defaults to null and is stamped by square-gateway-claude; legacy docs
+   * deserialize to null through createCategory(), so no backfill is required.
+   */
+  managedBy: string | null;
 }
 
 export function createCategory(input: CategoryInput & Partial<BaseEntity>): Category {
@@ -51,6 +80,11 @@ export function createCategory(input: CategoryInput & Partial<BaseEntity>): Cate
     imageGsls: input.imageGsls ?? [],
     linkedObjects: input.linkedObjects ?? {},
     categoryType: input.categoryType ?? 'regular',
+    parentCategoryId: input.parentCategoryId ?? null,
+    parentOrdinal: input.parentOrdinal ?? null,
+    rootCategoryId: input.rootCategoryId ?? null,
+    isTopLevel: input.isTopLevel ?? true,
+    managedBy: input.managedBy ?? null,
   };
 }
 
