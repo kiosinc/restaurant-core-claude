@@ -47,6 +47,16 @@ describe('CatalogCascadeService', () => {
       const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
       expect(buildSavedUpdates(product, [], productSpec)).toEqual([]);
     });
+
+    it('writes ONLY products.{id} — never clobbers the sibling productOrdinals map', () => {
+      // The reason productOrdinals is a sibling map and not a ProductMeta field: this save path
+      // replaces products.{id} wholesale from productMeta(product), which carries no per-category
+      // value. Any additional key here would silently erase edge-scoped data on every product save.
+      const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
+      const result = buildSavedUpdates(product, ['cat-1'], productSpec);
+
+      expect(Object.keys(result[0].update.fieldsToSet)).toEqual(['products.prod-1']);
+    });
   });
 
   describe('product saved — menuGroup parent context', () => {
@@ -82,8 +92,19 @@ describe('CatalogCascadeService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].parentId).toBe('cat-1');
       expect(result[0].update.fieldsToSet).toEqual({});
-      expect(result[0].update.fieldsToDelete).toEqual(['products.prod-1']);
+      expect(result[0].update.fieldsToDelete).toEqual([
+        'products.prod-1',
+        'productOrdinals.prod-1',
+      ]);
       expect(result[0].update.arrayFieldRemovals).toEqual({ productDisplayOrder: 'prod-1' });
+    });
+
+    it('deletes products and productOrdinals for a single parent', () => {
+      const product = createProduct(createTestProductInput({ Id: 'prod-1' }));
+      const result = buildDeletedUpdates(product, ['cat-1'], productSpec);
+
+      expect(result[0].update.fieldsToDelete).toContain('products.prod-1');
+      expect(result[0].update.fieldsToDelete).toContain('productOrdinals.prod-1');
     });
 
     it('returns updates for multiple parents', () => {

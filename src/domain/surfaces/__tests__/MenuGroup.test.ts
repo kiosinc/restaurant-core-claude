@@ -99,22 +99,18 @@ describe('MenuGroup (domain)', () => {
     expect(mg.products['prod-2'].isActive).toBe(false);
   });
 
-  it('products stores squareOrdinal on ProductMeta', () => {
+  it('productOrdinals stores the per-edge Square ordinals it is given', () => {
     const mg = createMenuGroup(createTestMenuGroupInput({
-      products: {
-        'prod-1': { name: 'Sauteed Kale', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1, squareOrdinal: 68719476736 },
-      },
+      productOrdinals: { 'prod-1': 3, 'prod-2': 68719476736, 'prod-3': -2250769021534208 },
     }));
-    expect(mg.products['prod-1'].squareOrdinal).toBe(68719476736);
+    expect(mg.productOrdinals['prod-1']).toBe(3);
+    expect(mg.productOrdinals['prod-2']).toBe(68719476736);
+    expect(mg.productOrdinals['prod-3']).toBe(-2250769021534208);
   });
 
-  it('createMenuGroup does not rewrite products entries to inject squareOrdinal', () => {
-    const products = {
-      'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1 },
-    };
-    const mg = createMenuGroup(createTestMenuGroupInput({ products }));
-    expect(mg.products['prod-1']).toBe(products['prod-1']);
-    expect('squareOrdinal' in mg.products['prod-1']).toBe(false);
+  it('defaults productOrdinals to {}', () => {
+    const mg = createMenuGroup(createTestMenuGroupInput());
+    expect(mg.productOrdinals).toEqual({});
   });
 
   describe('validation', () => {

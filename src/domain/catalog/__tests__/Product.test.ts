@@ -101,11 +101,6 @@ describe('Product (domain)', () => {
     });
   });
 
-  it('productMeta() does not project squareOrdinal', () => {
-    const product = createProduct(createTestProductInput({ name: 'Sauteed Kale' }));
-    expect('squareOrdinal' in productMeta(product)).toBe(false);
-  });
-
   it('optionSets stores OptionSetMeta', () => {
     const product = createProduct(createTestProductInput({
       optionSets: {

@@ -103,22 +103,18 @@ describe('Category (domain)', () => {
     expect(category.products['prod-1'].variationCount).toBe(3);
   });
 
-  it('products stores squareOrdinal on ProductMeta', () => {
+  it('productOrdinals stores the per-edge Square ordinals it is given', () => {
     const category = createCategory(createTestCategoryInput({
-      products: {
-        'prod-1': { name: 'Sauteed Kale', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1, squareOrdinal: -2250769021534208 },
-      },
+      productOrdinals: { 'prod-1': 3, 'prod-2': 68719476736, 'prod-3': -2250769021534208 },
     }));
-    expect(category.products['prod-1'].squareOrdinal).toBe(-2250769021534208);
+    expect(category.productOrdinals['prod-1']).toBe(3);
+    expect(category.productOrdinals['prod-2']).toBe(68719476736);
+    expect(category.productOrdinals['prod-3']).toBe(-2250769021534208);
   });
 
-  it('createCategory does not rewrite products entries to inject squareOrdinal', () => {
-    const products = {
-      'prod-1': { name: 'Burger', isActive: true, imageUrls: [], imageGsls: [], minPrice: 500, maxPrice: 500, variationCount: 1 },
-    };
-    const category = createCategory(createTestCategoryInput({ products }));
-    expect(category.products['prod-1']).toBe(products['prod-1']);
-    expect('squareOrdinal' in category.products['prod-1']).toBe(false);
+  it('defaults productOrdinals to {}', () => {
+    const category = createCategory(createTestCategoryInput());
+    expect(category.productOrdinals).toEqual({});
   });
 
   describe('validation', () => {
