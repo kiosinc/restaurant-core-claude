@@ -45,5 +45,6 @@ export {
 } from './AvailabilityService';
 
 export {
+  ManagedMenuResult,
   syncManagedSquareMenu,
 } from './ManagedMenuService';

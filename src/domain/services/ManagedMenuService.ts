@@ -8,22 +8,41 @@ import { menuConverter, menuGroupConverter } from '../../persistence/firestore/c
 import { rebuildMenus } from './MenuRebuildService';
 
 /**
- * #88 / #85: the "Square Menu" reconciler.
+ * #174 / #85 Amendment 1: the Square menu MIRROR.
  *
- * Mirrors every non-deleted `categoryType: 'menu'` Category into a `managedBy: 'square'`
- * MenuGroup, assembles those groups onto a single `managedBy: 'square'` Menu named
- * "Square Menu", and then lets `rebuildMenus()` materialize it.
+ * Square models menus as a two-level tree built entirely out of `MENU_CATEGORY` objects,
+ * distinguished by `is_top_level` / `parent_category.id`. This service mirrors that tree:
+ *
+ *   Square root menu-category  →  KIOS `Menu`      bound by `Menu.mirrorCategoryId`
+ *   Square child menu-category →  KIOS `MenuGroup` bound by `MenuGroup.mirrorCategoryId`
+ *
+ * and then lets `rebuildMenus()` materialize the result. N roots produce N managed Menus —
+ * Kreation has 34 — so more than one `managedBy: 'square'` Menu is the EXPECTED state.
  *
  * This is a LEVEL-TRIGGERED reconciler, not an event handler: it takes only a businessId and
  * re-derives the whole desired state from the Categories collection on every run. Observe →
  * plan (pure) → apply the diff → let the existing deriver recompute the projection. A run that
  * finds nothing to change performs zero writes.
  *
- * SPLIT OWNERSHIP (#100): this reconciler owns MEMBERSHIP (which group ids are on the Square
- * Menu, re-derived from the catalog every run), while the OPERATOR owns ORDER (the relative
- * sequence of those ids, set in Remy and observed from the menu doc — never re-derived here).
- * The one thing this service does order is a group the operator has never seen: a newcomer is
- * appended in the default order below, and is never re-sorted once it is on the menu.
+ * OWNERSHIP — the mirror creates and owns ONLY its own entities. There is no adoption: a group
+ * the operator built by hand for the same Square category is never read, converted, reordered or
+ * deleted, even though its `mirrorCategoryId` matches. The accepted, documented tradeoff is that
+ * the operator then sees two rows — theirs and the managed one. Inventing names or silently
+ * merging would break the mirror contract.
+ *
+ * DELETE, DON'T DEMOTE — a root that disappears from Square takes its managed Menu and that
+ * menu's managed groups with it; a child that disappears takes its group. Demotion
+ * (`managedBy → null`, doc retained) is deliberately NOT a state this service can produce.
+ * Per #79 a group's effective product list is the mirror CATEGORY's `productDisplayOrder` when
+ * `mirrorCategoryId` is set and that category exists; a demoted group whose category was deleted
+ * falls through to the group's OWN, now permanently stale list — a frozen ghost sitting in an
+ * operator's menu with no live source and no signal that it is dead. Deleting is strictly better.
+ *
+ * SPLIT OWNERSHIP (#100): this reconciler owns MEMBERSHIP (which group ids are on which menu,
+ * re-derived from the catalog every run), while the OPERATOR owns ORDER (the relative sequence of
+ * those ids, set in Remy and observed from the menu doc — never re-derived here). The one thing
+ * this service does order is a group the operator has never seen: a newcomer is appended in the
+ * SEED order below, and is never re-sorted once it is on the menu.
  *
  * FLAG-AGNOSTIC BY CONTRACT (#88): this service deliberately does NOT read the
  * `syncSquareMenuCategories` feature flag. Callers (the gateway / businesses cascade) gate on
@@ -32,7 +51,6 @@ import { rebuildMenus } from './MenuRebuildService';
  * here — add the gate at the call site.
  */
 
-const MANAGED_MENU_NAME = 'Square Menu';
 const MANAGED_BY = Provider.square; // 'square'
 
 /** Same shape `MenuRebuildService` uses for a raw Firestore doc: id plus untyped data. */
@@ -48,24 +66,50 @@ function toLiveDocs(snapshot: FirebaseFirestore.QuerySnapshot): DocData[] {
     .filter((d) => !d.data.isDeleted);
 }
 
-/** One entry of the desired managed set — the group id plus the mirror category it came from. */
+/** One node of the mirrored Square tree, read out of raw Category doc data. */
+interface CategoryNode {
+  id: string;
+  name: string;
+  parentCategoryId: string | null;
+  parentOrdinal: number | null;
+  /**
+   * `isTopLevel !== false`, i.e. ABSENT COUNTS AS TRUE — matching `createCategory`'s default.
+   * Every Category doc written before #173 predates the Square menu tree and is therefore flat,
+   * i.e. parentless, so a legacy doc is a root and mirrors to a Menu of its own.
+   */
+  isTopLevel: boolean;
+}
+
+/** One entry of a menu's desired group set — the group id plus the child category it came from. */
 interface ManagedGroupPlanEntry {
   groupId: string;
   categoryId: string;
-  categoryName: string;
+  /**
+   * Position in the root's pre-order DFS. This is the SEED order for groups the operator has
+   * never seen; it is not a re-sort key (see `computeAssemblyOrder`).
+   */
+  seedIndex: number;
+}
+
+/** One desired managed Menu: the root it mirrors, plus its groups in seed order. */
+interface ManagedMenuPlanEntry {
+  rootCategoryId: string;
+  rootCategoryName: string;
+  /** The existing managed Menu doc, when this root already has one. */
+  existingMenu?: DocData;
+  groups: ManagedGroupPlanEntry[];
 }
 
 interface ReconciliationPlan {
+  menus: ManagedMenuPlanEntry[];
   /** Managed groups that do not exist yet, already built as domain entities. */
-  creates: Array<{ group: MenuGroup; categoryId: string; categoryName: string }>;
-  /** Existing doc ids to stamp `managedBy = 'square'` (adopt in place — never re-create). */
-  converts: string[];
-  /** Existing doc ids to stamp `managedBy = null` (demote in place — never delete). */
-  demotes: string[];
-  /** The full desired managed set, unordered here; `computeAssemblyOrder` orders it. */
-  managed: ManagedGroupPlanEntry[];
-  /** Categories mirrored by more than one group, for the collision warning. */
-  duplicateCategoryIds: string[];
+  groupCreates: MenuGroup[];
+  /** Managed MenuGroup doc ids to delete — their category is gone, or they lost a duplicate race. */
+  groupDeletes: string[];
+  /** Managed Menu doc ids to delete — their root is gone, or they lost a duplicate race. */
+  menuDeletes: string[];
+  /** Descendant categories whose parent chain never reaches a live root, for the skip warning. */
+  unattachedCategoryIds: string[];
 }
 
 interface MenuAssembly {
@@ -75,155 +119,275 @@ interface MenuAssembly {
 }
 
 /**
- * #88: winner selection among the groups that mirror one category. Prefer a group that is
- * already `managedBy: 'square'` (so a steady-state run never flips which doc is managed), then
- * the lexicographically lowest doc id (so the choice is deterministic across runs and
- * independent of Firestore's document ordering).
+ * Winner selection among managed docs bound to the SAME mirror category. The lexicographically
+ * lowest doc id wins, so the choice is deterministic across runs and independent of Firestore's
+ * document ordering; every loser is deleted by the caller. Unlike #88's version this never has to
+ * prefer an already-managed doc, because only managed docs are ever candidates — the mirror does
+ * not adopt.
  */
-function pickWinner(candidates: DocData[]): DocData | undefined {
-  let winner: DocData | undefined;
+function pickWinner(candidates: DocData[]): DocData {
+  let winner = candidates[0];
   for (const candidate of candidates) {
-    if (!winner) {
-      winner = candidate;
-      continue;
-    }
-    const isCandidateManaged = candidate.data.managedBy === MANAGED_BY;
-    const isWinnerManaged = winner.data.managedBy === MANAGED_BY;
-    if (isCandidateManaged !== isWinnerManaged) {
-      if (isCandidateManaged) winner = candidate;
-      continue;
-    }
     if (candidate.id < winner.id) winner = candidate;
   }
   return winner;
 }
 
+/** Reads a raw Firestore value as a non-empty string, or null. */
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+/** Reads a raw Firestore value as a finite number, or null. */
+function asFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 /**
- * #88: the whole diff, computed purely — no I/O, no Firestore types beyond the raw doc data.
- * Keeping this a pure function is what makes the reconciliation logic testable in isolation
- * (the `CatalogCascadeService` compute/apply split, applied here).
+ * Reads the raw Category docs into tree nodes. Every field is defended against untyped Firestore
+ * data (absent, wrong type, empty string) rather than trusted, because these docs are written by
+ * square-gateway-claude and by pre-#173 code that did not know the fields existed.
+ */
+function toCategoryNodes(categories: DocData[]): CategoryNode[] {
+  return categories.map((category) => ({
+    id: category.id,
+    name: typeof category.data.name === 'string' ? category.data.name : '',
+    parentCategoryId: asNonEmptyString(category.data.parentCategoryId),
+    parentOrdinal: asFiniteNumber(category.data.parentOrdinal),
+    isTopLevel: category.data.isTopLevel !== false,
+  }));
+}
+
+/**
+ * Sibling order WITHIN one parent: Square's `parent_category.ordinal` first, then the category
+ * name, then the id.
+ *
+ * Ordinal-less siblings sort AFTER ordinaled ones (`null` is "unknown position", and Square omits
+ * the ordinal only on data that never carried one) rather than being treated as ordinal 0, which
+ * would silently jump them to the front.
+ *
+ * The name/id fallbacks are deliberately NOT `localeCompare`: its result depends on the runtime's
+ * ICU data and default locale, so two Node builds (or a container with a trimmed ICU) would
+ * produce different orders for the same input — which makes "deterministic and stable across
+ * runs" false and produces pointless menu rewrites. Plain codepoint comparison is stable
+ * everywhere.
+ */
+function compareSiblings(a: CategoryNode, b: CategoryNode): number {
+  if (a.parentOrdinal !== b.parentOrdinal) {
+    if (a.parentOrdinal === null) return 1;
+    if (b.parentOrdinal === null) return -1;
+    return a.parentOrdinal - b.parentOrdinal;
+  }
+  if (a.name < b.name) return -1;
+  if (a.name > b.name) return 1;
+  if (a.id < b.id) return -1;
+  if (a.id > b.id) return 1;
+  return 0;
+}
+
+/**
+ * #85 Amendment 1 — DEPTH > 2 IS FLATTENED, ORDER IS NOT.
+ *
+ * KIOS surfaces are two levels (Menu → MenuGroup) while Square nests arbitrarily, so every
+ * descendant of a root — depth 2, depth 3, deeper — becomes a MenuGroup on that root's Menu. The
+ * sequence is a PRE-ORDER DFS with siblings in `parentOrdinal` order, which places a depth-3
+ * category immediately after the depth-2 ancestor it belongs to: "flattened into the nearest
+ * depth-2 ancestor, preserving ordinal order".
+ *
+ * Each flattened descendant keeps its OWN group bound to its OWN category, so its products still
+ * resolve through #79's `effectiveGroupProductIds`. The only thing lost is the nesting level —
+ * never a category's contents, and never the authored order.
+ */
+function orderedDescendants(rootId: string, childrenByParentId: Map<string, CategoryNode[]>): CategoryNode[] {
+  const ordered: CategoryNode[] = [];
+  const walk = (parentId: string): void => {
+    for (const child of childrenByParentId.get(parentId) ?? []) {
+      ordered.push(child);
+      walk(child.id);
+    }
+  };
+  walk(rootId);
+  return ordered;
+}
+
+/**
+ * Resolves the root each descendant hangs from, by walking `parentCategoryId` up through the live
+ * menu-category graph.
+ *
+ * Returns null for an UNATTACHED descendant — one whose chain hits a category that is not a live
+ * menu category, or a cycle. Such a category is skipped entirely and is never promoted to a Menu:
+ * `isTopLevel: false` is Square's own statement that this object is not a menu, so minting a Menu
+ * for it would invent a menu the merchant never authored.
+ */
+function resolveRootId(node: CategoryNode, nodesById: Map<string, CategoryNode>): string | null {
+  const seen = new Set<string>([node.id]);
+  let current = node;
+  for (;;) {
+    if (current.parentCategoryId === null) return null; // child with no parent link
+    const parent = nodesById.get(current.parentCategoryId);
+    if (!parent) return null; // parent missing, deleted, or not a menu category
+    if (parent.isTopLevel) return parent.id;
+    if (seen.has(parent.id)) return null; // cycle in hand-edited or corrupt data
+    seen.add(parent.id);
+    current = parent;
+  }
+}
+
+/**
+ * The whole diff, computed purely — no I/O, no Firestore types beyond the raw doc data. Keeping
+ * this a pure function is what makes the reconciliation logic testable in isolation (the
+ * `CatalogCascadeService` compute/apply split, applied here).
  *
  * @param categories non-deleted Categories with `categoryType === 'menu'`
  * @param groups every non-deleted MenuGroup in the business
+ * @param menus every non-deleted Menu in the business
  */
-function planReconciliation(categories: DocData[], groups: DocData[]): ReconciliationPlan {
-  const creates: ReconciliationPlan['creates'] = [];
-  const converts: string[] = [];
-  const demotes: string[] = [];
-  const managed: ManagedGroupPlanEntry[] = [];
-  const duplicateCategoryIds: string[] = [];
+function planReconciliation(
+  categories: DocData[],
+  groups: DocData[],
+  menus: DocData[],
+): ReconciliationPlan {
+  const nodes = toCategoryNodes(categories);
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
 
-  // Index the live groups by mirrorCategoryId. A group with a null/empty mirrorCategoryId can
-  // never be matched or converted — legacy operator groups predate the field, and adopting one
-  // by name would silently seize an operator-owned doc.
-  const groupsByCategoryId = new Map<string, DocData[]>();
-  for (const group of groups) {
-    const mirrorCategoryId = group.data.mirrorCategoryId;
-    if (typeof mirrorCategoryId !== 'string' || mirrorCategoryId === '') continue;
-    const bucket = groupsByCategoryId.get(mirrorCategoryId);
-    if (bucket) bucket.push(group);
-    else groupsByCategoryId.set(mirrorCategoryId, [group]);
+  // Attach every descendant to its root, dropping the unattached. Children are collected per
+  // parent (not per root) so the DFS below can recurse to any depth.
+  const childrenByParentId = new Map<string, CategoryNode[]>();
+  const unattachedCategoryIds: string[] = [];
+  for (const node of nodes) {
+    if (node.isTopLevel) continue;
+    if (resolveRootId(node, nodesById) === null) {
+      unattachedCategoryIds.push(node.id);
+      continue;
+    }
+    // `parentCategoryId` is non-null here: `resolveRootId` returns null when it is null.
+    const parentId = node.parentCategoryId as string;
+    const bucket = childrenByParentId.get(parentId);
+    if (bucket) bucket.push(node);
+    else childrenByParentId.set(parentId, [node]);
   }
+  for (const siblings of childrenByParentId.values()) siblings.sort(compareSiblings);
 
-  const winnerIds = new Set<string>();
+  // Index the MANAGED docs by the category they mirror. Operator-owned docs are deliberately never
+  // indexed: with adoption gone, a doc this service did not create is a doc it must not touch, and
+  // the only way to guarantee that is to keep it out of the candidate set entirely.
+  const indexManagedByMirrorCategoryId = (docs: DocData[]): Map<string, DocData[]> => {
+    const byCategoryId = new Map<string, DocData[]>();
+    for (const doc of docs) {
+      if (doc.data.managedBy !== MANAGED_BY) continue;
+      const mirrorCategoryId = asNonEmptyString(doc.data.mirrorCategoryId);
+      if (mirrorCategoryId === null) continue;
+      const bucket = byCategoryId.get(mirrorCategoryId);
+      if (bucket) bucket.push(doc);
+      else byCategoryId.set(mirrorCategoryId, [doc]);
+    }
+    return byCategoryId;
+  };
+  const managedMenusByCategoryId = indexManagedByMirrorCategoryId(menus);
+  const managedGroupsByCategoryId = indexManagedByMirrorCategoryId(groups);
 
-  for (const category of categories) {
-    const categoryName: string = category.data.name ?? '';
-    const candidates = groupsByCategoryId.get(category.id) ?? [];
-    if (candidates.length > 1) duplicateCategoryIds.push(category.id);
+  const plan: ReconciliationPlan = {
+    menus: [],
+    groupCreates: [],
+    groupDeletes: [],
+    menuDeletes: [],
+    unattachedCategoryIds,
+  };
 
-    const winner = pickWinner(candidates);
+  const keptMenuIds = new Set<string>();
+  const keptGroupIds = new Set<string>();
 
-    if (!winner) {
+  // Roots in a deterministic sequence, so `menus` in the return value is stable across runs. Roots
+  // have no parent and therefore no `parent_category.ordinal`; `compareSiblings` degenerates to
+  // (name, id) for them, which is exactly the intended tie-break.
+  const roots = nodes.filter((node) => node.isTopLevel).sort(compareSiblings);
+
+  for (const root of roots) {
+    const menuCandidates = managedMenusByCategoryId.get(root.id) ?? [];
+    const existingMenu = menuCandidates.length > 0 ? pickWinner(menuCandidates) : undefined;
+    if (existingMenu) keptMenuIds.add(existingMenu.id);
+
+    const groupEntries: ManagedGroupPlanEntry[] = [];
+    orderedDescendants(root.id, childrenByParentId).forEach((child, seedIndex) => {
+      const groupCandidates = managedGroupsByCategoryId.get(child.id) ?? [];
+      if (groupCandidates.length > 0) {
+        const winner = pickWinner(groupCandidates);
+        keptGroupIds.add(winner.id);
+        groupEntries.push({ groupId: winner.id, categoryId: child.id, seedIndex });
+        return;
+      }
       // productDisplayOrder stays [] on purpose: a mirror group's effective product list lives
       // on the mirror CATEGORY and is resolved at materialization time by
       // `effectiveGroupProductIds()` (#79). Pre-filling it here would create a second, stale
       // copy of the truth that the two paths could drift apart on.
       const group = createMenuGroup({
-        name: categoryName,
-        displayName: categoryName,
-        mirrorCategoryId: category.id,
+        name: child.name,
+        displayName: child.name,
+        mirrorCategoryId: child.id,
         managedBy: MANAGED_BY,
       });
-      creates.push({ group, categoryId: category.id, categoryName });
-      managed.push({ groupId: group.Id, categoryId: category.id, categoryName });
-      continue;
-    }
+      plan.groupCreates.push(group);
+      groupEntries.push({ groupId: group.Id, categoryId: child.id, seedIndex });
+    });
 
-    winnerIds.add(winner.id);
-    // Adopt in place. `converts` never includes a group that is already managed, so a
-    // steady-state run produces an empty plan and therefore zero writes.
-    if (winner.data.managedBy !== MANAGED_BY) converts.push(winner.id);
-    managed.push({ groupId: winner.id, categoryId: category.id, categoryName });
+    plan.menus.push({
+      rootCategoryId: root.id,
+      rootCategoryName: root.name,
+      existingMenu,
+      groups: groupEntries,
+    });
   }
 
-  // #88 — THE SINGLE ORPHAN RULE:
-  //   every non-deleted MenuGroup with managedBy === 'square' that is NOT a winner for a live
-  //   menu category is demoted (managedBy = null, mirrorCategoryId retained, doc never deleted)
-  //   and is absent from the assembly.
-  //
-  // One sentence, no branches, and it subsumes all four cases the issue lists separately:
-  //   1. the mirror category document no longer exists;
-  //   2. the mirror category was soft-deleted (isDeleted);
-  //   3. the mirror category was demoted to 'regular' / 'kitchen';
-  //   4. two managed groups mirror the same category — the loser is by definition not the
-  //      winner, so it self-heals to unmanaged with no special case.
-  // Non-managed losers are never touched: they are operator-owned groups whose managedBy is
-  // already null, so "demoting" them would be a pure no-op write. Retaining mirrorCategoryId
-  // means re-promoting a category re-adopts the very same doc instead of creating a duplicate.
+  // THE SINGLE ORPHAN RULE, now a deletion rule:
+  //   every live `managedBy: 'square'` doc that is not a winner for a live mirror category is
+  //   DELETED. One sentence, no branches, and it subsumes every case:
+  //     1. the mirror category document no longer exists;
+  //     2. the mirror category was soft-deleted, or demoted to 'regular' / 'kitchen';
+  //     3. a child category was reparented under a root that no longer exists (unattached);
+  //     4. a legacy flat "Square Menu" carrying `managedBy: 'square'` with NO `mirrorCategoryId` —
+  //        the combination #85 Amendment 1 calls nonsensical — is swept away by the same rule,
+  //        because it can never be a winner;
+  //     5. two managed docs mirror the same category: the loser is by definition not the winner.
+  // Operator-owned docs are never candidates: `managedBy !== 'square'` fails the first test, so
+  // this loop cannot reach anything the mirror did not create.
+  for (const menu of menus) {
+    if (menu.data.managedBy === MANAGED_BY && !keptMenuIds.has(menu.id)) plan.menuDeletes.push(menu.id);
+  }
   for (const group of groups) {
-    if (group.data.managedBy === MANAGED_BY && !winnerIds.has(group.id)) demotes.push(group.id);
+    if (group.data.managedBy === MANAGED_BY && !keptGroupIds.has(group.id)) plan.groupDeletes.push(group.id);
   }
 
-  return {
-    creates, converts, demotes, managed, duplicateCategoryIds,
-  };
+  return plan;
 }
 
 /**
- * #88: the DEFAULT order — the mirrored category's `name`, tie-broken by category id, so the
- * default is deterministic and stable across runs regardless of Firestore's document order.
+ * #100 / remy#349: the single source of truth for a managed Menu's asset order —
+ * OPERATOR ORDER FIRST, seed order only for groups the operator has never seen.
  *
- * Deliberately NOT `localeCompare`: its result depends on the runtime's ICU data and default
- * locale, so two Node builds (or a container with a trimmed ICU) would produce different orders
- * for the same input — which makes "deterministic and stable across runs" false and produces
- * pointless menu rewrites. Plain codepoint comparison is stable everywhere.
- *
- * #100 narrowed where this applies: it orders NEWCOMERS only (and, on initial creation, every
- * group — which is the same thing). It is never a global re-sort of an existing menu.
- */
-function compareByCategoryNameThenId(a: ManagedGroupPlanEntry, b: ManagedGroupPlanEntry): number {
-  if (a.categoryName < b.categoryName) return -1;
-  if (a.categoryName > b.categoryName) return 1;
-  if (a.categoryId < b.categoryId) return -1;
-  if (a.categoryId > b.categoryId) return 1;
-  return 0;
-}
-
-/**
- * #100 / remy#349: the single source of truth for the Square Menu's asset order —
- * OPERATOR ORDER FIRST, alphabetical only for groups the operator has never seen.
- *
- * Membership and sequence have DIFFERENT OWNERS. This reconciler owns membership: the assembly
- * is exactly the managed group set, re-derived from the catalog every run. The operator owns the
- * sequence, via Remy's reorder (`useReorderMenuAssets` merge-writes `menuAssetDisplayOrder` and
- * nothing else). So the sequence is OBSERVED from the document instead of being re-derived, and
- * `menuAssetDisplayOrder` — not `groupDisplayOrder` — is the field observed, because that is the
- * one Remy actually writes. `buildAssembly` then re-derives `groupDisplayOrder` from it, which
- * also HEALS a `groupDisplayOrder` left stale by a reorder.
+ * Membership and sequence have DIFFERENT OWNERS. This reconciler owns membership: a menu's
+ * assembly is exactly its managed group set, re-derived from the catalog every run. The operator
+ * owns the sequence, via Remy's reorder (`useReorderMenuAssets` merge-writes
+ * `menuAssetDisplayOrder` and nothing else). So the sequence is OBSERVED from the document instead
+ * of being re-derived, and `menuAssetDisplayOrder` — not `groupDisplayOrder` — is the field
+ * observed, because that is the one Remy actually writes. `buildAssembly` then re-derives
+ * `groupDisplayOrder` from it, which also HEALS a `groupDisplayOrder` left stale by a reorder.
  *
  * The merge is a stable partition, not a diff:
- *   [existing order ∩ desired, relative order preserved] ++ [desired \ existing, default order]
+ *   [existing order ∩ desired, relative order preserved] ++ [desired \ existing, seed order]
  * It is a fixed point — feeding its own output back in with an unchanged desired set returns a
- * byte-identical array, which is what keeps `assemblyEquals` silent on a steady-state run — and
- * it degenerates to #88's fully alphabetical order when there is no existing order at all.
+ * byte-identical array, which is what keeps `assemblyEquals` silent on a steady-state run — and it
+ * degenerates to the full seed order when there is no existing order at all.
  *
- * @param managedGroups the desired managed set, unordered
- * @param existingMenuAssetDisplayOrder the RAW `menuAssetDisplayOrder` off the existing Square
- *   Menu doc. Typed `unknown` on purpose: it is untyped Firestore data written by another
- *   process, so it may be absent, a non-array, or hold duplicate / stale / non-group ids. A
- *   `string[]` annotation here would be a lie TypeScript happily accepts, because
- *   `DocumentData` is index-signature `any`.
+ * #174 changed only what "seed order" means: it was alphabetical by category name, a stand-in for
+ * information we did not have; it is now `seedIndex`, the position Square's own
+ * `parent_category.ordinal` puts the category in (see `orderedDescendants`).
+ *
+ * @param managedGroups the desired managed set for ONE menu, carrying its seed order
+ * @param existingMenuAssetDisplayOrder the RAW `menuAssetDisplayOrder` off the existing managed
+ *   Menu doc. Typed `unknown` on purpose: it is untyped Firestore data written by another process,
+ *   so it may be absent, a non-array, or hold duplicate / stale / non-group ids. A `string[]`
+ *   annotation here would be a lie TypeScript happily accepts, because `DocumentData` is
+ *   index-signature `any`.
  */
 function computeAssemblyOrder(
   managedGroups: ManagedGroupPlanEntry[],
@@ -243,7 +407,7 @@ function computeAssemblyOrder(
   for (const id of rawOrder) {
     // Three independent skip reasons, every one of them a real state of a live document:
     //  - not a string: hand-edited or corrupt data;
-    //  - not desired:  demoted or dropped this run, or a stale / non-group asset id left behind;
+    //  - not desired:  deleted or dropped this run, or a stale / non-group asset id left behind;
     //  - already placed: a duplicate id. Emitting it twice would make `order` LONGER than the
     //    `menuAssets` map `buildAssembly` derives from it, breaking the "three identical
     //    sequences" invariant that `assemblyEquals` and Remy both depend on.
@@ -254,18 +418,18 @@ function computeAssemblyOrder(
     order.push(id);
   }
 
-  // Newcomers sort AMONG THEMSELVES ONLY. A global re-sort here is precisely the bug this issue
-  // fixes. On initial creation `placed` is empty, every group is a newcomer, and this is #88's
-  // fully alphabetical order.
+  // Newcomers sort AMONG THEMSELVES ONLY. A global re-sort here is precisely the bug #100 fixed.
+  // On initial creation `placed` is empty, every group is a newcomer, and this is the full seed
+  // order.
   const newcomers = [...desiredByGroupId.values()].filter((entry) => !placed.has(entry.groupId));
-  newcomers.sort(compareByCategoryNameThenId);
+  newcomers.sort((a, b) => a.seedIndex - b.seedIndex);
   for (const entry of newcomers) order.push(entry.groupId);
 
   return order;
 }
 
 /**
- * #88: the ONLY place the Square Menu's three membership/ordering fields are produced, so no
+ * #88: the ONLY place a managed Menu's three membership/ordering fields are produced, so no
  * consumer can ever see a third answer.
  *
  * All three must be written, as identical sequences:
@@ -273,12 +437,12 @@ function computeAssemblyOrder(
  * - `menuAssetDisplayOrder` is what Remy actually renders — `MenuGroupList.tsx:176` feeds the
  *   list with `menu.menuAssetDisplayOrder ?? []` and `:150` derives the count from it — and
  *   `rebuildMenus` only ever FILTERS that array, never derives it, so leaving it empty renders
- *   an empty Square Menu;
+ *   an empty menu;
  * - `groupDisplayOrder` is the legacy order, kept in sync for older readers.
  *
  * Consequence, and it is intended: the assembly is exactly the managed group set, so any
- * non-group asset (collection / product / htmlText) placed on the Square Menu is dropped. The
- * Square Menu is UI-locked read-only per #85, so operators cannot put one there.
+ * non-group asset (collection / product / htmlText) placed on a managed Menu is dropped. Managed
+ * Menus are UI-locked read-only per #85, so operators cannot put one there.
  */
 function buildAssembly(order: string[]): MenuAssembly {
   const menuAssets: Record<string, MenuAsset> = {};
@@ -299,8 +463,8 @@ function arraysEqual(a: string[], b: string[]): boolean {
 }
 
 /**
- * #88: no-churn guard for the reuse path — the menu doc is only updated when the assembly
- * actually differs, so a steady-state run writes nothing.
+ * #88: no-churn guard for the reuse path — a menu doc is only updated when its assembly actually
+ * differs, so a steady-state run writes nothing.
  *
  * This mirrors the idea of `menuAssetsEqual` (`MenuRebuildService.ts:310-329`) rather than
  * reusing the function: it is not exported, and exporting it purely for this caller would widen
@@ -324,23 +488,28 @@ function assemblyEquals(
     && arraysEqual(existingData.groupDisplayOrder ?? [], assembly.groupDisplayOrder);
 }
 
+/** One mirrored Menu as reported back to the caller. */
+export interface ManagedMenuResult {
+  menuId: string;
+  rootCategoryId: string;
+  managedGroupIds: string[];
+}
+
 /**
- * Reconciles the business's "Square Menu" with its `categoryType: 'menu'` Categories and
- * materializes the result.
+ * Mirrors the business's Square menu tree — one managed `Menu` per root `categoryType: 'menu'`
+ * Category, one managed `MenuGroup` per descendant — and materializes the result.
  *
- * Idempotent: a run that finds the desired state already in place performs zero document
- * writes (the trailing `rebuildMenus` rewrites the menu byte-identically).
+ * Idempotent: a run that finds the desired state already in place performs zero document writes
+ * (the trailing `rebuildMenus` rewrites each menu byte-identically).
  *
- * @param businessId the tenant to reconcile
- * @returns the managed Menu's id, and the managed MenuGroup ids **in Square-Menu assembly
- *   order** — the same array as the menu's `menuAssetDisplayOrder`, so a caller can log or
- *   assert the order without re-reading Firestore
- * @throws Error prefixed `[ManagedMenuService]` when the business has more than one live
- *   `managedBy: 'square'` Menu; nothing is written in that case
+ * @param businessId the tenant to mirror
+ * @returns one entry per managed Menu, ordered by root category (name, id); each carries the root
+ *   it mirrors and its managed MenuGroup ids **in assembly order** — the same array as that menu's
+ *   `menuAssetDisplayOrder`, so a caller can log or assert the order without re-reading Firestore
  */
 export async function syncManagedSquareMenu(
   businessId: string,
-): Promise<{ menuId: string; managedGroupIds: string[] }> {
+): Promise<{ menus: ManagedMenuResult[] }> {
   // One timestamp for the whole run, so every doc this run touches carries the same `updated`.
   // Timestamps are ISO strings throughout this repo (`baseFieldsToFirestore` emits
   // `.toISOString()`), never Firestore Timestamps.
@@ -354,147 +523,152 @@ export async function syncManagedSquareMenu(
     // no `categoryType` field at all and therefore never match — the desired-state input is
     // correct by construction, with no `?? 'regular'` special case. 'kitchen' is excluded free.
     PathResolver.categoriesCollection(businessId).where('categoryType', '==', 'menu').get(),
-    // FULL collection read on purpose. A `where('mirrorCategoryId', 'in', …)` query (the
-    // gateway's approach) would need 30-id chunking AND would miss orphaned managed groups
-    // whose category no longer exists — precisely the set the orphan rule has to find. These
-    // collections are tens of docs, so the full read is both simpler and strictly more correct.
+    // FULL collection reads on purpose. A `where('mirrorCategoryId', 'in', …)` query (the
+    // gateway's approach) would need 30-id chunking AND would miss orphaned managed docs whose
+    // category no longer exists — precisely the set the deletion rule has to find. The menus read
+    // is unfiltered for the same reason: a legacy managed Menu with no `mirrorCategoryId` has to
+    // be visible in order to be swept. These collections are tens of docs, so the full reads are
+    // both simpler and strictly more correct.
     PathResolver.menuGroupsCollection(businessId).get(),
-    PathResolver.menusCollection(businessId).where('managedBy', '==', MANAGED_BY).get(),
+    PathResolver.menusCollection(businessId).get(),
   ]);
 
   // `isDeleted` is filtered IN MEMORY (by `toLiveDocs`), deliberately not as a second `where()`:
-  // combining it with the equality clauses above would require a composite index, and until that
+  // combining it with the equality clause above would require a composite index, and until that
   // index is built Firestore returns an empty result set — the reconciler would silently see no
-  // categories and demote every managed group. In-memory filtering has no such failure mode.
+  // categories and delete every managed doc. In-memory filtering has no such failure mode.
   const categories = toLiveDocs(categorySnap);
   const groups = toLiveDocs(groupSnap);
-  const managedMenus = toLiveDocs(menuSnap);
+  const menus = toLiveDocs(menuSnap);
 
   // ---------------------------------------------------------------------------
-  // Phase B — validate the invariant, still before the first write.
+  // Phase B — plan (pure).
   // ---------------------------------------------------------------------------
-  // Placement is the point: failing here leaves an invariant-violating business COMPLETELY
-  // untouched rather than half-reconciled against an arbitrarily chosen menu. Precedent:
-  // `LinkedObjectQueries.ts:42-47` throws the same way on a duplicate linked object.
-  if (managedMenus.length > 1) {
-    throw new Error(
-      `[ManagedMenuService] more than one managedBy:'${MANAGED_BY}' Menu for business ${businessId}: `
-      + `${managedMenus.map((m) => m.id).join(', ')}`,
-    );
-  }
-  // Identity is `managedBy === 'square'` ONLY, never the name. If the single managed menu was
-  // renamed by an operator we reuse it as-is and do not rename it back — name drift is out of
-  // scope. `MANAGED_MENU_NAME` is used on create and nowhere else. An isDeleted managed Menu is
-  // invisible here: neither reused nor counted, so a business that soft-deleted its Square Menu
-  // simply gets a fresh one on the next run.
-  const existingMenu: DocData | undefined = managedMenus[0];
+  const plan = planReconciliation(categories, groups, menus);
 
-  // ---------------------------------------------------------------------------
-  // Phase C — plan (pure).
-  // ---------------------------------------------------------------------------
-  const plan = planReconciliation(categories, groups);
-
-  if (plan.duplicateCategoryIds.length > 0) {
-    console.warn('[ManagedMenuService] duplicate mirrorCategoryId groups', {
+  if (plan.unattachedCategoryIds.length > 0) {
+    console.warn('[ManagedMenuService] skipped menu categories with no live root', {
       businessId,
-      categoryIds: plan.duplicateCategoryIds,
+      categoryIds: plan.unattachedCategoryIds,
     });
   }
 
   // ---------------------------------------------------------------------------
-  // Phase D — apply the group writes, BEFORE the menu assembly.
+  // Phase C — apply the group writes, BEFORE the menu assemblies.
   // ---------------------------------------------------------------------------
-  // Ordering rationale: the menu must never reference a MenuGroup doc that does not exist yet.
-  // A dangling ref is pruned by `pruneDanglingAssetRefs` on the very next rebuild, so the group
-  // would flap in and out of the menu on alternating runs. Writing groups first makes every
-  // crash point re-runnable instead: an extra un-referenced managed group is re-adopted (or
-  // demoted) next run, and a demoted-but-still-listed group is dropped from the assembly next
-  // run.
+  // Ordering rationale: a menu must never reference a MenuGroup doc that does not exist yet. A
+  // dangling ref is pruned by `pruneDanglingAssetRefs` on the very next rebuild, so the group
+  // would flap in and out of the menu on alternating runs. Writing groups first makes every crash
+  // point re-runnable instead: an extra un-referenced managed group is re-used (or deleted) next
+  // run, and a deleted-but-still-listed group is dropped from the assembly next run.
   //
-  // Sequential awaits, no `db.batch()` / `BulkWriter`: there is no precedent for either
-  // anywhere in `src/`, and `rebuildMenus` opens its own transactions immediately afterwards,
-  // so end-to-end atomicity is unreachable regardless of how these writes are grouped.
+  // Sequential awaits, no `db.batch()` / `BulkWriter`: there is no precedent for either anywhere
+  // in `src/`, and `rebuildMenus` opens its own transactions immediately afterwards, so
+  // end-to-end atomicity is unreachable regardless of how these writes are grouped.
   const groupsRef = PathResolver.menuGroupsCollection(businessId);
-  for (const { group } of plan.creates) {
+  for (const group of plan.groupCreates) {
     await groupsRef.doc(group.Id).set(menuGroupConverter.toFirestore(group));
   }
-  // NARROW update(), not a converter round-trip: `toFirestore` would rewrite every field,
-  // re-serialize `created`, and clobber `products` / `productDisplayOrder` written by the
-  // gateway. A managed-state flip is a genuine mutation, so `updated` is bumped with it; a
-  // no-op run reaches neither loop and writes nothing at all.
-  for (const id of plan.converts) {
-    await groupsRef.doc(id).update({ managedBy: MANAGED_BY, updated: nowIso });
-  }
-  for (const id of plan.demotes) {
-    await groupsRef.doc(id).update({ managedBy: null, updated: nowIso });
+  // HARD delete, matching `FirestoreRepository.delete()`'s own semantics. A soft delete would
+  // leave the doc readable by anything that does not filter `isDeleted`, and would NOT trigger
+  // `pruneDanglingAssetRefs`, so a reference held by an operator's own menu would survive
+  // pointing at a dead group. Removing the doc makes that reference dangle, which the very next
+  // rebuild prunes — see the `changedMenuGroupIds` scope in Phase E.
+  for (const id of plan.groupDeletes) {
+    await groupsRef.doc(id).delete();
   }
 
   // ---------------------------------------------------------------------------
-  // Phase E — resolve-or-create the Menu and write the assembly.
+  // Phase D — resolve-or-create each Menu and write its assembly.
   // ---------------------------------------------------------------------------
-  // No `?? []` fallback: `computeAssemblyOrder` already treats anything that is not an array —
-  // including the `undefined` of "no existing menu" — as "no observed order", and normalizing the
-  // same concern twice would leave two places to keep in agreement.
-  const order = computeAssemblyOrder(plan.managed, existingMenu?.data.menuAssetDisplayOrder);
-  const assembly = buildAssembly(order);
   const menusRef = PathResolver.menusCollection(businessId);
+  const results: ManagedMenuResult[] = [];
+  let changedMenuCount = 0;
 
-  let menuId: string;
-  let isAssemblyChanged: boolean;
-  if (!existingMenu) {
-    // #88 (R10): `Menu.groups` is deliberately NOT written here — `createMenu` leaves it `{}`
-    // and the update path never touches it. `rebuildMenus` overwrites `groups` wholesale from
-    // the freshly-read MenuGroup/Category/Product docs (`MenuRebuildService.ts:443`), so
-    // anything written here would be dead work — and worse, would make this service a SECOND
-    // writer of a materialized projection, which is exactly the drift hazard #79 warns about.
-    // `{}` is self-consistent ("not yet materialized") and Phase F runs unconditionally below.
-    const menu = createMenu({
-      name: MANAGED_MENU_NAME,
-      displayName: MANAGED_MENU_NAME,
-      managedBy: MANAGED_BY,
-      ...assembly,
-    });
-    await menusRef.doc(menu.Id).set(menuConverter.toFirestore(menu));
-    menuId = menu.Id;
-    isAssemblyChanged = true;
-  } else {
-    menuId = existingMenu.id;
-    isAssemblyChanged = !assemblyEquals(existingMenu.data, assembly);
-    if (isAssemblyChanged) {
-      await menusRef.doc(menuId).update({ ...assembly, updated: nowIso });
+  for (const menuPlan of plan.menus) {
+    // No `?? []` fallback: `computeAssemblyOrder` already treats anything that is not an array —
+    // including the `undefined` of "no existing menu" — as "no observed order", and normalizing
+    // the same concern twice would leave two places to keep in agreement.
+    const order = computeAssemblyOrder(menuPlan.groups, menuPlan.existingMenu?.data.menuAssetDisplayOrder);
+    const assembly = buildAssembly(order);
+
+    let menuId: string;
+    if (!menuPlan.existingMenu) {
+      // `Menu.groups` is deliberately NOT written here — `createMenu` leaves it `{}` and the
+      // update path never touches it. `rebuildMenus` overwrites `groups` wholesale from the
+      // freshly-read MenuGroup/Category/Product docs (`MenuRebuildService.ts:443`), so anything
+      // written here would be dead work — and worse, would make this service a SECOND writer of a
+      // materialized projection, which is exactly the drift hazard #79 warns about. `{}` is
+      // self-consistent ("not yet materialized") and Phase F runs unconditionally below.
+      //
+      // The Menu is NAMED AFTER ITS ROOT CATEGORY at creation and never renamed afterwards, the
+      // same rule managed groups have followed since #88: name drift is out of scope, and a
+      // rename would be a write on a doc whose assembly is otherwise unchanged.
+      const menu = createMenu({
+        name: menuPlan.rootCategoryName,
+        displayName: menuPlan.rootCategoryName,
+        mirrorCategoryId: menuPlan.rootCategoryId,
+        managedBy: MANAGED_BY,
+        ...assembly,
+      });
+      await menusRef.doc(menu.Id).set(menuConverter.toFirestore(menu));
+      menuId = menu.Id;
+      changedMenuCount += 1;
+    } else {
+      menuId = menuPlan.existingMenu.id;
+      if (!assemblyEquals(menuPlan.existingMenu.data, assembly)) {
+        await menusRef.doc(menuId).update({ ...assembly, updated: nowIso });
+        changedMenuCount += 1;
+      }
     }
+
+    results.push({ menuId, rootCategoryId: menuPlan.rootCategoryId, managedGroupIds: order });
   }
 
-  // Log only when something actually happened. This runs on every catalog sync, so a per-run
-  // line on the no-change path would drown the signal — same reasoning as
-  // `MenuRebuildService.ts:457`, which warns only when it actually pruned something.
+  // Menu deletions come AFTER the surviving menus are written, for the same re-runnability reason
+  // as the group ordering: a crash between the two leaves an extra managed Menu that the next run
+  // deletes, never a business with no mirror at all.
+  for (const id of plan.menuDeletes) {
+    await menusRef.doc(id).delete();
+  }
+
+  // Log only when something actually happened. This runs on every catalog sync, so a per-run line
+  // on the no-change path would drown the signal — same reasoning as `MenuRebuildService.ts:457`,
+  // which warns only when it actually pruned something.
   if (
-    plan.creates.length > 0
-    || plan.converts.length > 0
-    || plan.demotes.length > 0
-    || isAssemblyChanged
+    plan.groupCreates.length > 0
+    || plan.groupDeletes.length > 0
+    || plan.menuDeletes.length > 0
+    || changedMenuCount > 0
   ) {
-    console.warn('[ManagedMenuService] reconciled Square Menu', {
+    console.warn('[ManagedMenuService] mirrored Square menus', {
       businessId,
-      menuId,
-      created: plan.creates.length,
-      converted: plan.converts.length,
-      demoted: plan.demotes.length,
-      assemblySize: order.length,
+      menuCount: results.length,
+      menusChanged: changedMenuCount,
+      menusDeleted: plan.menuDeletes.length,
+      groupsCreated: plan.groupCreates.length,
+      groupsDeleted: plan.groupDeletes.length,
     });
   }
 
   // ---------------------------------------------------------------------------
-  // Phase F — materialize, unconditionally.
+  // Phase E — materialize, unconditionally.
   // ---------------------------------------------------------------------------
   // Unconditional by design. The managed group SET can be unchanged while a mirror category's
-  // `productDisplayOrder` changed, and materialization is an acceptance criterion — skipping
-  // the rebuild "for idempotency" would be an anti-optimisation that leaves the menu stale.
-  // `rebuildMenus` rewrites the menu byte-identically on a no-change run, so this costs no
-  // churn. It also cannot be a silent no-op here: `rebuildMenus` bulk-reads all menus and
-  // filters the scoped ids against that read (`MenuRebuildService.ts:134`), and by this point
-  // the Square Menu doc is guaranteed to exist — which is precisely why Phase E comes first.
-  await rebuildMenus(businessId, { menuIds: [menuId] });
+  // `productDisplayOrder` changed, and materialization is an acceptance criterion — skipping the
+  // rebuild "for idempotency" would be an anti-optimisation that leaves menus stale.
+  // `rebuildMenus` rewrites a menu byte-identically on a no-change run, so this costs no churn. It
+  // also cannot be a silent no-op here: `rebuildMenus` bulk-reads all menus and filters the scoped
+  // ids against that read (`MenuRebuildService.ts:134`), and by this point every mirrored Menu doc
+  // is guaranteed to exist — which is precisely why Phase D comes first.
+  //
+  // `changedMenuGroupIds` carries the groups deleted above so that an OPERATOR's own menu that had
+  // one of them as an asset is rebuilt too, and `pruneDanglingAssetRefs` drops the dead reference
+  // in the same run rather than leaving it until that menu happens to change.
+  await rebuildMenus(businessId, {
+    menuIds: results.map((r) => r.menuId),
+    changedMenuGroupIds: plan.groupDeletes,
+  });
 
-  return { menuId, managedGroupIds: order };
+  return { menus: results };
 }
