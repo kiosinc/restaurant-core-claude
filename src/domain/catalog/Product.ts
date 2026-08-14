@@ -28,9 +28,9 @@ import { LocationInventoryMap } from './InventoryCount';
  * through the round trip.
  *
  * PRECISION CEILING. Square ordinals are 64-bit `bigint`, while Firestore numbers are IEEE-754
- * doubles, exact only to 2^53 (~9.0e15). Observed magnitudes peak near 2.25e15, roughly 4x of
- * headroom, so today's data is safe — but square-gateway-claude's `squareOrdinal()` helper does
- * a plain `Number(bigint)`, which degrades SILENTLY past that bound rather than throwing.
+ * doubles, exact only to 2^53 (~9.0e15). Observed magnitudes peak near 2.25e15, leaving roughly
+ * 4x of headroom, so today's data is safe — but square-gateway-claude's `squareOrdinal()` helper
+ * does a plain `Number(bigint)`, which degrades SILENTLY past that bound rather than throwing.
  *
  * ORDERING. Sort by ordinal ascending, then by product id ascending, with nulls LAST. Square
  * documents ordinals as neither sequential nor unique, so the id tiebreak is what makes

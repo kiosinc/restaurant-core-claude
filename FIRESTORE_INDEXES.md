@@ -60,12 +60,15 @@ false.
 ## Why `productDisplayOrder` stays indexed
 
 `productDisplayOrder` is a **separate top-level field path** — the commands above do not touch it,
-and it must stay indexed. Two live `array-contains` call sites depend on it:
+and it must stay indexed. Three live array-membership call sites depend on it — `array-contains`
+and `array-contains-any` both read the same single-field index:
 
 - `src/persistence/firestore/handlers/catalogHandlers.ts` —
   `parentQuery: (p) => ['productDisplayOrder', 'array-contains', p.Id]`, shared by both the
   categories and the menuGroups handler, i.e. by `ProductCompositeHandler`.
-- `square-gateway-claude/src/controllers/sync/mappers/product.ts`.
+- `square-gateway-claude/src/controllers/sync/mappers/product.ts` — `array-contains`.
+- `square-gateway-claude/src/controllers/sync/shared/pageMembershipReconcile.ts` —
+  `array-contains-any` over a page's product ids, on the P39 page-level write path.
 
 After applying an exemption, confirm these still work: run
 `where('productDisplayOrder', 'array-contains', <productId>)` against `categories` and against
