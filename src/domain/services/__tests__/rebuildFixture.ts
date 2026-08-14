@@ -16,6 +16,12 @@
  *   - 0YRxtglWpkDyxcW8WCTD: managedBy explicitly null (KIOS-owned, written by createMenuGroup)
  *   - mg4…mg11 (and SKoGd62OfNyZqMXqsKSX): key absent entirely (legacy docs written
  *     before the field existed) — rebuild must materialize these as null, never undefined
+ *
+ * menu-level `mirrorCategoryId` covers the two doc states (#173):
+ *   - CcUqgkBxEnk1qYaNZ3K2: bound to Square root category dKlTguVV2yNCVFJjH2sH — the
+ *     rebuild must preserve it, since the materialized write t.set()s the whole document
+ *   - LShRjmDOXBNL7yVSD65V, TdGQqmNhA3AjNeoyYrQn, menu4: key absent entirely (menus written
+ *     before the field existed) — rebuild must materialize these as null, never undefined
  */
 
 export const BUSINESS_ID = 'SU5JWga8rcAomZBtpYY0';
@@ -188,6 +194,7 @@ export const menus: Array<{ id: string; data: Record<string, any> }> = [
       coverVideoGsl: null,
       logoImageGsl: 'gs://logo.png',
       gratuityRates: [15, 18, 20],
+      mirrorCategoryId: 'dKlTguVV2yNCVFJjH2sH',
       managedBy: 'square',
       isDeleted: false,
       created: new Date('2024-01-01'),

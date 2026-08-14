@@ -16,6 +16,11 @@ describe('Category (domain)', () => {
       imageGsls: ['gs://cat'],
       linkedObjects: { square: { linkedObjectId: 'sq-1' } },
       categoryType: 'menu',
+      parentCategoryId: 'cat-root',
+      parentOrdinal: 3,
+      rootCategoryId: 'cat-root',
+      isTopLevel: false,
+      managedBy: 'square',
       created: now,
       updated: now,
     });
@@ -28,6 +33,11 @@ describe('Category (domain)', () => {
     expect(category.imageGsls).toEqual(['gs://cat']);
     expect(category.linkedObjects.square.linkedObjectId).toBe('sq-1');
     expect(category.categoryType).toBe('menu');
+    expect(category.parentCategoryId).toBe('cat-root');
+    expect(category.parentOrdinal).toBe(3);
+    expect(category.rootCategoryId).toBe('cat-root');
+    expect(category.isTopLevel).toBe(false);
+    expect(category.managedBy).toBe('square');
   });
 
   it('defaults products to {}', () => {
@@ -54,6 +64,28 @@ describe('Category (domain)', () => {
   it("defaults categoryType to 'regular'", () => {
     const category = createCategory(createTestCategoryInput());
     expect(category.categoryType).toBe('regular');
+  });
+
+  it('defaults parentCategoryId, parentOrdinal and rootCategoryId to null', () => {
+    const category = createCategory(createTestCategoryInput());
+    expect(category.parentCategoryId).toBeNull();
+    expect(category.parentOrdinal).toBeNull();
+    expect(category.rootCategoryId).toBeNull();
+  });
+
+  it('defaults isTopLevel to true', () => {
+    const category = createCategory(createTestCategoryInput());
+    expect(category.isTopLevel).toBe(true);
+  });
+
+  it('preserves an explicit isTopLevel false for a child category', () => {
+    const category = createCategory({ ...createTestCategoryInput(), isTopLevel: false });
+    expect(category.isTopLevel).toBe(false);
+  });
+
+  it('defaults managedBy to null', () => {
+    const category = createCategory(createTestCategoryInput());
+    expect(category.managedBy).toBeNull();
   });
 
   it('categoryMeta() returns CategoryMeta', () => {
