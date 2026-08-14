@@ -332,11 +332,21 @@ function planReconciliation(
   const keptGroupIds = new Set<string>();
 
   // Roots in a deterministic sequence, so `menus` in the return value is stable across runs.
-  // `compareSiblings` is reused rather than a root-specific comparator: Square omits
-  // `parent_category` on roots, so in practice `parentOrdinal` is null on all of them and the
-  // comparison degenerates to (name, id). A hand-edited doc that is BOTH top-level and carries a
-  // `parentOrdinal` would sort by that ordinal instead — still deterministic, which is the only
-  // property this ordering has to have, since root order affects nothing but the returned array.
+  // `compareSiblings` is reused rather than a root-specific comparator, and that is load-bearing:
+  // roots DO carry an ordinal. Square sends `parent_category` on a root with an ordinal but no
+  // `id` (verified on the live KREATION ORGANIC catalog: root "Kafe 3rd Party Vendor Menu" has
+  // `parent_category: { ordinal: -2242591403802624 }`, `is_top_level: true`, no `root_category`),
+  // and square-gateway-claude#291 deliberately KEEPS that ordinal while mapping
+  // parentCategoryId/rootCategoryId to null — it is the merchant's menu ordering and the only
+  // signal for it.
+  //
+  // So roots sort by Square's ordinal, falling back to (name, id) only when `parentOrdinal` is
+  // null — legacy docs written before #291 stamped the field. Do not "simplify" this to a
+  // name-only sort on the assumption that roots are ordinal-less; they are not.
+  //
+  // Note this ordering currently reaches nothing but the returned array: KIOS has no per-business
+  // menu ordering field, so Remy orders the menu list its own way. The fidelity is captured here
+  // rather than surfaced.
   const roots = nodes.filter((node) => node.isTopLevel).sort(compareSiblings);
 
   for (const root of roots) {
