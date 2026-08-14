@@ -32,6 +32,7 @@ export interface MenuGroupInput {
   displayName?: string | null;
   products?: { [id: string]: ProductMeta };
   productDisplayOrder?: string[];
+  productOrdinals?: { [id: string]: number };
   parentGroup?: string | null;
   childGroup?: string | null;
   mirrorCategoryId?: string | null;
@@ -43,6 +44,14 @@ export interface MenuGroup extends BaseEntity {
   displayName: string | null;
   products: { [id: string]: ProductMeta };
   productDisplayOrder: string[];
+  /**
+   * Square's per-membership item ordinal, keyed by product id — the same edge-scoped map as
+   * `Category.productOrdinals`, which carries the canonical explanation (why it is a sibling map
+   * outside the cascade-owned `products` map, the 2^53 precision ceiling, and the ordering rule).
+   * Defaults to {} and legacy docs deserialize to {} through createMenuGroup(), so no backfill is
+   * required.
+   */
+  productOrdinals: { [id: string]: number };
   parentGroup: string | null;
   childGroup: string | null;
   mirrorCategoryId: string | null;
@@ -57,6 +66,7 @@ export function createMenuGroup(input: MenuGroupInput & Partial<BaseEntity>): Me
     displayName: input.displayName ?? null,
     products: input.products ?? {},
     productDisplayOrder: input.productDisplayOrder ?? [],
+    productOrdinals: input.productOrdinals ?? {},
     parentGroup: input.parentGroup ?? null,
     childGroup: input.childGroup ?? null,
     mirrorCategoryId: input.mirrorCategoryId ?? null,

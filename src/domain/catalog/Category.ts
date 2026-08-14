@@ -19,6 +19,7 @@ export interface CategoryInput {
   name: string;
   products?: { [id: string]: ProductMeta };
   productDisplayOrder?: string[];
+  productOrdinals?: { [id: string]: number };
   imageUrls?: string[];
   imageGsls?: string[];
   linkedObjects?: LinkedObjectMap;
@@ -34,6 +35,47 @@ export interface Category extends BaseEntity {
   name: string;
   products: { [id: string]: ProductMeta };
   productDisplayOrder: string[];
+  /**
+   * Square's per-membership item ordinal, keyed by product id. The source is
+   * `item_data.categories[].ordinal` on the Square item — one entry per (product, category)
+   * EDGE, not per product (P18.1 integration contract, #85 Amendment 1).
+   *
+   * A SIBLING MAP, NOT A `ProductMeta` FIELD. `products` is owned by `CatalogCascadeService`,
+   * which regenerates `products.{productId}` WHOLESALE from `productMeta(product)` on every
+   * product save; a Product holds no per-category value, so anything stored inside that map is
+   * erased by the next save. `productSpec.mapField` is 'products', so the cascade's save path
+   * touches only `products.{productId}` and a sibling map is outside its write path by
+   * construction rather than by everyone remembering.
+   *
+   * EDGE-SCOPED, NOT PRODUCT-GLOBAL. In the KREATION ORGANIC catalog, item
+   * `Q3H7GU65VIHZPZ5OBWXPEKOV` ("Sauteed Kale") holds five memberships carrying ordinals 3, 3,
+   * 3, 68719476736 and -2250769021534208 — there is no single product-global value to hoist onto
+   * `Product`.
+   *
+   * PRECISION CEILING. Square ordinals are 64-bit `bigint`, while Firestore numbers are IEEE-754
+   * doubles, exact only to 2^53 (~9.0e15). Observed magnitudes peak near 2.25e15, leaving roughly
+   * 4x of headroom, so today's data is safe — but square-gateway-claude's `squareOrdinal()`
+   * helper does a plain `Number(bigint)`, which degrades SILENTLY past that bound rather than
+   * throwing.
+   *
+   * ORDERING. Sort by ordinal ascending, then by product id ascending; products with NO entry in
+   * this map sort LAST ("unknown position", not ordinal 0). Square documents ordinals as neither
+   * sequential nor unique, so the id tiebreak is what makes repeated runs agree. `compareSiblings`
+   * in `ManagedMenuService` is the in-repo precedent this mirrors, including its reason for plain
+   * codepoint comparison over `localeCompare` (whose result depends on the runtime's ICU data).
+   * The rule is documented HERE for the writer (square-gateway-claude) to implement; this package
+   * implements no comparator, and `productDisplayOrder` remains the single ordering signal
+   * consumers read.
+   *
+   * NEVER A POSITION. These are gap-allocated sort keys, not `0..n-1` indices. They cannot size
+   * an array or offset into one — the gaps carry order, not distance.
+   *
+   * Entries are cleaned up with their product by the cascade: `productSpec.additionalDeleteFields`
+   * lists 'productOrdinals', so `productOrdinals.{productId}` is deleted alongside
+   * `products.{productId}`. Defaults to {} and legacy docs deserialize to {} through
+   * createCategory(), so no backfill is required.
+   */
+  productOrdinals: { [id: string]: number };
   imageUrls: string[];
   imageGsls: string[];
   linkedObjects: LinkedObjectMap;
@@ -76,6 +118,7 @@ export function createCategory(input: CategoryInput & Partial<BaseEntity>): Cate
     name: input.name,
     products: input.products ?? {},
     productDisplayOrder: input.productDisplayOrder ?? [],
+    productOrdinals: input.productOrdinals ?? {},
     imageUrls: input.imageUrls ?? [],
     imageGsls: input.imageGsls ?? [],
     linkedObjects: input.linkedObjects ?? {},
