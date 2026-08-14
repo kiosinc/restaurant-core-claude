@@ -61,6 +61,9 @@ Supporting modules:
 
 **Persistence:** `FirestoreRepository<T>` is a generic, non-subclassed repository instantiated with a config. Provides `get()`, `set()`, `delete()`, and `findByLinkedObject()`. Path resolution is centralized in `PathResolver`.
 
+**Firestore indexes:** There is no `firestore.indexes.json` — index configuration is applied imperatively against the live GCP projects, so nothing in version control reflects it.
+`FIRESTORE_INDEXES.md` is the record: current single-field exemptions (including dev/prod divergence), the `gcloud` commands, and which field paths must stay indexed.
+
 **Metadata system:** `*Meta` interfaces (ProductMeta, CategoryMeta, etc.) track cross-document relationships. `MetadataSpec` declarations define how entity metadata propagates to parent/root documents during transactional saves.
 
 **LinkedObject:** Cross-collection references with external provider tracking (for Square POS sync).
