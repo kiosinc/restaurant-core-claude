@@ -526,10 +526,18 @@ function assemblyEquals(
     && arraysEqual(existingData.groupDisplayOrder ?? [], assembly.groupDisplayOrder);
 }
 
-/** One mirrored Menu as reported back to the caller. */
+/**
+ * One mirrored Menu as reported back to the caller.
+ *
+ * `mirrorCategoryId` is the id of the root menu-category this Menu mirrors — the exact value
+ * written to `Menu.mirrorCategoryId`, so a caller can correlate the response to the doc field
+ * without a read. It is deliberately NOT named `rootCategoryId`: `Category.rootCategoryId` is
+ * Square's `root_category` ancestor pointer, which means something different and is null on
+ * precisely the roots reported here.
+ */
 export interface ManagedMenuResult {
   menuId: string;
-  rootCategoryId: string;
+  mirrorCategoryId: string;
   managedGroupIds: string[];
 }
 
@@ -658,7 +666,7 @@ export async function syncManagedSquareMenu(
       }
     }
 
-    results.push({ menuId, rootCategoryId: menuPlan.rootCategoryId, managedGroupIds: order });
+    results.push({ menuId, mirrorCategoryId: menuPlan.rootCategoryId, managedGroupIds: order });
   }
 
   // ---------------------------------------------------------------------------

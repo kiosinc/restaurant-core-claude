@@ -169,10 +169,10 @@ function createdGroupIdFor(categoryId: string): string {
 }
 
 /** The result entry for one root, which must exist exactly once. */
-function menuFor(result: { menus: Array<{ rootCategoryId: string }> }, rootCategoryId: string) {
-  const match = result.menus.filter((m) => m.rootCategoryId === rootCategoryId);
+function menuFor(result: { menus: Array<{ mirrorCategoryId: string }> }, rootCategoryId: string) {
+  const match = result.menus.filter((m) => m.mirrorCategoryId === rootCategoryId);
   expect(match).toHaveLength(1);
-  return match[0] as { menuId: string; rootCategoryId: string; managedGroupIds: string[] };
+  return match[0] as { menuId: string; mirrorCategoryId: string; managedGroupIds: string[] };
 }
 
 /**
@@ -320,14 +320,14 @@ describe('ManagedMenuService', () => {
       }
     });
 
-    it('returns { menus: [{ menuId, rootCategoryId, managedGroupIds }] } ordered by root', async () => {
+    it('returns { menus: [{ menuId, mirrorCategoryId, managedGroupIds }] } ordered by root', async () => {
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
       // Roots carry no parent ordinal, so they tie-break on (name, id): Breakfast before Dinner.
-      expect(result.menus.map((m) => m.rootCategoryId)).toEqual([ROOT_1_ID, ROOT_2_ID]);
+      expect(result.menus.map((m) => m.mirrorCategoryId)).toEqual([ROOT_1_ID, ROOT_2_ID]);
       expect(Object.keys(result)).toEqual(['menus']);
       for (const entry of result.menus) {
-        expect(Object.keys(entry).sort()).toEqual(['managedGroupIds', 'menuId', 'rootCategoryId']);
+        expect(Object.keys(entry).sort()).toEqual(['managedGroupIds', 'menuId', 'mirrorCategoryId']);
       }
     });
   });
@@ -508,7 +508,7 @@ describe('ManagedMenuService', () => {
 
       expect(deletesOn(MENUS_PATH)).toEqual([MIRRORED_MENU_ID.r2]);
       expect(await docExists(MENUS_PATH, MIRRORED_MENU_ID.r2)).toBe(false);
-      expect(result.menus.map((m) => m.rootCategoryId)).toEqual([ROOT_1_ID]);
+      expect(result.menus.map((m) => m.mirrorCategoryId)).toEqual([ROOT_1_ID]);
     });
 
     it('deletes the managed groups of a deleted root', async () => {
@@ -599,7 +599,7 @@ describe('ManagedMenuService', () => {
       expect(deletesOn(MENUS_PATH)).toEqual(['flatMenu']);
       // The child's group is reused in place — it already mirrors a live child category.
       expect(menuFor(result, ROOT_1_ID).managedGroupIds).toContain('flatChild11');
-      expect(result.menus.map((m) => m.rootCategoryId)).toEqual([ROOT_1_ID, ROOT_2_ID]);
+      expect(result.menus.map((m) => m.mirrorCategoryId)).toEqual([ROOT_1_ID, ROOT_2_ID]);
     });
 
     it('deletes a managed Menu that predates the mirrorCategoryId field entirely', async () => {
@@ -772,7 +772,7 @@ describe('ManagedMenuService', () => {
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
-      expect(result.menus.map((m) => m.rootCategoryId)).toEqual(['catLegacyMenu']);
+      expect(result.menus.map((m) => m.mirrorCategoryId)).toEqual(['catLegacyMenu']);
     });
 
     it('skips a child whose parent category does not exist', async () => {
@@ -1046,7 +1046,7 @@ describe('ManagedMenuService', () => {
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
-      expect(result.menus.map((m) => m.rootCategoryId)).toEqual(['aa', 'zz', 'mm']);
+      expect(result.menus.map((m) => m.mirrorCategoryId)).toEqual(['aa', 'zz', 'mm']);
     });
 
     it('orders by codepoint, not by locale', async () => {
