@@ -575,6 +575,33 @@ describe('ManagedMenuService', () => {
       expect(await docExists(MENUS_PATH, 'sqLegacyFlat')).toBe(false);
     });
 
+    it('migrates the flat model: deletes managed groups that mirror ROOT categories', async () => {
+      // The state #88's flat model left behind: ONE managed Menu with no mirrorCategoryId, and a
+      // managed group for EVERY menu category — roots included, since the flat model made no
+      // distinction. Under the mirror a root is a Menu, never a group, so those groups have no
+      // live mirror category to win and are swept by the same deletion rule as any other orphan.
+      const set = canonicalWorld();
+      set.menuGroups = [
+        managedGroup('flatRoot1', ROOT_1_NAME, ROOT_1_ID),
+        managedGroup('flatRoot2', ROOT_2_NAME, ROOT_2_ID),
+        managedGroup('flatChild11', CHILD_11_NAME, CHILD_11_ID),
+      ];
+      set.menus = [menu('flatMenu', 'Square Menu', {
+        managedBy: 'square',
+        mirrorCategoryId: null,
+        groupIds: ['flatRoot1', 'flatRoot2', 'flatChild11'],
+      })];
+      registerFixture(set);
+
+      const result = await syncManagedSquareMenu(BUSINESS_ID);
+
+      expect(deletesOn(MENU_GROUPS_PATH).sort()).toEqual(['flatRoot1', 'flatRoot2']);
+      expect(deletesOn(MENUS_PATH)).toEqual(['flatMenu']);
+      // The child's group is reused in place — it already mirrors a live child category.
+      expect(menuFor(result, ROOT_1_ID).managedGroupIds).toContain('flatChild11');
+      expect(result.menus.map((m) => m.rootCategoryId)).toEqual([ROOT_1_ID, ROOT_2_ID]);
+    });
+
     it('deletes a managed Menu that predates the mirrorCategoryId field entirely', async () => {
       const set = canonicalWorld();
       set.menus = [menu('sqNoField', 'Square Menu', { managedBy: 'square' })];
