@@ -30,7 +30,7 @@ import {
   root,
   world,
 } from './managedMenuFixture';
-import type { FixtureDoc, FixtureSet } from './managedMenuFixture';
+import type { FixtureDoc, FixtureSet, MenuOverrides } from './managedMenuFixture';
 import {
   mockDb,
   mockTransaction,
@@ -871,7 +871,27 @@ describe('ManagedMenuService', () => {
       });
     }
 
-    it('seeds new groups from parentOrdinal, not alphabetically', async () => {
+    /** The full managed set for `ordinalWorld`, already mirrored — one group per child category. */
+    function ordinalGroups(): FixtureDoc[] {
+      return [
+        managedGroup('gz', 'Zulu', 'cz'),
+        managedGroup('gm', 'Mike', 'cm'),
+        managedGroup('ga', 'Alpha', 'ca'),
+      ];
+    }
+
+    /** `ordinalGroups` already mirrored, under a menu whose stored order DISAGREES with Square. */
+    function disagreeingWorld(): FixtureSet {
+      return ordinalWorld(
+        managedMenu('sq', 'Menu', 'r', {
+          groupIds: ['gz', 'gm', 'ga'],
+          menuAssetDisplayOrder: ['ga', 'gz', 'gm'],
+        }),
+        ordinalGroups(),
+      );
+    }
+
+    it('orders new groups by parentOrdinal, not alphabetically', async () => {
       registerFixture(ordinalWorld());
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
@@ -946,18 +966,7 @@ describe('ManagedMenuService', () => {
     });
 
     it('overwrites a stored menuAssetDisplayOrder that disagrees with Square', async () => {
-      const groups = [
-        managedGroup('gz', 'Zulu', 'cz'),
-        managedGroup('gm', 'Mike', 'cm'),
-        managedGroup('ga', 'Alpha', 'ca'),
-      ];
-      registerFixture(ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', {
-          groupIds: ['gz', 'gm', 'ga'],
-          menuAssetDisplayOrder: ['ga', 'gz', 'gm'],
-        }),
-        groups,
-      ));
+      registerFixture(disagreeingWorld());
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
@@ -965,14 +974,7 @@ describe('ManagedMenuService', () => {
     });
 
     it('writes exactly the assembly fields and the updated stamp when the order changes', async () => {
-      const groups = [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm'), managedGroup('ga', 'Alpha', 'ca')];
-      registerFixture(ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', {
-          groupIds: ['gz', 'gm', 'ga'],
-          menuAssetDisplayOrder: ['ga', 'gz', 'gm'],
-        }),
-        groups,
-      ));
+      registerFixture(disagreeingWorld());
 
       await syncManagedSquareMenu(BUSINESS_ID);
 
@@ -1018,13 +1020,7 @@ describe('ManagedMenuService', () => {
     });
 
     it('drops a deleted group and orders the survivors by ordinal', async () => {
-      const set = ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', {
-          groupIds: ['gz', 'gm', 'ga'],
-          menuAssetDisplayOrder: ['ga', 'gz', 'gm'],
-        }),
-        [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm'), managedGroup('ga', 'Alpha', 'ca')],
-      );
+      const set = disagreeingWorld();
       set.categories = set.categories.filter((c) => c.id !== 'cz');
       registerFixture(set);
 
@@ -1050,30 +1046,20 @@ describe('ManagedMenuService', () => {
      * that touches it, and it hands the raw value straight to `arraysEqual`, which reads `.length`
      * off it with no `Array.isArray` guard of its own. These cases are that compare's regression
      * net: each one must read as "differs", so the menu is written exactly once, carrying Square's
-     * order.
+     * order. The last row covers the missing-key shape, which reaches the same compare via its
+     * `?? []`.
      */
-    it.each([
-      ['null', null],
-      ['a comma-joined string', 'gz,gm,ga'],
-      ['a number', 7],
-      ['an object', { 0: 'gz' }],
-      ['a junk array', ['ga', 42, 'ga', 'notAGroup', 'gm', null, 'gz']],
-    ])('rewrites a menu whose stored menuAssetDisplayOrder is %s', async (_label, raw) => {
+    it.each<[string, MenuOverrides]>([
+      ['null', { menuAssetDisplayOrder: null }],
+      ['a comma-joined string', { menuAssetDisplayOrder: 'gz,gm,ga' }],
+      ['a number', { menuAssetDisplayOrder: 7 }],
+      ['an object', { menuAssetDisplayOrder: { 0: 'gz' } }],
+      ['a junk array', { menuAssetDisplayOrder: ['ga', 42, 'ga', 'notAGroup', 'gm', null, 'gz'] }],
+      ['absent entirely', { omitMenuAssetDisplayOrder: true }],
+    ])('rewrites a menu whose stored menuAssetDisplayOrder is %s', async (_label, override) => {
       registerFixture(ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', { groupIds: ['gz', 'gm', 'ga'], menuAssetDisplayOrder: raw }),
-        [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm'), managedGroup('ga', 'Alpha', 'ca')],
-      ));
-
-      const result = await syncManagedSquareMenu(BUSINESS_ID);
-
-      expect(writesFor(MENUS_PATH, 'sq')).toHaveLength(1);
-      await expectConsistentAssembly(result.menus[0], ['gz', 'gm', 'ga']);
-    });
-
-    it('writes the ordinal order onto a menu doc that has no menuAssetDisplayOrder key', async () => {
-      registerFixture(ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', { groupIds: ['gz', 'gm', 'ga'], omitMenuAssetDisplayOrder: true }),
-        [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm'), managedGroup('ga', 'Alpha', 'ca')],
+        managedMenu('sq', 'Menu', 'r', { groupIds: ['gz', 'gm', 'ga'], ...override }),
+        ordinalGroups(),
       ));
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);

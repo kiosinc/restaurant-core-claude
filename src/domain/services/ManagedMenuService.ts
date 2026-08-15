@@ -50,9 +50,8 @@ import { rebuildMenus } from './MenuRebuildService';
  * FULL OWNERSHIP (#183): this reconciler owns MEMBERSHIP (which group ids are on which menu) AND
  * ORDER (the sequence they appear in). Both are re-derived from the catalog on every run, out of
  * Square's `parent_category.ordinal`; nothing on the menu doc is an input to either. #183 withdrew
- * #100 / remy#349's carve-out, which had made order operator-owned and OBSERVED from the menu doc.
- * With Remy's reorder control gone (remy#471) that observation no longer protected operator intent
- * — it froze Square's order forever, because the value observed is the one the PREVIOUS run wrote.
+ * #100 / remy#349's carve-out, which had made order operator-owned and OBSERVED from the menu doc —
+ * see `computeAssemblyOrder` for why observing it stopped being safe.
  *
  * FLAG-AGNOSTIC BY CONTRACT (#88): this service deliberately does NOT read the
  * `syncSquareMenuCategories` feature flag. Callers (the gateway / businesses cascade) gate on
@@ -94,9 +93,10 @@ interface CategoryNode {
 interface ManagedGroupPlanEntry {
   groupId: string;
   /**
-   * Position in the root's pre-order DFS — Square's `parent_category.ordinal` order. This is THE
-   * sort key for the menu's assembly (see `computeAssemblyOrder`); nothing else orders a managed
-   * menu.
+   * Position in the root's pre-order DFS, transcribed from the emission order of
+   * `orderedDescendants` — which is where Square's `parent_category.ordinal` is actually applied,
+   * via `compareSiblings`. Carrying it as a field lets `computeAssemblyOrder` stay a pure function
+   * of its argument instead of depending on the caller's iteration order.
    */
   sortIndex: number;
 }
@@ -435,10 +435,12 @@ function computeAssemblyOrder(managedGroups: ManagedGroupPlanEntry[]): string[] 
   const desiredByGroupId = new Map<string, ManagedGroupPlanEntry>();
   for (const entry of managedGroups) desiredByGroupId.set(entry.groupId, entry);
 
-  // The caller already emits its entries in DFS order, so this sort changes nothing today. It stays
-  // because it makes the function TOTAL ON ITS INPUT rather than resting on an undocumented caller
-  // invariant, and it keeps `sortIndex` load-bearing: a later change to the DFS cannot silently
-  // reorder a merchant's menu without a test going red.
+  // The caller already emits its entries in DFS order, so this sort is an identity today, and it
+  // would stay one under any change to the DFS — `sortIndex` is assigned FROM the emission order, so
+  // it moves in lockstep with it and can never disagree. It is defense-in-depth against a future
+  // caller that assembles `managedGroups` some other way, nothing more; the ordering guarantee
+  // itself is enforced upstream by `compareSiblings` and `orderedDescendants`, and TC9's end-state
+  // assertions are what actually catch a regression in it.
   return [...desiredByGroupId.values()]
     .sort((a, b) => a.sortIndex - b.sortIndex)
     .map((entry) => entry.groupId);
