@@ -9,6 +9,8 @@ import {
   removeOptionAvailability,
   removeProductAvailability,
   deleteAvailabilityDoc,
+  ProductAvailability,
+  OptionAvailability,
 } from '../AvailabilityService';
 import { PathResolver } from '../../../persistence/firestore/PathResolver';
 
@@ -288,6 +290,232 @@ describe('AvailabilityService', () => {
       await updateAvailability('biz-1', 'loc-1', {});
 
       expect(mockDocSet).not.toHaveBeenCalled();
+    });
+  });
+
+  // #157: Firestore derives a merge-set's update mask from the LEAF paths in the
+  // payload. An empty map has no leaves, so its own path becomes the mask entry
+  // and the empty map is written as that field's value — replacing the whole
+  // subtree. Every writer must therefore prune empty maps before writing, at
+  // both the top level (products/options) and the per-entity level, and issue
+  // no RPC at all when nothing survives. "Empty" means "no key with a DEFINED
+  // value", not "no keys": ignoreUndefinedProperties strips undefined INSIDE the
+  // SDK, before the mask is computed, so {isAvailable: undefined} reaches the
+  // wire as {} and erases just the same. Falsy-but-defined values must survive.
+  describe('empty-map payloads (#157)', () => {
+    // Walks a written payload and fails on any object node with zero keys —
+    // the shape that becomes a subtree-replacing mask entry.
+    const expectNoEmptyObjectNodes = (node: unknown, path: string): void => {
+      if (node === null || typeof node !== 'object') return;
+      const entries = Object.entries(node as Record<string, unknown>);
+      expect(entries.length, `empty object node at ${path}`).toBeGreaterThan(0);
+      entries.forEach(([key, value]) => expectNoEmptyObjectNodes(value, `${path}.${key}`));
+    };
+
+    it('writes only products when options is an empty map', async () => {
+      await updateAvailability('biz-1', 'loc-1', {
+        products: { 'prod-1': { isAvailable: true } },
+        options: {},
+      });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { products: { 'prod-1': { isAvailable: true } } },
+        { merge: true },
+      );
+    });
+
+    it('writes only options when products is an empty map', async () => {
+      await updateAvailability('biz-1', 'loc-1', {
+        products: {},
+        options: { 'opt-1': { isAvailable: false, state: 'soldOut' } },
+      });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { options: { 'opt-1': { isAvailable: false, state: 'soldOut' } } },
+        { merge: true },
+      );
+    });
+
+    it('issues no write when both products and options are empty maps', async () => {
+      await expect(updateAvailability('biz-1', 'loc-1', { products: {}, options: {} })).resolves.toBeUndefined();
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('setProductAvailabilityBatch issues no write for an empty product map', async () => {
+      await expect(setProductAvailabilityBatch('biz-1', 'loc-1', {})).resolves.toBeUndefined();
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('issues no write when the only entry is an empty entity map', async () => {
+      await updateAvailability('biz-1', 'loc-1', {
+        options: { 'opt-1': {} as unknown as OptionAvailability },
+      });
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('writes only the populated entity from a mixed entity map', async () => {
+      await updateAvailability('biz-1', 'loc-1', {
+        options: {
+          'opt-1': {} as unknown as OptionAvailability,
+          'opt-2': { isAvailable: true },
+        },
+      });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { options: { 'opt-2': { isAvailable: true } } },
+        { merge: true },
+      );
+    });
+
+    // An entity whose every field is undefined is the shape an
+    // ignoreUndefinedProperties consumer sends: the SDK strips the keys before
+    // computing the mask, so it reaches the wire as {} and erases the entity.
+    it('treats an all-fields-undefined entity as empty', async () => {
+      await setProductAvailabilityBatch('biz-1', 'loc-1', {
+        'prod-1': { isAvailable: undefined } as unknown as ProductAvailability,
+      });
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('writes only the populated entity when an all-fields-undefined entity is mixed in', async () => {
+      await updateAvailability('biz-1', 'loc-1', {
+        products: {
+          'prod-1': { isAvailable: undefined, state: undefined } as unknown as ProductAvailability,
+          'prod-2': { isAvailable: true },
+        },
+      });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { products: { 'prod-2': { isAvailable: true } } },
+        { merge: true },
+      );
+    });
+
+    it('setProductAvailability issues no write for an empty entity', async () => {
+      await expect(
+        setProductAvailability('biz-1', 'loc-1', 'prod-1', {} as unknown as ProductAvailability),
+      ).resolves.toBeUndefined();
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('setOptionAvailability issues no write for an empty entity', async () => {
+      await expect(
+        setOptionAvailability('biz-1', 'loc-1', 'opt-1', {} as unknown as OptionAvailability),
+      ).resolves.toBeUndefined();
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('setProductAvailability issues no write when every field is undefined', async () => {
+      await expect(
+        setProductAvailability('biz-1', 'loc-1', 'prod-1', {
+          isAvailable: undefined,
+          state: undefined,
+          timestamp: undefined,
+        } as unknown as ProductAvailability),
+      ).resolves.toBeUndefined();
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('setOptionAvailability issues no write when every field is undefined', async () => {
+      await expect(
+        setOptionAvailability('biz-1', 'loc-1', 'opt-1', {
+          isAvailable: undefined,
+          count: undefined,
+        } as unknown as OptionAvailability),
+      ).resolves.toBeUndefined();
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    it('setProductAvailabilityBatch drops empty entries and keeps populated ones', async () => {
+      await setProductAvailabilityBatch('biz-1', 'loc-1', {
+        'prod-1': {} as unknown as ProductAvailability,
+        'prod-2': { isAvailable: false, state: 'soldOut' },
+        'prod-3': { isAvailable: undefined } as unknown as ProductAvailability,
+      });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { products: { 'prod-2': { isAvailable: false, state: 'soldOut' } } },
+        { merge: true },
+      );
+    });
+
+    it('setProductAvailabilityBatch issues no write when every entry is empty', async () => {
+      await expect(setProductAvailabilityBatch('biz-1', 'loc-1', {
+        'prod-1': {} as unknown as ProductAvailability,
+        'prod-2': { isAvailable: undefined } as unknown as ProductAvailability,
+      })).resolves.toBeUndefined();
+
+      expect(mockDocSet).not.toHaveBeenCalled();
+    });
+
+    // Over-pruning guard: populated payloads must be handed to set() byte-for-byte.
+    it('leaves fully populated payloads untouched', async () => {
+      await updateAvailability('biz-1', 'loc-1', {
+        products: { 'prod-1': { isAvailable: true }, 'prod-2': { isAvailable: false, state: 'soldOut' } },
+        options: { 'opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' } },
+      });
+
+      expect(mockDocSet).toHaveBeenCalledTimes(1);
+      expect(mockDocSet).toHaveBeenCalledWith(
+        {
+          products: { 'prod-1': { isAvailable: true }, 'prod-2': { isAvailable: false, state: 'soldOut' } },
+          options: { 'opt-1': { isAvailable: true, count: 5, state: 'inStock', timestamp: '2024-01-01T00:00:00Z' } },
+        },
+        { merge: true },
+      );
+    });
+
+    // Over-pruning guard: emptiness tests for DEFINED values, never truthiness.
+    // Dropping { isAvailable: false } would stop sold-out items being marked so.
+    it('keeps entries whose only defined field is falsy', async () => {
+      await setProductAvailability('biz-1', 'loc-1', 'prod-1', { isAvailable: false });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { products: { 'prod-1': { isAvailable: false } } },
+        { merge: true },
+      );
+    });
+
+    it('keeps entries whose defined fields are all falsy', async () => {
+      await setOptionAvailability('biz-1', 'loc-1', 'opt-1', { isAvailable: false, count: 0 });
+
+      expect(mockDocSet).toHaveBeenCalledWith(
+        { options: { 'opt-1': { isAvailable: false, count: 0 } } },
+        { merge: true },
+      );
+    });
+
+    // The prune decides whether to keep a WHOLE entity; it never rewrites a
+    // surviving entity's contents, so default-config behaviour is unchanged.
+    it('keeps a surviving entity unmodified, undefined keys included', async () => {
+      await setOptionAvailability('biz-1', 'loc-1', 'opt-1', {
+        isAvailable: true,
+        state: undefined,
+        count: undefined,
+      });
+
+      const entry = mockDocSet.mock.calls[0][0].options['opt-1'];
+      expect(Object.keys(entry)).toEqual(['isAvailable', 'state', 'count']);
+      expect(entry.state).toBeUndefined();
+      expect(entry.count).toBeUndefined();
+    });
+
+    it('never hands set() a payload containing an empty object node', async () => {
+      await updateAvailability('biz-1', 'loc-1', {
+        products: { 'prod-1': {} as unknown as ProductAvailability, 'prod-2': { isAvailable: true } },
+        options: { 'opt-1': {} as unknown as OptionAvailability },
+      });
+
+      expect(mockDocSet).toHaveBeenCalledTimes(1);
+      expectNoEmptyObjectNodes(mockDocSet.mock.calls[0][0], 'payload');
     });
   });
 
