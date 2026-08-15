@@ -27,6 +27,10 @@ export interface CascadeSpec {
 export const productSpec: CascadeSpec = {
   mapField: 'products',
   metaFn: productMeta,
+  // `productOrdinals` is the edge-scoped sibling map of `products` on Category/MenuGroup
+  // (see `Category.productOrdinals`). Saves must NOT touch it — only mapField is written —
+  // but a deleted product's entry has to go with it.
+  additionalDeleteFields: ['productOrdinals'],
   arrayRemovalFields: ['productDisplayOrder'],
 };
 

@@ -10,6 +10,18 @@
  *   - Product hE0hUoKxy0KgplK5pfF8 ("Chicken 65") only in menu TdGQqmNhA3AjNeoyYrQn via group SKoGd62OfNyZqMXqsKSX
  *   - Collection I6XLVNjKrBAcBEmqQV0q ("signup") in menus CcUqgkBxEnk1qYaNZ3K2 and LShRjmDOXBNL7yVSD65V
  *   - Group lWWo8L7WmEiEJuZgf3dM mirrored to category dKlTguVV2yNCVFJjH2sH (9 products)
+ *
+ * menuGroup `managedBy` covers the three real-world doc states (#87):
+ *   - lWWo8L7WmEiEJuZgf3dM: managedBy 'square' (managed by an external system)
+ *   - 0YRxtglWpkDyxcW8WCTD: managedBy explicitly null (KIOS-owned, written by createMenuGroup)
+ *   - mg4…mg11 (and SKoGd62OfNyZqMXqsKSX): key absent entirely (legacy docs written
+ *     before the field existed) — rebuild must materialize these as null, never undefined
+ *
+ * menu-level `mirrorCategoryId` covers the two doc states (#173):
+ *   - CcUqgkBxEnk1qYaNZ3K2: bound to Square root category dKlTguVV2yNCVFJjH2sH — the
+ *     rebuild must preserve it, since the materialized write t.set()s the whole document
+ *   - LShRjmDOXBNL7yVSD65V, TdGQqmNhA3AjNeoyYrQn, menu4: key absent entirely (menus written
+ *     before the field existed) — rebuild must materialize these as null, never undefined
  */
 
 export const BUSINESS_ID = 'SU5JWga8rcAomZBtpYY0';
@@ -132,6 +144,7 @@ export const menuGroups: Array<{ id: string; data: Record<string, any> }> = [
       imageGsls: [],
       productDisplayOrder: ['ozil5WuJ4qeSGhwcusPS', 'p3', 'p4', 'p5', 'p6'],
       mirrorCategoryId: null,
+      managedBy: null,
       isDeleted: false,
     },
   },
@@ -154,6 +167,7 @@ export const menuGroups: Array<{ id: string; data: Record<string, any> }> = [
       imageGsls: [],
       productDisplayOrder: ['mirP1', 'mirP2', 'mirP3', 'mirP4', 'mirP5', 'mirP6', 'mirP7', 'mirP8', 'mirP9'],
       mirrorCategoryId: 'dKlTguVV2yNCVFJjH2sH',
+      managedBy: 'square',
       isDeleted: false,
     },
   },
@@ -180,6 +194,7 @@ export const menus: Array<{ id: string; data: Record<string, any> }> = [
       coverVideoGsl: null,
       logoImageGsl: 'gs://logo.png',
       gratuityRates: [15, 18, 20],
+      mirrorCategoryId: 'dKlTguVV2yNCVFJjH2sH',
       managedBy: 'square',
       isDeleted: false,
       created: new Date('2024-01-01'),

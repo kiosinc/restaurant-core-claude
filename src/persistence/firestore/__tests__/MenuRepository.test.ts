@@ -17,6 +17,7 @@ function createFullSerializedMenu() {
     coverImageGsl: 'gs://cover', coverBackgroundImageGsl: 'gs://bg',
     coverVideoGsl: 'gs://video', logoImageGsl: 'gs://logo',
     gratuityRates: [15, 18, 20],
+    mirrorCategoryId: 'cat-root',
     managedBy: null,
     created: ts, updated: ts, isDeleted: false,
   };
@@ -81,7 +82,7 @@ describe('MenuRepository', () => {
     const original = createMenu({
       ...createTestMenuInput(),
       Id: 'menu-rt', name: 'Brunch', displayName: 'Weekend',
-      coverImageGsl: 'gs://brunch', created: ts, updated: ts,
+      coverImageGsl: 'gs://brunch', mirrorCategoryId: 'cat-root', created: ts, updated: ts,
     });
     await repo.set(original, 'biz-1');
     const serialized = mockTransaction.set.mock.calls[0][1];
@@ -90,6 +91,7 @@ describe('MenuRepository', () => {
     expect(restored!.name).toBe(original.name);
     expect(restored!.displayName).toBe(original.displayName);
     expect(restored!.coverImageGsl).toBe(original.coverImageGsl);
+    expect(restored!.mirrorCategoryId).toBe(original.mirrorCategoryId);
     expect(restored!.managedBy).toBe(original.managedBy);
   });
 
@@ -99,11 +101,13 @@ describe('MenuRepository', () => {
     delete (data as any).coverBackgroundImageGsl;
     delete (data as any).coverVideoGsl;
     delete (data as any).logoImageGsl;
+    delete (data as any).mirrorCategoryId;
     mockDocRef.get.mockResolvedValue({ exists: true, data: () => data, id: 'menu-1' });
     const result = await repo.get('biz-1', 'menu-1');
     expect(result!.coverImageGsl).toBeNull();
     expect(result!.coverBackgroundImageGsl).toBeNull();
     expect(result!.coverVideoGsl).toBeNull();
     expect(result!.logoImageGsl).toBeNull();
+    expect(result!.mirrorCategoryId).toBeNull();
   });
 });

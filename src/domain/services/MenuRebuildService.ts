@@ -25,6 +25,7 @@ interface MaterializedMenuDoc {
   coverVideoGsl: string | null;
   logoImageGsl: string | null;
   gratuityRates: number[];
+  mirrorCategoryId: string | null;
   managedBy: string | null;
   created: FirebaseFirestore.Timestamp;
   updated: FirebaseFirestore.Timestamp;
@@ -281,6 +282,7 @@ function materializeGroups(
       imageGsls: group.data.imageGsls ?? [],
       productDisplayOrder,
       mirrorCategoryId: group.data.mirrorCategoryId ?? null,
+      managedBy: group.data.managedBy ?? null,
       products: groupProducts,
     };
   }
@@ -433,6 +435,7 @@ async function attemptRebuild(
       coverVideoGsl: existingData.coverVideoGsl ?? null,
       logoImageGsl: existingData.logoImageGsl ?? null,
       gratuityRates: existingData.gratuityRates ?? [],
+      mirrorCategoryId: existingData.mirrorCategoryId ?? null,
       managedBy: existingData.managedBy ?? null,
       created: existingData.created,
       updated: existingData.updated,

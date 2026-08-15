@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createMenuGroup, menuGroupMeta } from '../MenuGroup';
+import { createMenuGroup, menuGroupMeta, MenuGroupMeta } from '../MenuGroup';
 import { createTestMenuGroupInput } from '../../__tests__/helpers/SurfacesFixtures';
 import { ValidationError } from '../../validation';
 
@@ -78,6 +78,16 @@ describe('MenuGroup (domain)', () => {
     });
   });
 
+  it('MenuGroupMeta carries managedBy', () => {
+    const meta: MenuGroupMeta = { name: 'G', displayName: null, managedBy: 'square' };
+    expect(meta.managedBy).toBe('square');
+  });
+
+  it('menuGroupMeta() does not project managedBy (rebuild owns it)', () => {
+    const mg = createMenuGroup(createTestMenuGroupInput({ managedBy: 'square' }));
+    expect('managedBy' in menuGroupMeta(mg)).toBe(false);
+  });
+
   it('products stores ProductMeta', () => {
     const mg = createMenuGroup(createTestMenuGroupInput({
       products: {
@@ -87,6 +97,20 @@ describe('MenuGroup (domain)', () => {
     }));
     expect(mg.products['prod-1'].name).toBe('Burger');
     expect(mg.products['prod-2'].isActive).toBe(false);
+  });
+
+  it('productOrdinals stores the per-edge Square ordinals it is given', () => {
+    const mg = createMenuGroup(createTestMenuGroupInput({
+      productOrdinals: { 'prod-1': 3, 'prod-2': 68719476736, 'prod-3': -2250769021534208 },
+    }));
+    expect(mg.productOrdinals['prod-1']).toBe(3);
+    expect(mg.productOrdinals['prod-2']).toBe(68719476736);
+    expect(mg.productOrdinals['prod-3']).toBe(-2250769021534208);
+  });
+
+  it('defaults productOrdinals to {}', () => {
+    const mg = createMenuGroup(createTestMenuGroupInput());
+    expect(mg.productOrdinals).toEqual({});
   });
 
   describe('validation', () => {
