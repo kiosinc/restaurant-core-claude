@@ -39,18 +39,19 @@ import { rebuildMenus } from './MenuRebuildService';
  * operator's menu with no live source and no signal that it is dead.
  *
  * What deletion COSTS, stated plainly because the tradeoff is real and was accepted knowingly:
- * a delete destroys the doc IDENTITY, not just the doc. If the same Square category reappears, its
- * group is minted with a fresh id, so it re-enters the menu as a newcomer at the END of the
- * operator's order rather than in its old slot; a re-created Menu likewise loses its
- * `menuAssetDisplayOrder` and every Menu-level presentation field. That is the right trade when
- * "gone" means the merchant deleted it in Square — and it is why this service must only ever run
- * against a COMPLETE catalog read (see `resolveRootId`).
+ * a delete destroys the doc IDENTITY, not just the doc. The lost position is NOT part of the cost —
+ * order is re-derived from Square every run (#183), so a re-created category's group returns to its
+ * own ordinal slot. What is actually lost is the id: an operator's own Menu that listed the old
+ * group id is left with a dangling reference until `pruneDanglingAssetRefs` sweeps it, and a
+ * re-created Menu comes back with default presentation fields (cover images, gratuity rates). That
+ * is the right trade when "gone" means the merchant deleted it in Square — and it is why this
+ * service must only ever run against a COMPLETE catalog read (see `resolveRootId`).
  *
- * SPLIT OWNERSHIP (#100): this reconciler owns MEMBERSHIP (which group ids are on which menu,
- * re-derived from the catalog every run), while the OPERATOR owns ORDER (the relative sequence of
- * those ids, set in Remy and observed from the menu doc — never re-derived here). The one thing
- * this service does order is a group the operator has never seen: a newcomer is appended in the
- * SEED order below, and is never re-sorted once it is on the menu.
+ * FULL OWNERSHIP (#183): this reconciler owns MEMBERSHIP (which group ids are on which menu) AND
+ * ORDER (the sequence they appear in). Both are re-derived from the catalog on every run, out of
+ * Square's `parent_category.ordinal`; nothing on the menu doc is an input to either. #183 withdrew
+ * #100 / remy#349's carve-out, which had made order operator-owned and OBSERVED from the menu doc —
+ * see `computeAssemblyOrder` for why observing it stopped being safe.
  *
  * FLAG-AGNOSTIC BY CONTRACT (#88): this service deliberately does NOT read the
  * `syncSquareMenuCategories` feature flag. Callers (the gateway / businesses cascade) gate on
@@ -92,13 +93,15 @@ interface CategoryNode {
 interface ManagedGroupPlanEntry {
   groupId: string;
   /**
-   * Position in the root's pre-order DFS. This is the SEED order for groups the operator has
-   * never seen; it is not a re-sort key (see `computeAssemblyOrder`).
+   * Position in the root's pre-order DFS, transcribed from the emission order of
+   * `orderedDescendants` — which is where Square's `parent_category.ordinal` is actually applied,
+   * via `compareSiblings`. Carrying it as a field lets `computeAssemblyOrder` stay a pure function
+   * of its argument instead of depending on the caller's iteration order.
    */
-  seedIndex: number;
+  sortIndex: number;
 }
 
-/** One desired managed Menu: the root it mirrors, plus its groups in seed order. */
+/** One desired managed Menu: the root it mirrors, plus its groups in ordinal order. */
 interface ManagedMenuPlanEntry {
   rootCategoryId: string;
   rootCategoryName: string;
@@ -248,7 +251,8 @@ function orderedDescendants(rootId: string, childrenByParentId: Map<string, Cate
  * "Skipped" understates the consequence, and the caller's warning says so: an unattached category
  * is not a winner for anything, so an existing managed group of its own is DELETED by the orphan
  * rule below, and if the category is later re-attached its group is minted afresh under a new doc
- * id — which loses that group's slot in the operator's `menuAssetDisplayOrder`. That is only ever
+ * id — it takes its ordinal slot on the mirrored menu again, but the doc IDENTITY is gone, so any
+ * operator menu that listed the old id is left with a dangling reference. That is only ever
  * correct if "unattached" means the merchant really did destroy the parent. A read that is merely
  * INCOMPLETE (a partially-written catalog sync) looks identical from here, so the caller of this
  * service must not invoke it against a half-synced catalog.
@@ -354,11 +358,11 @@ function planReconciliation(
     if (existingMenu) keptMenuIds.add(existingMenu.id);
 
     const groupEntries: ManagedGroupPlanEntry[] = [];
-    orderedDescendants(root.id, childrenByParentId).forEach((child, seedIndex) => {
+    orderedDescendants(root.id, childrenByParentId).forEach((child, sortIndex) => {
       const winner = pickWinner(managedGroupsByCategoryId.get(child.id) ?? []);
       if (winner) {
         keptGroupIds.add(winner.id);
-        groupEntries.push({ groupId: winner.id, seedIndex });
+        groupEntries.push({ groupId: winner.id, sortIndex });
         return;
       }
       // productDisplayOrder stays [] on purpose: a mirror group's effective product list lives
@@ -372,7 +376,7 @@ function planReconciliation(
         managedBy: MANAGED_BY,
       });
       plan.groupCreates.push(group);
-      groupEntries.push({ groupId: group.Id, seedIndex });
+      groupEntries.push({ groupId: group.Id, sortIndex });
     });
 
     plan.menus.push({
@@ -406,71 +410,40 @@ function planReconciliation(
 }
 
 /**
- * #100 / remy#349: the single source of truth for a managed Menu's asset order —
- * OPERATOR ORDER FIRST, seed order only for groups the operator has never seen.
+ * #183: a managed Menu's asset order is a PURE PROJECTION of Square's `parent_category.ordinal`.
+ * One input — `sortIndex` — and no others.
  *
- * Membership and sequence have DIFFERENT OWNERS. This reconciler owns membership: a menu's
- * assembly is exactly its managed group set, re-derived from the catalog every run. The operator
- * owns the sequence, via Remy's reorder (`useReorderMenuAssets` merge-writes
- * `menuAssetDisplayOrder` and nothing else). So the sequence is OBSERVED from the document instead
- * of being re-derived, and `menuAssetDisplayOrder` — not `groupDisplayOrder` — is the field
- * observed, because that is the one Remy actually writes. `buildAssembly` then re-derives
- * `groupDisplayOrder` from it, which also HEALS a `groupDisplayOrder` left stale by a reorder.
+ * The existing `menuAssetDisplayOrder` is deliberately NOT read, and that is the whole of #183.
+ * #100 read it, so an operator's reorder in Remy would win over the mirror; but the value read is
+ * written by the PREVIOUS SYNC every bit as often as by an operator, which made the desired state a
+ * function of its own output. Its fixed point is therefore whatever the first run happened to
+ * produce: a merchant who reorders their sections in Square keeps the old order in KIOS FOREVER,
+ * with only newly-added groups appending at the end, and nothing reports the divergence. With
+ * remy#471 removing the reorder control there is no operator intent left to protect, so the
+ * destination doc is now read for identity and for the no-churn compare (`assemblyEquals`) only —
+ * never as an input to the value.
  *
- * The merge is a stable partition, not a diff:
- *   [existing order ∩ desired, relative order preserved] ++ [desired \ existing, seed order]
- * It is a fixed point — feeding its own output back in with an unchanged desired set returns a
- * byte-identical array, which is what keeps `assemblyEquals` silent on a steady-state run — and it
- * degenerates to the full seed order when there is no existing order at all.
+ * Purity is also what keeps `assemblyEquals` silent on a steady-state run: re-deriving from an
+ * unchanged catalog yields an identical array, so the reuse path writes nothing.
  *
- * #174 changed only what "seed order" means: it was alphabetical by category name, a stand-in for
- * information we did not have; it is now `seedIndex`, the position Square's own
- * `parent_category.ordinal` puts the category in (see `orderedDescendants`).
- *
- * @param managedGroups the desired managed set for ONE menu, carrying its seed order
- * @param existingMenuAssetDisplayOrder the RAW `menuAssetDisplayOrder` off the existing managed
- *   Menu doc. Typed `unknown` on purpose: it is untyped Firestore data written by another process,
- *   so it may be absent, a non-array, or hold duplicate / stale / non-group ids. A `string[]`
- *   annotation here would be a lie TypeScript happily accepts, because `DocumentData` is
- *   index-signature `any`.
+ * @param managedGroups the desired managed set for ONE menu, carrying its ordinal order
  */
-function computeAssemblyOrder(
-  managedGroups: ManagedGroupPlanEntry[],
-  existingMenuAssetDisplayOrder: unknown,
-): string[] {
-  // Keyed by groupId, so the desired set is de-duplicated BY CONSTRUCTION and the newcomer pass
-  // below needs no second guard of its own.
+function computeAssemblyOrder(managedGroups: ManagedGroupPlanEntry[]): string[] {
+  // Keyed by groupId, so the desired set is de-duplicated BY CONSTRUCTION: emitting an id twice
+  // would make the order LONGER than the `menuAssets` map `buildAssembly` derives from it, breaking
+  // the "three identical sequences" invariant that `assemblyEquals` and Remy both depend on.
   const desiredByGroupId = new Map<string, ManagedGroupPlanEntry>();
   for (const entry of managedGroups) desiredByGroupId.set(entry.groupId, entry);
 
-  const order: string[] = [];
-  const placed = new Set<string>();
-
-  const rawOrder: readonly unknown[] = Array.isArray(existingMenuAssetDisplayOrder)
-    ? existingMenuAssetDisplayOrder
-    : [];
-  for (const id of rawOrder) {
-    // Three independent skip reasons, every one of them a real state of a live document:
-    //  - not a string: hand-edited or corrupt data;
-    //  - not desired:  deleted or dropped this run, or a stale / non-group asset id left behind;
-    //  - already placed: a duplicate id. Emitting it twice would make `order` LONGER than the
-    //    `menuAssets` map `buildAssembly` derives from it, breaking the "three identical
-    //    sequences" invariant that `assemblyEquals` and Remy both depend on.
-    if (typeof id !== 'string') continue;
-    if (!desiredByGroupId.has(id)) continue;
-    if (placed.has(id)) continue;
-    placed.add(id);
-    order.push(id);
-  }
-
-  // Newcomers sort AMONG THEMSELVES ONLY. A global re-sort here is precisely the bug #100 fixed.
-  // On initial creation `placed` is empty, every group is a newcomer, and this is the full seed
-  // order.
-  const newcomers = [...desiredByGroupId.values()].filter((entry) => !placed.has(entry.groupId));
-  newcomers.sort((a, b) => a.seedIndex - b.seedIndex);
-  for (const entry of newcomers) order.push(entry.groupId);
-
-  return order;
+  // The caller already emits its entries in DFS order, so this sort is an identity today, and it
+  // would stay one under any change to the DFS — `sortIndex` is assigned FROM the emission order, so
+  // it moves in lockstep with it and can never disagree. It is defense-in-depth against a future
+  // caller that assembles `managedGroups` some other way, nothing more; the ordering guarantee
+  // itself is enforced upstream by `compareSiblings` and `orderedDescendants`, and TC9's end-state
+  // assertions are what actually catch a regression in it.
+  return [...desiredByGroupId.values()]
+    .sort((a, b) => a.sortIndex - b.sortIndex)
+    .map((entry) => entry.groupId);
 }
 
 /**
@@ -485,12 +458,12 @@ function computeAssemblyOrder(
  *   an empty menu;
  * - `groupDisplayOrder` is the legacy order, kept in sync for older readers.
  *
- * Consequence, and it is intended: the assembly is exactly the managed group set, so any
- * non-group asset (collection / product / htmlText) placed on a managed Menu is dropped. Managed
- * Menus are UI-locked per #85 — read-only in every respect EXCEPT the #100 group-order carve-out,
- * which is the one operator write this service observes rather than overwrites. So an operator can
- * reorder the assets but cannot add one, and a stray non-group asset can only arrive from outside
- * Remy.
+ * Consequence, and it is intended: the assembly is exactly the managed group set in exactly
+ * Square's order, so any non-group asset (collection / product / htmlText) placed on a managed Menu
+ * is dropped, and any stored order that disagrees with Square is overwritten. Managed Menus are
+ * UI-locked per #85 as amended by #183 — read-only WITHOUT EXCEPTION, ordering included. So an
+ * operator can neither add an asset nor reorder one, and a stray asset or a hand-written order can
+ * only arrive from outside Remy.
  */
 function buildAssembly(order: string[]): MenuAssembly {
   const menuAssets: Record<string, MenuAsset> = {};
@@ -560,8 +533,9 @@ export interface ManagedMenuResult {
  *
  * @param businessId the tenant to mirror
  * @returns one entry per managed Menu, ordered by root category (name, id); each carries the root
- *   it mirrors and its managed MenuGroup ids **in assembly order** — the same array as that menu's
- *   `menuAssetDisplayOrder`, so a caller can log or assert the order without re-reading Firestore
+ *   it mirrors and its managed MenuGroup ids **in Square's `parent_category.ordinal` order** — the
+ *   same array as that menu's stored `menuAssetDisplayOrder`, so a caller can log or assert the
+ *   order without re-reading Firestore
  */
 export async function syncManagedSquareMenu(
   businessId: string,
@@ -640,10 +614,7 @@ export async function syncManagedSquareMenu(
   let changedMenuCount = 0;
 
   for (const menuPlan of plan.menus) {
-    // No `?? []` fallback: `computeAssemblyOrder` already treats anything that is not an array —
-    // including the `undefined` of "no existing menu" — as "no observed order", and normalizing
-    // the same concern twice would leave two places to keep in agreement.
-    const order = computeAssemblyOrder(menuPlan.groups, menuPlan.existingMenu?.data.menuAssetDisplayOrder);
+    const order = computeAssemblyOrder(menuPlan.groups);
     const assembly = buildAssembly(order);
 
     let menuId: string;

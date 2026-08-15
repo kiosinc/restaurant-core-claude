@@ -185,18 +185,22 @@ export interface MenuOverrides {
   groupIds?: string[];
   isDeleted?: boolean;
   /**
-   * #100: RAW override for `menuAssetDisplayOrder` ALONE, left deliberately `unknown` so a fixture
-   * can express what Firestore can actually hold — an operator order that disagrees with
-   * `groupDisplayOrder`, a duplicated id, a stale id, or a value that is not even an array.
-   * `menuAssets` and `groupDisplayOrder` still come from `groupIds`, and that asymmetry is the whole
-   * point: it is exactly the state Remy's `useReorderMenuAssets` leaves behind, since it merge-writes
-   * this one field and nothing else, leaving `groupDisplayOrder` stale.
+   * RAW override for `menuAssetDisplayOrder` ALONE, left deliberately `unknown` so a fixture can
+   * express what Firestore can actually hold — an order that disagrees with Square, a duplicated or
+   * stale id, or a value that is not even an array. `menuAssets` and `groupDisplayOrder` still come
+   * from `groupIds`, and that asymmetry is the point.
+   *
+   * Under #183 the mirror never reads this field to compute order; it is read only by
+   * `assemblyEquals`' no-churn compare, which is exactly what these fixtures exercise.
    *
    * `undefined` means "not overridden" (the default `[...groupIds]` applies); to express a doc with
    * no such key at all, use `omitMenuAssetDisplayOrder`.
    */
   menuAssetDisplayOrder?: unknown;
-  /** #100: omit the key entirely — a menu doc written before the field existed. */
+  /**
+   * Omit the key entirely — a menu doc written before the field existed. #183: the no-churn compare
+   * must still see such a doc as differing from the derived assembly.
+   */
   omitMenuAssetDisplayOrder?: boolean;
 }
 

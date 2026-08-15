@@ -30,7 +30,7 @@ import {
   root,
   world,
 } from './managedMenuFixture';
-import type { FixtureDoc, FixtureSet } from './managedMenuFixture';
+import type { FixtureDoc, FixtureSet, MenuOverrides } from './managedMenuFixture';
 import {
   mockDb,
   mockTransaction,
@@ -189,8 +189,8 @@ async function storedAssembly(menuId: string) {
 }
 
 /**
- * #100 acceptance criterion: the stored `menuAssetDisplayOrder`, the stored `groupDisplayOrder`,
- * the stored `menuAssets` KEY ORDER and the returned `managedGroupIds` are all one and the same
+ * #88/#183 invariant: the stored `menuAssetDisplayOrder`, the stored `groupDisplayOrder`, the
+ * stored `menuAssets` KEY ORDER and the returned `managedGroupIds` are all one and the same
  * sequence.
  */
 async function expectConsistentAssembly(
@@ -851,7 +851,7 @@ describe('ManagedMenuService', () => {
     });
   });
 
-  // ─── TC9: ordering — parentOrdinal seed + #100 carve-out ───────────────
+  // ─── TC9: ordering — Square owns order (parentOrdinal, #183) ───────────
 
   describe('TC9 — ordering', () => {
     /**
@@ -871,7 +871,27 @@ describe('ManagedMenuService', () => {
       });
     }
 
-    it('seeds new groups from parentOrdinal, not alphabetically', async () => {
+    /** The full managed set for `ordinalWorld`, already mirrored — one group per child category. */
+    function ordinalGroups(): FixtureDoc[] {
+      return [
+        managedGroup('gz', 'Zulu', 'cz'),
+        managedGroup('gm', 'Mike', 'cm'),
+        managedGroup('ga', 'Alpha', 'ca'),
+      ];
+    }
+
+    /** `ordinalGroups` already mirrored, under a menu whose stored order DISAGREES with Square. */
+    function disagreeingWorld(): FixtureSet {
+      return ordinalWorld(
+        managedMenu('sq', 'Menu', 'r', {
+          groupIds: ['gz', 'gm', 'ga'],
+          menuAssetDisplayOrder: ['ga', 'gz', 'gm'],
+        }),
+        ordinalGroups(),
+      );
+    }
+
+    it('orders new groups by parentOrdinal, not alphabetically', async () => {
       registerFixture(ordinalWorld());
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
@@ -902,35 +922,59 @@ describe('ManagedMenuService', () => {
       ]);
     });
 
-    it('preserves an operator-set menuAssetDisplayOrder across a sync', async () => {
-      const groups = [
-        managedGroup('gz', 'Zulu', 'cz'),
-        managedGroup('gm', 'Mike', 'cm'),
-        managedGroup('ga', 'Alpha', 'ca'),
-      ];
-      const operatorOrder = ['ga', 'gz', 'gm'];
-      registerFixture(ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', {
-          groupIds: ['gz', 'gm', 'ga'],
-          menuAssetDisplayOrder: operatorOrder,
-        }),
-        groups,
-      ));
+    /**
+     * THE #183 TEST. Every other case here asserts one run in isolation; this is the only one that
+     * asserts the CHANGE BETWEEN two runs of the same code over the same docs, driven by nothing but
+     * the source. It starts from the create path deliberately, so the order the second run has to
+     * overwrite is one the FIRST run itself wrote — which is precisely why observing that field
+     * (#100) froze Square's order forever rather than protecting an operator.
+     */
+    it('propagates a Square-side reorder on the next sync', async () => {
+      const set = ordinalWorld();
+      registerFixture(set);
+
+      const first = await syncManagedSquareMenu(BUSINESS_ID);
+      const gz = createdGroupIdFor('cz');
+      const gm = createdGroupIdFor('cm');
+      const ga = createdGroupIdFor('ca');
+      await expectConsistentAssembly(first.menus[0], [gz, gm, ga]);
+
+      // The merchant reorders their sections in Square: Alpha first, Zulu last. `registerCollection`
+      // stores the very doc data objects the fixture handed it, so mutating them here IS what the
+      // next run reads.
+      const reordered: Record<string, number> = { ca: 0, cm: 1, cz: 2 };
+      for (const c of set.categories) {
+        if (c.id in reordered) c.data.parentOrdinal = reordered[c.id];
+      }
+
+      const second = await syncManagedSquareMenu(BUSINESS_ID);
+
+      await expectConsistentAssembly(second.menus[0], [ga, gm, gz]);
+    });
+
+    it('writes nothing on a second sync when Square\'s order is unchanged', async () => {
+      // TC4 proves the fixed point on the canonical world, whose ordinals AGREE with alphabetical
+      // order; this proves it on the anti-alphabetical tree, i.e. that the sort itself is idempotent
+      // rather than that alphabetical order happened to be stable.
+      registerFixture(ordinalWorld());
+      await syncManagedSquareMenu(BUSINESS_ID);
+      docWrites.length = 0;
+
+      await syncManagedSquareMenu(BUSINESS_ID);
+
+      expect(docWrites).toEqual([]);
+    });
+
+    it('overwrites a stored menuAssetDisplayOrder that disagrees with Square', async () => {
+      registerFixture(disagreeingWorld());
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
-      await expectConsistentAssembly(result.menus[0], operatorOrder);
+      await expectConsistentAssembly(result.menus[0], ['gz', 'gm', 'ga']);
     });
 
-    it('heals a groupDisplayOrder left stale by an operator reorder', async () => {
-      const groups = [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm'), managedGroup('ga', 'Alpha', 'ca')];
-      registerFixture(ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', {
-          groupIds: ['gz', 'gm', 'ga'],
-          menuAssetDisplayOrder: ['ga', 'gz', 'gm'],
-        }),
-        groups,
-      ));
+    it('writes exactly the assembly fields and the updated stamp when the order changes', async () => {
+      registerFixture(disagreeingWorld());
 
       await syncManagedSquareMenu(BUSINESS_ID);
 
@@ -939,26 +983,28 @@ describe('ManagedMenuService', () => {
       expect(Object.keys(update[0].data).sort()).toEqual([
         'groupDisplayOrder', 'menuAssetDisplayOrder', 'menuAssets', 'updated',
       ]);
-      expect((await storedAssembly('sq')).groupDisplayOrder).toEqual(['ga', 'gz', 'gm']);
+      expect((await storedAssembly('sq')).groupDisplayOrder).toEqual(['gz', 'gm', 'ga']);
     });
 
-    it('appends a newcomer at the end of the operator order, not at its ordinal slot', async () => {
-      const groups = [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm')];
+    it('places a newcomer at its ordinal slot, not at the end', async () => {
+      // The incumbents are the OUTER two ordinals (Zulu 0, Alpha 2) so the newcomer 'cm' (ordinal 1)
+      // has to land in the MIDDLE. With adjacent incumbents an appending implementation would look
+      // correct by accident.
+      const groups = [managedGroup('gz', 'Zulu', 'cz'), managedGroup('ga', 'Alpha', 'ca')];
       registerFixture(ordinalWorld(
         managedMenu('sq', 'Menu', 'r', {
-          groupIds: ['gz', 'gm'],
-          menuAssetDisplayOrder: ['gm', 'gz'],
+          groupIds: ['gz', 'ga'],
+          menuAssetDisplayOrder: ['ga', 'gz'],
         }),
         groups,
       ));
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
-      // 'ca' has ordinal 2 (last) but would sort FIRST alphabetically; either way it appends.
-      await expectConsistentAssembly(result.menus[0], ['gm', 'gz', createdGroupIdFor('ca')]);
+      await expectConsistentAssembly(result.menus[0], ['gz', createdGroupIdFor('cm'), 'ga']);
     });
 
-    it('sorts multiple newcomers among themselves by ordinal without re-sorting the rest', async () => {
+    it('sorts incumbents and newcomers together by ordinal', async () => {
       registerFixture(ordinalWorld(
         managedMenu('sq', 'Menu', 'r', { groupIds: ['gm'], menuAssetDisplayOrder: ['gm'] }),
         [managedGroup('gm', 'Mike', 'cm')],
@@ -966,25 +1012,22 @@ describe('ManagedMenuService', () => {
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
+      // The incumbent is RE-SORTED into its ordinal slot rather than held at the front — the whole
+      // point of #183, and the exact assertion #100 inverted.
       await expectConsistentAssembly(result.menus[0], [
-        'gm', createdGroupIdFor('cz'), createdGroupIdFor('ca'),
+        createdGroupIdFor('cz'), 'gm', createdGroupIdFor('ca'),
       ]);
     });
 
-    it('drops a deleted group without re-ordering the rest', async () => {
-      const set = ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', {
-          groupIds: ['gz', 'gm', 'ga'],
-          menuAssetDisplayOrder: ['ga', 'gz', 'gm'],
-        }),
-        [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm'), managedGroup('ga', 'Alpha', 'ca')],
-      );
+    it('drops a deleted group and orders the survivors by ordinal', async () => {
+      const set = disagreeingWorld();
       set.categories = set.categories.filter((c) => c.id !== 'cz');
       registerFixture(set);
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
-      await expectConsistentAssembly(result.menus[0], ['ga', 'gm']);
+      // Zulu is gone, so the survivors are Mike (ordinal 1) then Alpha (ordinal 2).
+      await expectConsistentAssembly(result.menus[0], ['gm', 'ga']);
       expect(deletesOn(MENU_GROUPS_PATH)).toEqual(['gz']);
     });
 
@@ -998,45 +1041,31 @@ describe('ManagedMenuService', () => {
       ]);
     });
 
-    it.each([
-      ['null', null],
-      ['a comma-joined string', 'gz,gm,ga'],
-      ['a number', 7],
-      ['an object', { 0: 'gz' }],
-    ])('ignores a menuAssetDisplayOrder that is %s', async (_label, raw) => {
+    /**
+     * The stored value is never PARSED any more — after #183 `assemblyEquals` is the only code left
+     * that touches it, and it hands the raw value straight to `arraysEqual`, which reads `.length`
+     * off it with no `Array.isArray` guard of its own. These cases are that compare's regression
+     * net: each one must read as "differs", so the menu is written exactly once, carrying Square's
+     * order. The last row covers the missing-key shape, which reaches the same compare via its
+     * `?? []`.
+     */
+    it.each<[string, MenuOverrides]>([
+      ['null', { menuAssetDisplayOrder: null }],
+      ['a comma-joined string', { menuAssetDisplayOrder: 'gz,gm,ga' }],
+      ['a number', { menuAssetDisplayOrder: 7 }],
+      ['an object', { menuAssetDisplayOrder: { 0: 'gz' } }],
+      ['a junk array', { menuAssetDisplayOrder: ['ga', 42, 'ga', 'notAGroup', 'gm', null, 'gz'] }],
+      ['absent entirely', { omitMenuAssetDisplayOrder: true }],
+    ])('rewrites a menu whose stored menuAssetDisplayOrder is %s', async (_label, override) => {
       registerFixture(ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', { groupIds: ['gz', 'gm', 'ga'], menuAssetDisplayOrder: raw }),
-        [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm'), managedGroup('ga', 'Alpha', 'ca')],
+        managedMenu('sq', 'Menu', 'r', { groupIds: ['gz', 'gm', 'ga'], ...override }),
+        ordinalGroups(),
       ));
 
       const result = await syncManagedSquareMenu(BUSINESS_ID);
 
+      expect(writesFor(MENUS_PATH, 'sq')).toHaveLength(1);
       await expectConsistentAssembly(result.menus[0], ['gz', 'gm', 'ga']);
-    });
-
-    it('falls back to the seed order when menuAssetDisplayOrder is missing entirely', async () => {
-      registerFixture(ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', { groupIds: ['gz', 'gm', 'ga'], omitMenuAssetDisplayOrder: true }),
-        [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm'), managedGroup('ga', 'Alpha', 'ca')],
-      ));
-
-      const result = await syncManagedSquareMenu(BUSINESS_ID);
-
-      await expectConsistentAssembly(result.menus[0], ['gz', 'gm', 'ga']);
-    });
-
-    it('ignores non-string and duplicate entries and ids outside the managed set', async () => {
-      registerFixture(ordinalWorld(
-        managedMenu('sq', 'Menu', 'r', {
-          groupIds: ['gz', 'gm', 'ga'],
-          menuAssetDisplayOrder: ['ga', 42, 'ga', 'notAGroup', 'gm', null, 'gz'],
-        }),
-        [managedGroup('gz', 'Zulu', 'cz'), managedGroup('gm', 'Mike', 'cm'), managedGroup('ga', 'Alpha', 'ca')],
-      ));
-
-      const result = await syncManagedSquareMenu(BUSINESS_ID);
-
-      await expectConsistentAssembly(result.menus[0], ['ga', 'gm', 'gz']);
     });
 
     it('orders roots deterministically by name then id', async () => {
