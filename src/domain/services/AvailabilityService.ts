@@ -59,7 +59,7 @@ export async function getAvailability(businessId: string, locationId: string): P
 // `{ isAvailable: false }` would stop sold-out items being marked sold out.
 //
 // Accepted trade-off: under the DEFAULT SDK config `{ isAvailable: undefined }`
-// currently throws `Cannot use "undefined" as a Firestore value`; it now
+// used to throw `Cannot use "undefined" as a Firestore value`; it now
 // becomes a silent no-op. Same direction as the rest of this fix (erasing or
 // failing writes become no-ops), so it is deliberate rather than incidental.
 //
@@ -100,13 +100,16 @@ async function writeAvailability(
     options?: { [oid: string]: OptionAvailability };
   },
 ): Promise<void> {
+  // pruneEmptyEntries returns undefined (never {}) for a map with no survivors,
+  // so these two are the whole "did anything survive?" test.
   const products = pruneEmptyEntries(updates.products);
   const options = pruneEmptyEntries(updates.options);
+  if (!products && !options) return;
+
   const payload: { products?: Record<string, ProductAvailability>; options?: Record<string, OptionAvailability> } = {
     ...(products ? { products } : {}),
     ...(options ? { options } : {}),
   };
-  if (Object.keys(payload).length === 0) return;
 
   const docRef = PathResolver.availabilityDoc(businessId, locationId);
   // Nested-object merge-set (not a dotted key, not update()): nests under
