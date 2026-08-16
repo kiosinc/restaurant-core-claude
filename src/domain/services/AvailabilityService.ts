@@ -35,39 +35,125 @@ export async function getAvailability(businessId: string, locationId: string): P
   };
 }
 
+// ---------------------------------------------------------------------------
+// Empty maps are no-ops, never erasure (#157)
+//
+// set(data, { merge: true }) derives its update mask from the LEAF paths in
+// `data`. A map with no entries has no leaves, so the mask entry becomes the
+// map's OWN path and the empty map is written as that field's value — i.e. a
+// full subtree replacement. That is documented Firestore behaviour, not an SDK
+// bug: `{ options: {} }` wipes every option entry at a location, and
+// `{ options: { <id>: {} } }` wipes that one entry's fields. A truthiness test
+// cannot catch it — `{}` is truthy — and a top-level-only guard leaves the
+// per-entity case open, so all four writers funnel through writeAvailability()
+// below, which holds the file's ONLY merge-set and is unreachable with an
+// empty payload.
+//
+// "Empty" means "no key whose value is DEFINED", not "no keys". The prune runs
+// here, before the payload reaches the SDK, but ignoreUndefinedProperties (a
+// consumer-side setting this library never sets) strips undefined properties
+// INSIDE the SDK, before it computes the mask. So for such a consumer
+// `{ <id>: { isAvailable: undefined } }` would survive a key-count test, then
+// reach the wire as `{ <id>: {} }` and erase the entry anyway. Testing for
+// defined values closes that. Falsy-but-defined must survive: dropping
+// `{ isAvailable: false }` would stop sold-out items being marked sold out.
+//
+// Accepted trade-off: under the DEFAULT SDK config `{ isAvailable: undefined }`
+// used to throw `Cannot use "undefined" as a Firestore value`; it now
+// becomes a silent no-op. Same direction as the rest of this fix (erasing or
+// failing writes become no-ops), so it is deliberate rather than incidental.
+//
+// Consequence for callers: `undefined` and `{}` are now indistinguishable —
+// both mean "no change". Anything that genuinely wants to CLEAR data must use
+// removeProductAvailability / removeOptionAvailability / deleteAvailabilityDoc.
+// Note the deliberate contrast with the "Entry removal (#133)" block below:
+// removal is update() + dotted-key FieldValue.delete() precisely because a
+// merge-set cannot express a delete. Do not harmonise the two idioms.
+// ---------------------------------------------------------------------------
+
+// Non-objects (including null) are deliberately NOT empty: they are passed
+// through untouched, preserving today's behaviour rather than silently
+// swallowing a malformed entry.
+function isEmptyEntry(entry: unknown): boolean {
+  if (entry === null || typeof entry !== 'object') return false;
+  return !Object.values(entry as Record<string, unknown>).some((value) => value !== undefined);
+}
+
+// Decides whether to keep a WHOLE entry; it never rewrites a surviving entry's
+// contents (stripping undefined keys inside a survivor would turn a
+// default-config throw into a silent partial write). Survivors are kept by
+// reference, so an unpruned payload stays deep-equal to the caller's input.
+function pruneEmptyEntries<T>(entries: { [id: string]: T } | undefined): { [id: string]: T } | undefined {
+  if (!entries) return undefined;
+  const kept = Object.entries(entries).filter(([, entry]) => !isEmptyEntry(entry));
+  return kept.length > 0 ? Object.fromEntries(kept) : undefined;
+}
+
+// The single write path for every availability writer. Prunes empty entries,
+// drops a products/options map that pruning emptied, and returns without
+// touching Firestore — not even resolving the doc ref — when nothing survives.
+async function writeAvailability(
+  businessId: string,
+  locationId: string,
+  updates: {
+    products?: { [pid: string]: ProductAvailability };
+    options?: { [oid: string]: OptionAvailability };
+  },
+): Promise<void> {
+  // pruneEmptyEntries returns undefined (never {}) for a map with no survivors,
+  // so these two are the whole "did anything survive?" test.
+  const products = pruneEmptyEntries(updates.products);
+  const options = pruneEmptyEntries(updates.options);
+  if (!products && !options) return;
+
+  const payload: { products?: Record<string, ProductAvailability>; options?: Record<string, OptionAvailability> } = {
+    ...(products ? { products } : {}),
+    ...(options ? { options } : {}),
+  };
+
+  const docRef = PathResolver.availabilityDoc(businessId, locationId);
+  // Nested-object merge-set (not a dotted key, not update()): nests under
+  // products.<id> / options.<id> AND upserts, creating the doc when it does not
+  // yet exist.
+  await docRef.set(payload, { merge: true });
+}
+
+// An empty `availability` is a no-op, not an erasure of products.<id> — see the
+// "Empty maps are no-ops" block above.
 export async function setProductAvailability(
   businessId: string,
   locationId: string,
   productId: string,
   availability: ProductAvailability,
 ): Promise<void> {
-  const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  // Nested-object merge-set (not a dotted key, not update()): nests under
-  // products.<id> AND upserts, creating the doc when it does not yet exist.
-  await docRef.set({ products: { [productId]: availability } }, { merge: true });
+  await writeAvailability(businessId, locationId, { products: { [productId]: availability } });
 }
 
+// An empty `availability` is a no-op, not an erasure of options.<id> — see the
+// "Empty maps are no-ops" block above.
 export async function setOptionAvailability(
   businessId: string,
   locationId: string,
   optionId: string,
   availability: OptionAvailability,
 ): Promise<void> {
-  const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  // Nested-object merge-set (not a dotted key, not update()): nests under
-  // options.<id> AND upserts, creating the doc when it does not yet exist.
-  await docRef.set({ options: { [optionId]: availability } }, { merge: true });
+  await writeAvailability(businessId, locationId, { options: { [optionId]: availability } });
 }
 
+// An empty map — or one whose every entry is empty — writes nothing rather than
+// erasing the whole `products` subtree; see the "Empty maps are no-ops" block.
 export async function setProductAvailabilityBatch(
   businessId: string,
   locationId: string,
   products: { [pid: string]: ProductAvailability },
 ): Promise<void> {
-  const docRef = PathResolver.availabilityDoc(businessId, locationId);
-  await docRef.set({ products }, { merge: true });
+  await writeAvailability(businessId, locationId, { products });
 }
 
+// Present-but-empty `products` / `options` maps are dropped from the payload
+// rather than erasing their subtrees, and empty per-entity maps are dropped
+// rather than erasing that entity's fields; see the "Empty maps are no-ops"
+// block. When nothing survives, no RPC is issued.
 export async function updateAvailability(
   businessId: string,
   locationId: string,
@@ -76,14 +162,7 @@ export async function updateAvailability(
     options?: { [oid: string]: OptionAvailability };
   },
 ): Promise<void> {
-  const merge: { products?: Record<string, ProductAvailability>; options?: Record<string, OptionAvailability> } = {
-    ...(updates.products ? { products: updates.products } : {}),
-    ...(updates.options ? { options: updates.options } : {}),
-  };
-  if (Object.keys(merge).length > 0) {
-    const docRef = PathResolver.availabilityDoc(businessId, locationId);
-    await docRef.set(merge, { merge: true });
-  }
+  await writeAvailability(businessId, locationId, updates);
 }
 
 export async function getOptionTimestamp(
