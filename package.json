@@ -10,7 +10,8 @@
     "link": "rm -rf ./lib && tsc && npm link",
     "pre-publish": "rm -rf ./lib && tsc",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:emulator": "vitest run --config vitest.emulator.config.ts"
   },
   "repository": {
     "type": "git",
