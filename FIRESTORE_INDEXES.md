@@ -1,9 +1,10 @@
 # Firestore index configuration
 
 There is **no `firestore.indexes.json`** in this repo or any sibling repo in the KIOS monorepo.
-Index configuration is applied **imperatively against the live projects** with `gcloud`, so nothing
-in version control reflects it. This file is the record. Keep it current when you change index
-config, because there is no other place to look.
+Index configuration — and TTL field policies, see **TTL policies** below — is applied
+**imperatively against the live projects** with `gcloud`, so nothing in version control reflects it.
+This file is the record. Keep it current when you change index config, because there is no other
+place to look.
 
 ## Single-field exemptions on the per-product maps
 
@@ -102,3 +103,102 @@ different collection groups, so the per-product-map exemptions above are safe �
 generalize the reasoning to another map without checking its call sites first. A useful smoke
 check after any exemption work: `where('optionSets.{id}.name', '>=', '')` on `products` still
 returns rows.
+
+## TTL policies
+
+TTL field policies are configured the same way as index exemptions — imperatively, with `gcloud`,
+against the live projects — so nothing in version control reflects them either. They are recorded
+here for the same reason: there is no other place to look.
+
+### `webhookClaims.expiresAt` (P42 — rcc#166, contract rcc#165)
+
+`webhookClaims/{eventId}` is a **top-level** collection of webhook claim documents. Each claim
+carries an `expiresAt` Timestamp (72 h after `createdAt`), and the collection group needs a TTL
+policy on that field so Firestore reclaims the stored Square notification `payload` once the replay
+window has passed. Note the command group is `firestore fields ttls`, not `firestore indexes fields`.
+
+```
+# dev
+gcloud firestore fields ttls update expiresAt \
+  --collection-group=webhookClaims --database='(default)' \
+  --project=project-arya-280418 --enable-ttl
+```
+
+```
+# prod
+gcloud firestore fields ttls update expiresAt \
+  --collection-group=webhookClaims --database='(default)' \
+  --project=kios-master --enable-ttl
+```
+
+Each returns a long-running operation; wait for it to finish. Apply to dev first, verify, then prod
+— the same ordering the index work above uses.
+
+**Re-verify.** The `ttls` group exposes only `update` (no `describe`/`list`), so verification goes
+through the field-metadata describe, which is where `ttlConfig` appears:
+
+```
+gcloud firestore indexes fields describe expiresAt \
+  --collection-group=webhookClaims --database='(default)' --project=<project>
+```
+
+Expect a `ttlConfig` in an active state. **Only one field per collection group can be the TTL
+field** — pointing the policy at a different field replaces this one, it does not add a second.
+
+### TTL is storage reclamation only, never a correctness mechanism
+
+Two caveats from Firebase's docs, both load-bearing:
+
+- deletion happens *"typically within 24 hours after its expiration date"*, and
+- *"Expired documents continue to appear in queries and lookup requests until the TTL process
+  actually deletes them."*
+
+So a document being past `expiresAt` says nothing about whether it still exists, and a document
+existing says nothing about whether it is still live. Consequences:
+
+- Claim expiry is always evaluated from the **stored** `leaseExpiresAt` / `expiresAt` fields at read
+  time. It is never inferred from TTL having run.
+- The P42 sweeper (kiosinc/cloud-functions#82) must filter on those stored fields. A query that
+  assumes expired claims are gone will see them for up to a day past expiry.
+
+### P42 rollout notes
+
+**The `preferRest` precondition — check before rolling out.** `firebase/firebase-admin-node#2587`
+(still open): under REST transport the Firestore endpoint returns HTTP 409 both for "document
+already exists" and for a server-aborted request, the SDK cannot distinguish the two, so it retries.
+`DocumentReference.create()` on an existing document therefore **hangs until timeout instead of
+failing fast** — and `acquireClaim` depends on that fast fail to detect a duplicate. `preferRest` is
+not only a code setting: it is also read from the **`FIRESTORE_PREFER_REST` environment variable**.
+Pre-rollout check, in both **square-gateway-claude** and **cloud-functions**:
+
+```
+grep -rn "preferRest\|initializeFirestore" src
+gcloud run services describe <svc> --region=<r> \
+  --project=<kios-master|project-arya-280418> \
+  --format='value(spec.template.spec.containers[0].env)'
+```
+
+Expect zero `preferRest: true` and `FIRESTORE_PREFER_REST` unset. If either is set, **block the
+rollout** until it is removed.
+
+**The flag rollout.** `useClaimLease` is declared in `WriteModelFlags` defaulting to `false`. After
+this merge there should be **no** `useClaimLease` field in `/config/writeModelFlags` in either
+project — absent must mean false. Write the doc field only when a handler migration is ready to use
+it; rollback is flipping the field off.
+
+**The pre-resolution dual-write gap.** During the migration window `acquireClaim` also writes the
+legacy RTDB `EventNotification` node, so a flag rollback is safe. But the legacy key is
+`${businessId}_${eventId}`, so when a claim is taken **before** tenant resolution (`businessId` not
+yet known) the dual-write is deliberately skipped rather than writing an `undefined_<eventId>` node
+that a rolled-back handler would never look up. Consequence: an event claimed pre-resolution is
+**not rollback-protected**. Handler migrations that care about the rollback window should claim
+after tenant resolution.
+
+**`payload` fidelity limits.** The claim stores the verbatim Square notification body as the only
+durable replay source — Square's Events API is unavailable to us, and Cloud Tasks has no DLQ (an
+exhausted task is deleted along with its body). kiosinc/cloud-functions#83 replays from this field.
+But Firestore sorts map keys and normalizes integral numbers, so a replayed body is **structurally**
+identical, not byte-identical. Therefore a replayed body **cannot be re-verified against Square's
+HMAC signature**: signature verification must stay at the receiver, before the claim, and the replay
+job must not attempt it. Firestore also rejects nested arrays and empty / `__reserved__` map keys
+outright, so such a payload fails the write rather than being stored.
