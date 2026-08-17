@@ -9,9 +9,11 @@
  * The **real** `Timestamp` is kept (only `getFirestore` is replaced) because every lease and
  * TTL assertion in this file is arithmetic on it. Lease and 24 h boundaries are driven with
  * fake timers rather than by widening the API with a `nowMs` parameter.
+ *
+ * The plain fixtures (`baseInput`, `snapshot`, `storedClaim`, …) live in
+ * `./helpers/claimFixtures`, shared with `WebhookClaim.migration.test.ts`. The `vi.hoisted`
+ * double and the `vi.mock` blocks stay local on purpose: they run above imports.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import {
   describe, it, expect, vi, beforeEach, afterEach,
 } from 'vitest';
@@ -96,58 +98,22 @@ import {
   MAX_EVENT_AGE_MS,
   INITIAL_PHASE,
 } from '../WebhookClaim';
-import type { AcquireClaimInput, AcquireHandlers, AcquireResult } from '../WebhookClaim';
+import type { AcquireHandlers, AcquireResult } from '../WebhookClaim';
 import { ValidationError } from '../../../domain/validation';
 import { PathResolver } from '../../../persistence/firestore/PathResolver';
+import {
+  EVENT_ID,
+  NOW_ISO,
+  NOW_MS,
+  CREATED_ISO,
+  baseInput,
+  snapshot,
+  storedClaim,
+  alreadyExistsError,
+  readWebhookClaimSource,
+} from './helpers/claimFixtures';
 
 // --- fixtures ----------------------------------------------------------------------------
-
-const EVENT_ID = '0d1c1b2a-3f4e-5d6c-7b8a-9e0f1a2b3c4d';
-const NOW_ISO = '2026-08-16T12:00:10.000Z';
-const NOW_MS = Date.parse(NOW_ISO);
-const CREATED_ISO = '2026-08-16T12:00:00.000Z';
-const SOURCE_PATH = join(process.cwd(), 'src/restaurant/webhooks/WebhookClaim.ts');
-
-function baseInput(overrides: Partial<AcquireClaimInput> = {}): AcquireClaimInput {
-  return {
-    eventId: EVENT_ID,
-    eventType: 'order.updated',
-    merchantId: 'MLKC3F9RCXNPP',
-    payload: { event_id: EVENT_ID, type: 'order.updated' },
-    eventCreatedAt: CREATED_ISO,
-    businessId: 'biz-1',
-    ...overrides,
-  };
-}
-
-function snapshot(data: Record<string, unknown> | undefined) {
-  return { exists: data !== undefined, data: () => data };
-}
-
-/** A stored `claimed` claim. `leaseExpiresAt` defaults to a lapsed lease. */
-function storedClaim(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    eventId: EVENT_ID,
-    eventType: 'order.updated',
-    merchantId: 'MLKC3F9RCXNPP',
-    businessId: 'biz-1',
-    status: 'claimed',
-    phase: 'payment.captured',
-    payload: { event_id: EVENT_ID },
-    leaseExpiresAt: Timestamp.fromMillis(NOW_MS - 1_000),
-    leaseGeneration: 1,
-    attemptCount: 1,
-    createdAt: Timestamp.fromMillis(NOW_MS - 120_000),
-    expiresAt: Timestamp.fromMillis(NOW_MS - 120_000 + CLAIM_TTL_MS),
-    ...overrides,
-  };
-}
-
-const numericCodeError = () => Object.assign(new Error('conflict'), { code: 6 });
-const stringCodeError = () => Object.assign(new Error('conflict'), { code: 'ALREADY_EXISTS' });
-const messageOnlyError = () => new Error(
-  'Document already exists: projects/p/databases/(default)/documents/webhookClaims/x',
-);
 
 function createArg(): Record<string, unknown> {
   return fx.docRef.create.mock.calls[0][0] as Record<string, unknown>;
@@ -273,7 +239,7 @@ describe('acquireClaim — acquired', () => {
 
 describe('acquireClaim — done / failed / inFlight', () => {
   beforeEach(() => {
-    fx.docRef.create.mockRejectedValue(numericCodeError());
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
   });
 
   it('done: existing status "done" replays the cached result', async () => {
@@ -337,7 +303,7 @@ describe('acquireClaim — done / failed / inFlight', () => {
 
 describe('acquireClaim — resumed', () => {
   beforeEach(() => {
-    fx.docRef.create.mockRejectedValue(numericCodeError());
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
   });
 
   it('resumed: expired lease increments leaseGeneration and attemptCount and refreshes leaseExpiresAt', async () => {
@@ -435,21 +401,21 @@ describe('acquireClaim — resumed', () => {
 
 describe('acquireClaim — ALREADY_EXISTS handling', () => {
   it('detects ALREADY_EXISTS from numeric code 6', async () => {
-    fx.docRef.create.mockRejectedValue(numericCodeError());
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
     fx.docRef.get.mockResolvedValue(snapshot(storedClaim({ status: 'failed' })));
 
     await expect(acquireClaim(baseInput())).resolves.toEqual({ outcome: 'failed' });
   });
 
   it('detects ALREADY_EXISTS from string code "ALREADY_EXISTS"', async () => {
-    fx.docRef.create.mockRejectedValue(stringCodeError());
+    fx.docRef.create.mockRejectedValue(alreadyExistsError('stringCode'));
     fx.docRef.get.mockResolvedValue(snapshot(storedClaim({ status: 'failed' })));
 
     await expect(acquireClaim(baseInput())).resolves.toEqual({ outcome: 'failed' });
   });
 
   it('detects ALREADY_EXISTS from the error message when code is absent', async () => {
-    fx.docRef.create.mockRejectedValue(messageOnlyError());
+    fx.docRef.create.mockRejectedValue(alreadyExistsError('messageOnly'));
     fx.docRef.get.mockResolvedValue(snapshot(storedClaim({ status: 'failed' })));
 
     await expect(acquireClaim(baseInput())).resolves.toEqual({ outcome: 'failed' });
@@ -465,7 +431,7 @@ describe('acquireClaim — ALREADY_EXISTS handling', () => {
 
   it('ALREADY_EXISTS but the doc is absent on read → retries create once and returns "acquired"', async () => {
     fx.docRef.create
-      .mockRejectedValueOnce(numericCodeError())
+      .mockRejectedValueOnce(alreadyExistsError())
       .mockResolvedValueOnce({});
     fx.docRef.get.mockResolvedValue(snapshot(undefined));
 
@@ -476,7 +442,7 @@ describe('acquireClaim — ALREADY_EXISTS handling', () => {
   });
 
   it('ALREADY_EXISTS with the doc absent on both reads throws rather than looping', async () => {
-    fx.docRef.create.mockRejectedValue(numericCodeError());
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
     fx.docRef.get.mockResolvedValue(snapshot(undefined));
 
     await expect(acquireClaim(baseInput())).rejects.toThrow(
@@ -945,7 +911,7 @@ describe('legacy RTDB dual-write (req 6)', () => {
   });
 
   it('dual-write ON: writes the legacy RTDB node on "resumed" (idempotent)', async () => {
-    fx.docRef.create.mockRejectedValue(numericCodeError());
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
     const stored = storedClaim();
     fx.docRef.get.mockResolvedValue(snapshot(stored));
     fx.transaction.get.mockResolvedValue(snapshot(stored));
@@ -1041,7 +1007,7 @@ describe('legacy RTDB dual-write (req 6)', () => {
   it('dual-write is not gated on useClaimLease — acquireClaim never reads the flag', async () => {
     // Structural: the module has no dependency on FeatureFlagService at all, so it cannot read
     // `useClaimLease`. Being called *is* the flag decision, already made by the consumer.
-    const source = readFileSync(SOURCE_PATH, 'utf8');
+    const source = readWebhookClaimSource();
     expect(source).not.toMatch(/FeatureFlagService/);
     expect(source).not.toMatch(/getFlags\s*\(/);
     expect(source).not.toMatch(/from '\.\.\/\.\.\/domain\/services/);

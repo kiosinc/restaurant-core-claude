@@ -17,10 +17,21 @@ import {
   describe, it, expect, vi, beforeEach, afterEach,
 } from 'vitest';
 
+// Kept deliberately identical in surface to the double in `WebhookClaim.test.ts` — the two
+// had drifted (no `set`/`update`/`delete` here), which meant a test could not be moved
+// between the files without first reconciling what the doubles permit.
 const fx = vi.hoisted(() => {
-  const transaction = { get: vi.fn(), set: vi.fn(), update: vi.fn() };
+  const transaction = {
+    get: vi.fn(), set: vi.fn(), update: vi.fn(), delete: vi.fn(),
+  };
   const docRef = {
-    id: '', path: '', create: vi.fn(), get: vi.fn(),
+    id: '',
+    path: '',
+    create: vi.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
   };
   const collectionRef = {
     doc: vi.fn((id: string) => {
@@ -60,46 +71,21 @@ vi.mock('../../connected-accounts/EventNotification', () => ({
 
 import { Timestamp } from 'firebase-admin/firestore';
 import { acquireClaim, CLAIM_TTL_MS, DEFAULT_LEASE_MS } from '../WebhookClaim';
-import type { AcquireClaimInput } from '../WebhookClaim';
 import { PathResolver } from '../../../persistence/firestore/PathResolver';
 import { CollectionNames } from '../../../firestore-core/Paths';
-
-const EVENT_ID = '0d1c1b2a-3f4e-5d6c-7b8a-9e0f1a2b3c4d';
-const BUSINESS_ID = 'biz-1';
-const NOW_ISO = '2026-08-16T12:00:10.000Z';
-const NOW_MS = Date.parse(NOW_ISO);
-
-/** The complete field set the contract specifies for a claim taken with a known tenant. */
-const CONTRACT_FIELDS = [
-  'attemptCount',
-  'businessId',
-  'createdAt',
-  'eventId',
-  'eventType',
-  'expiresAt',
-  'leaseExpiresAt',
-  'leaseGeneration',
-  'merchantId',
-  'payload',
-  'phase',
-  'status',
-];
-
-function baseInput(overrides: Partial<AcquireClaimInput> = {}): AcquireClaimInput {
-  return {
-    eventId: EVENT_ID,
-    eventType: 'order.updated',
-    merchantId: 'MLKC3F9RCXNPP',
-    payload: { event_id: EVENT_ID, type: 'order.updated' },
-    eventCreatedAt: '2026-08-16T12:00:00.000Z',
-    businessId: BUSINESS_ID,
-    ...overrides,
-  };
-}
-
-function snapshot(data: Record<string, unknown> | undefined) {
-  return { exists: data !== undefined, data: () => data };
-}
+import {
+  EVENT_ID,
+  BUSINESS_ID,
+  NOW_ISO,
+  NOW_MS,
+  // The complete field set the contract specifies for a claim taken with a known tenant.
+  // Derived from the `storedClaim` fixture, so the field list is written down exactly once.
+  CLAIM_CONTRACT_FIELDS as CONTRACT_FIELDS,
+  baseInput,
+  snapshot,
+  storedClaim,
+  alreadyExistsError,
+} from './helpers/claimFixtures';
 
 async function acquireAndCaptureDocument(): Promise<Record<string, unknown>> {
   const result = await acquireClaim(baseInput());
@@ -210,32 +196,25 @@ describe('Field Migration Table (rcc#165)', () => {
   });
 
   it('[semantics-changed] isNew === false: a done claim replays its result and an in-flight claim returns inFlight (→429) — the old code skipped both', async () => {
-    const alreadyExists = () => Object.assign(new Error('conflict'), { code: 6 });
-    const stored = (overrides: Record<string, unknown>) => ({
-      eventId: EVENT_ID,
-      eventType: 'order.updated',
-      merchantId: 'MLKC3F9RCXNPP',
-      businessId: BUSINESS_ID,
-      status: 'claimed',
+    // The shared `storedClaim` defaults to a *lapsed* lease; this row needs a live one, still
+    // on its first phase, so the second case lands on `inFlight` rather than `resumed`.
+    const stored = (overrides: Record<string, unknown> = {}) => storedClaim({
       phase: 'started',
-      payload: { event_id: EVENT_ID },
       leaseExpiresAt: Timestamp.fromMillis(NOW_MS + 30_000),
-      leaseGeneration: 1,
-      attemptCount: 1,
       createdAt: Timestamp.fromMillis(NOW_MS - 1_000),
       expiresAt: Timestamp.fromMillis(NOW_MS - 1_000 + CLAIM_TTL_MS),
       ...overrides,
     });
 
     // Legacy behaviour for both of these was `isNew === false` ⇒ silent skip + 200.
-    fx.docRef.create.mockRejectedValue(alreadyExists());
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
     fx.docRef.get.mockResolvedValue(snapshot(stored({ status: 'done', result: 201 })));
     await expect(acquireClaim(baseInput())).resolves.toEqual({ outcome: 'done', result: 201 });
 
     vi.clearAllMocks();
     fx.collectionRef.doc.mockImplementation(() => fx.docRef);
-    fx.docRef.create.mockRejectedValue(alreadyExists());
-    fx.docRef.get.mockResolvedValue(snapshot(stored({})));
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
+    fx.docRef.get.mockResolvedValue(snapshot(stored()));
     await expect(acquireClaim(baseInput())).resolves.toEqual({ outcome: 'inFlight' });
   });
 

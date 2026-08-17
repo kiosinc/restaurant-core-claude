@@ -10,12 +10,10 @@
  * These assertions are deliberately string-level and therefore brittle by design: a heading
  * rename is supposed to make someone look at this list.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { readWebhookClaimSource } from './helpers/claimFixtures';
 
-const SOURCE_PATH = join(process.cwd(), 'src/restaurant/webhooks/WebhookClaim.ts');
-const source = readFileSync(SOURCE_PATH, 'utf8');
+const source = readWebhookClaimSource();
 
 describe('WebhookClaim contract TSDoc (req 9)', () => {
   it('contract TSDoc: the file carries every required contract section heading', () => {
