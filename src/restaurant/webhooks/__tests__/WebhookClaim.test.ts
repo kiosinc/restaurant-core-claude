@@ -485,15 +485,30 @@ describe('acquireClaim — ALREADY_EXISTS handling', () => {
     expect(fx.docRef.create).toHaveBeenCalledTimes(2);
   });
 
-  it('warns at module load when FIRESTORE_PREFER_REST is set', async () => {
+  it('warns on the first acquireClaim when FIRESTORE_PREFER_REST is set, at most once per instance', async () => {
+    const preferRestWarnings = () => warn.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('FIRESTORE_PREFER_REST is set'),
+    ).length;
+
     const previous = process.env.FIRESTORE_PREFER_REST;
     process.env.FIRESTORE_PREFER_REST = 'true';
     try {
       vi.resetModules();
-      await import('../WebhookClaim');
+      const mod = await import('../WebhookClaim');
+
+      // Importing must NOT warn: src/index.ts re-exports this module, so a module-load check
+      // would fire on every consumer of the library — cloud-functions cold starts included.
+      expect(preferRestWarnings()).toBe(0);
+
+      await mod.acquireClaim(baseInput());
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('FIRESTORE_PREFER_REST is set'),
       );
+      expect(preferRestWarnings()).toBe(1);
+
+      // Latched: an actual user is warned once, not once per delivery.
+      await mod.acquireClaim(baseInput());
+      expect(preferRestWarnings()).toBe(1);
     } finally {
       if (previous === undefined) delete process.env.FIRESTORE_PREFER_REST;
       else process.env.FIRESTORE_PREFER_REST = previous;
@@ -992,6 +1007,35 @@ describe('legacy RTDB dual-write (req 6)', () => {
       expect.stringContaining('legacy RTDB dual-write failed'),
       expect.any(Error),
     );
+  });
+
+  it('dual-write ON: a stalled RTDB write is abandoned after 5s, warned about, and the outcome is unchanged', async () => {
+    // A stall, not a rejection: firebase-admin's RTDB transaction() queues indefinitely while
+    // the client is disconnected, so there is nothing for the catch to catch.
+    legacy.init.mockReturnValue(new Promise(() => undefined));
+
+    const pending = acquireClaim(baseInput());
+    // Let create() resolve and the timeout timer be scheduled before advancing the clock.
+    await vi.advanceTimersByTimeAsync(0);
+    // LEGACY_DUAL_WRITE_TIMEOUT_MS — module-private, so the value is spelled out here.
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    const result = await pending;
+
+    expect(result.outcome).toBe('acquired');
+    expect(legacy.init).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('did not settle within 5000ms'),
+    );
+  });
+
+  it('dual-write ON: a write that settles in time does not wait out the timeout', async () => {
+    // The bound is a ceiling, not a delay: a healthy write returns on its own microtask.
+    const result = await acquireClaim(baseInput());
+
+    expect(result.outcome).toBe('acquired');
+    expect(vi.getTimerCount()).toBe(0);
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('did not settle within'));
   });
 
   it('dual-write is not gated on useClaimLease — acquireClaim never reads the flag', async () => {

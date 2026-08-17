@@ -133,9 +133,12 @@
  *
  * **Required of every consumer:** do not pass `preferRest: true` to `initializeFirestore`,
  * and do not set `FIRESTORE_PREFER_REST` in the service's environment. This module logs a
- * warning at module load if it sees the variable. It is deliberately **not** worked around in
- * code: a create-timeout-then-read fallback would reintroduce exactly the read-then-write
- * race the `create()` precondition exists to remove.
+ * warning — once per instance — from the **first {@link acquireClaim} call** if it sees the
+ * variable; the check is at first use rather than at module load because `src/index.ts`
+ * re-exports this module, so a load-time check would fire on every consumer of the library,
+ * webhook-handling or not, and would read the environment before a consumer could change it.
+ * It is deliberately **not** worked around in code: a create-timeout-then-read fallback would
+ * reintroduce exactly the read-then-write race the `create()` precondition exists to remove.
  *
  * ## Relationship to the legacy RTDB gate
  *
@@ -151,6 +154,7 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import type { DocumentReference, DocumentSnapshot, Transaction } from 'firebase-admin/firestore';
 import { PathResolver } from '../../persistence/firestore/PathResolver';
+import { toDateSafe } from '../../persistence/firestore/converters/baseFields';
 import * as Constants from '../../firestore-core/Constants';
 import { ValidationError } from '../../domain/validation';
 import EventNotification from '../connected-accounts/EventNotification';
@@ -442,7 +446,31 @@ export class EventTooOldError extends Error {
   }
 }
 
-if (process.env.FIRESTORE_PREFER_REST) {
+/**
+ * Latch for {@link warnOnceIfPreferRest} — the warning is diagnostic, and one per instance is
+ * enough to act on. Set only when a warning is actually emitted, so the environment keeps
+ * being read on every call and a variable set *after* the first acquire is still caught.
+ */
+let isPreferRestWarned = false;
+
+/**
+ * Warn, at most once per instance, if Firestore's REST transport has been selected through the
+ * environment.
+ *
+ * See the file header (*Precondition: REST transport must be off*) for the hazard itself:
+ * under REST, `create()` cannot distinguish "document already exists" from a server-aborted
+ * request, so `acquireClaim`'s duplicate path hangs instead of rejecting.
+ *
+ * **Checked here rather than at module load, deliberately.** `src/index.ts` re-exports this
+ * module, so a module-load check fires on any `require('@kiosinc/restaurant-core-claude')` —
+ * including cloud-functions cold starts that never touch a webhook — and it would freeze the
+ * environment as it stood at import time, going stale if a consumer sets or clears the
+ * variable afterwards. Checking on first use warns exactly the processes the precondition
+ * applies to, against the live value.
+ */
+function warnOnceIfPreferRest(): void {
+  if (isPreferRestWarned || !process.env.FIRESTORE_PREFER_REST) return;
+  isPreferRestWarned = true;
   // eslint-disable-next-line no-console
   console.warn(
     '[WebhookClaim] FIRESTORE_PREFER_REST is set. Firestore REST transport cannot distinguish '
@@ -514,6 +542,13 @@ function assertValidEventId(eventId: unknown): asserts eventId is string {
 }
 
 /**
+ * Firestore's own `Document already exists: …` text, hoisted to module scope for the same
+ * reason {@link EVENT_ID_PATTERN} is: a literal in the function body allocates a fresh
+ * `RegExp` on every evaluation.
+ */
+const ALREADY_EXISTS_MESSAGE_PATTERN = /already exists/i;
+
+/**
  * `ALREADY_EXISTS` detection, defensively.
  *
  * The canonical signal is `GrpcStatus.ALREADY_EXISTS` (`6`), which is what `create()` rejects
@@ -528,7 +563,7 @@ function isAlreadyExistsError(err: unknown): boolean {
   if (code === 6 || code === 'ALREADY_EXISTS') return true;
   // Message fallback, applied whatever `code` says: only Firestore's own
   // "Document already exists: …" text matches, so it cannot swallow another failure.
-  return typeof message === 'string' && /already exists/i.test(message);
+  return typeof message === 'string' && ALREADY_EXISTS_MESSAGE_PATTERN.test(message);
 }
 
 /** `payload` must be a plain object. `{}` is legal — an empty body is still a delivery. */
@@ -550,20 +585,37 @@ function metadataOrEmpty(field: string, value: unknown, eventId: string): string
   return '';
 }
 
+/**
+ * Epoch millis from Firestore's "`Timestamp` **or** ISO string **or** `Date`" ambiguity, or
+ * `undefined` when the value is absent or unparseable.
+ *
+ * The coercion itself is delegated to {@link toDateSafe} — the repo's single answer to that
+ * ambiguity, which the sibling lease primitive `SemaphoreV2` already uses for exactly this
+ * expiry comparison — so this module does not re-derive it with a second duck-type.
+ *
+ * **The guards in front of it are load-bearing; do not "simplify" them away.** `toDateSafe`
+ * is a converter helper and always produces a `Date`: `toDateSafe(null)` returns **epoch 0**
+ * and `toDateSafe(undefined)` an *Invalid Date*. Both call sites here need `undefined`
+ * instead — {@link leaseExpiryMillis} warns on it and treats the lease as expired, and
+ * {@link assertEventNotTooOld} *skips* the age gate on it. Passing `null` straight through
+ * would make a missing `created_at` look like 1970 and turn "warn and proceed" into a
+ * spurious {@link EventTooOldError}.
+ *
+ * The `number` limb is kept as a defence against a writer that stored **raw epoch millis**
+ * rather than a `Timestamp` — no current writer does (both call sites' declared types are
+ * `Timestamp | string | Date`), but a hand-repaired claim document or a future sweeper
+ * (cf#82) writing millis would land here, and coercing it beats silently declaring the lease
+ * expired.
+ */
 function toMillisOrUndefined(value: unknown): number | undefined {
-  if (value instanceof Date) {
-    const ms = value.getTime();
-    return Number.isNaN(ms) ? undefined : ms;
-  }
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
-  if (typeof value === 'string') {
-    const ms = Date.parse(value);
-    return Number.isNaN(ms) ? undefined : ms;
-  }
-  if (typeof value === 'object' && value !== null && typeof (value as Timestamp).toMillis === 'function') {
-    return (value as Timestamp).toMillis();
-  }
-  return undefined;
+  const isCoercible = typeof value === 'string'
+    || value instanceof Date
+    || (typeof value === 'object' && value !== null
+      && typeof (value as { toDate?: unknown }).toDate === 'function');
+  if (!isCoercible) return undefined;
+  const ms = toDateSafe(value).getTime();
+  return Number.isNaN(ms) ? undefined : ms;
 }
 
 /**
@@ -642,6 +694,58 @@ function doneResult(data: FirebaseFirestore.DocumentData, eventId: string): Acqu
 }
 
 /**
+ * How long the legacy RTDB dual-write is waited on before it is abandoned.
+ *
+ * Chosen against the numbers on this path: an acquire is a couple of Firestore RPCs (tens of
+ * ms), a healthy RTDB `transaction()` is one round-trip, and the webhook ingestion rate is
+ * ~16 events/sec with roughly half of them acquiring. 5 s is therefore an eternity for a
+ * healthy write and still bounds the damage of an unhealthy one to a few seconds of added
+ * latency rather than a stalled request.
+ */
+const LEGACY_DUAL_WRITE_TIMEOUT_MS = 5_000;
+
+/** How {@link raceLegacyDualWrite} settled. `rejected` carries the error verbatim. */
+type DualWriteOutcome =
+  | { status: 'ok' }
+  | { status: 'rejected'; err: unknown }
+  | { status: 'timeout' };
+
+/**
+ * Wait on the legacy RTDB write for at most {@link LEGACY_DUAL_WRITE_TIMEOUT_MS}, reporting
+ * how it settled rather than throwing.
+ *
+ * **Why a timeout is needed at all, given the caller already catches.** A `catch` only covers
+ * *rejections*, and firebase-admin's RTDB `transaction()` does not reject while the client is
+ * disconnected — it **queues indefinitely** and settles only after a server ack. So the
+ * documented guarantee "a failing RTDB write never changes the outcome" does not, on its own,
+ * cover a *stall*: there is nothing to catch. The claim is already committed by then, so
+ * without this bound an RTDB incident would convert into a webhook-ingestion outage — the
+ * exact inversion of what this primitive is for.
+ *
+ * Both settlements of `write` are handled here (the error is carried as a **value**, never
+ * left as a rejection), so the promise this function abandons on timeout cannot later surface
+ * as an unhandled rejection. The timer is cleared in a `finally` on every path, so it neither
+ * leaks nor holds the event loop open.
+ */
+async function raceLegacyDualWrite(write: Promise<unknown>): Promise<DualWriteOutcome> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const settled: Promise<DualWriteOutcome> = write.then(
+    () => ({ status: 'ok' as const }),
+    (err: unknown) => ({ status: 'rejected' as const, err }),
+  );
+  try {
+    return await Promise.race([
+      settled,
+      new Promise<DualWriteOutcome>((resolve) => {
+        timer = setTimeout(() => resolve({ status: 'timeout' }), LEGACY_DUAL_WRITE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+/**
  * Writes the legacy `EventNotification` RTDB node for an `acquired` or `resumed` claim
  * (req 6). Idempotent: `EventNotification.init()`'s RTDB `transaction()` aborts and sets
  * `isNew = false` when the node already exists, which is why running it on `resumed` as well
@@ -652,7 +756,7 @@ function doneResult(data: FirebaseFirestore.DocumentData, eventId: string): Acqu
  * made by the consumer; re-reading the flag here would add a Firestore read to the hot path
  * and let the primitive behave differently for a reason invisible at the call site.
  *
- * Two behaviours worth stating:
+ * Three behaviours worth stating:
  *
  * - **`businessId` absent ⇒ skip and warn.** The legacy key is `${businessId}_${Id}`, so
  *   writing it without a tenant would create an `undefined_<eventId>` node that a
@@ -664,6 +768,23 @@ function doneResult(data: FirebaseFirestore.DocumentData, eventId: string): Acqu
  * - **RTDB failures are caught, warned and swallowed.** The claim is the source of truth and
  *   the legacy node is only rollback insurance; failing the claim because the insurance
  *   failed would create losses in the name of preventing them.
+ * - **A stalled RTDB write is abandoned after {@link LEGACY_DUAL_WRITE_TIMEOUT_MS}** — see
+ *   {@link raceLegacyDualWrite} for why swallowing rejections is not sufficient on its own.
+ *
+ * ## Latency tradeoff — read this before "optimizing" it
+ *
+ * The wait is **awaited, not detached, and that is deliberate.** Firing the write off as a
+ * floating promise would look free, but Cloud Run may freeze (and eventually reclaim) an
+ * instance once the response is sent, so the write could simply never happen — silently
+ * voiding rollback protection for exactly the deliveries that needed it, and doing so
+ * invisibly. Bounding the wait keeps the guarantee while capping the cost; removing the wait
+ * removes the guarantee.
+ *
+ * Nor is it worth starting the write **concurrently with `create()`** to hide its latency:
+ * roughly half the deliveries on this path are duplicates that end in `inFlight`, `done` or
+ * `failed`, and those touch RTDB **zero times** today. Racing the write against the create
+ * would add an RTDB round-trip to every one of them — a net loss, paid on the hotter half of
+ * the traffic, to save a few ms on the other half.
  */
 async function dualWriteLegacyNotification(claim: WebhookClaim): Promise<void> {
   if (!isDualWriteLegacyNotification) return;
@@ -683,7 +804,17 @@ async function dualWriteLegacyNotification(claim: WebhookClaim): Promise<void> {
       claim.eventType,
       claim.eventId,
     );
-    await notification.init();
+    const outcome = await raceLegacyDualWrite(notification.init());
+    if (outcome.status === 'timeout') {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[WebhookClaim] legacy RTDB dual-write for event ${claim.eventId} did not settle within `
+        + `${LEGACY_DUAL_WRITE_TIMEOUT_MS}ms; abandoning the wait and proceeding (the claim is `
+        + 'already committed and the legacy node is rollback insurance, not the source of truth)',
+      );
+      return;
+    }
+    if (outcome.status === 'rejected') throw outcome.err;
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -696,6 +827,48 @@ async function dualWriteLegacyNotification(claim: WebhookClaim): Promise<void> {
 
 /** `absent` is internal: the claim vanished mid-operation, so the create is retried. */
 type ExistingClaimBranch = AcquireResult | { outcome: 'absent' };
+
+/**
+ * The status-and-lease ladder of the acquire path, in **one** place.
+ *
+ * This function *is* the acquire/branch table documented on {@link AcquireResult}, expressed
+ * as code — read the two together:
+ *
+ * - **no document** ⇒ `absent`. The claim vanished under us (Firestore's TTL service or the
+ *   cf#82 sweeper deleted it mid-operation), so the caller retries the create and treats the
+ *   delivery as fresh.
+ * - **`done`** ⇒ replay the cached status via {@link doneResult} — 200 if it was never
+ *   recorded, never a skip.
+ * - **`failed`** ⇒ the claim is human-owned; the caller answers 200 so Square and Cloud Tasks
+ *   stop retrying, and cf#83 can still replay it from `payload`.
+ * - **an unrecognised status** (data written by a future or broken version) ⇒ `inFlight`. It
+ *   is a *retryable* unknown: degrade to **retry**, never to **drop**.
+ * - **`claimed` with a live lease** ⇒ `inFlight`. Another worker owns this delivery; no write
+ *   happens and the caller returns 429.
+ *
+ * `undefined` is the one remaining case: **`claimed` with a lapsed lease, i.e. stealable.** An
+ * unreadable `leaseExpiresAt` deliberately counts as lapsed — a malformed lease must not wedge
+ * an event forever, and stealing it is safe because `leaseGeneration` still fences whoever
+ * wrote it (see {@link leaseExpiryMillis}, which also emits the warning).
+ *
+ * It is evaluated **twice per reclaim, and that is not redundancy**: once against the
+ * pre-transaction read in {@link resolveExistingClaim}, and again against the transaction's own
+ * read in {@link reclaimExpiredLease}, because the claim can move between the two — another
+ * worker may complete it or refresh the lease. Both *call sites* are load-bearing; the
+ * *policy* they apply must not be duplicated, which is why it lives here.
+ */
+function classifyExistingClaim(
+  data: FirebaseFirestore.DocumentData | undefined,
+  eventId: string,
+  now: Timestamp,
+): ExistingClaimBranch | undefined {
+  if (!data) return { outcome: 'absent' };
+  if (data.status === 'done') return doneResult(data, eventId);
+  if (data.status === 'failed') return { outcome: 'failed' };
+  if (data.status !== 'claimed') return { outcome: 'inFlight' };
+  if (leaseExpiryMillis(data, eventId) > now.toMillis()) return { outcome: 'inFlight' };
+  return undefined;
+}
 
 /**
  * Steal an expired lease inside a transaction. The **transaction** — not `create()` — is what
@@ -715,13 +888,14 @@ async function reclaimExpiredLease(
   return getFirestore().runTransaction(async (tx): Promise<ExistingClaimBranch> => {
     const snapshot = await tx.get(ref);
     const data = snapshot.data();
-    if (!data) return { outcome: 'absent' };
-
-    if (data.status === 'done') return doneResult(data, eventId);
-    if (data.status === 'failed') return { outcome: 'failed' };
-    if (data.status !== 'claimed') return { outcome: 'inFlight' };
-    // Another worker refreshed or stole the lease between our read and this transaction.
-    if (leaseExpiryMillis(data, eventId) > now.toMillis()) return { outcome: 'inFlight' };
+    // Second evaluation of the same ladder, deliberately: the claim can have been completed,
+    // failed, or had its lease refreshed by another worker between the pre-read in
+    // resolveExistingClaim and this transaction's own read.
+    const branch = classifyExistingClaim(data, eventId, now);
+    // A branch means the claim moved on us. `undefined` means `claimed` with a lapsed lease —
+    // stealable, and necessarily a document that exists (an absent one classifies as `absent`),
+    // which is what narrows `data` for the steal below.
+    if (branch !== undefined || data === undefined) return branch ?? { outcome: 'absent' };
 
     const leaseGeneration = (typeof data.leaseGeneration === 'number' ? data.leaseGeneration : 0) + 1;
     const attemptCount = (typeof data.attemptCount === 'number' ? data.attemptCount : 0) + 1;
@@ -741,7 +915,13 @@ async function reclaimExpiredLease(
   });
 }
 
-/** Read an existing claim and resolve it to a branch of the acquire table. */
+/**
+ * Read an existing claim and resolve it to a branch of the acquire table.
+ *
+ * A plain (non-transactional) read on purpose: every branch except the steal is read-only, and
+ * a `claimed` claim with a lapsed lease is handed to {@link reclaimExpiredLease}, where the
+ * transaction that establishes mutual exclusion between two racing stealers lives.
+ */
 async function resolveExistingClaim(
   ref: DocumentReference,
   eventId: string,
@@ -749,17 +929,8 @@ async function resolveExistingClaim(
   leaseMs: number,
 ): Promise<ExistingClaimBranch> {
   const snapshot = await ref.get();
-  const data = snapshot.data();
-  if (!data) return { outcome: 'absent' };
-
-  if (data.status === 'done') return doneResult(data, eventId);
-  if (data.status === 'failed') return { outcome: 'failed' };
-  // An unrecognised status is a *retryable* unknown, never a drop.
-  if (data.status !== 'claimed') return { outcome: 'inFlight' };
-  // A live lease: another worker owns this delivery. No write, and the caller returns 429.
-  if (leaseExpiryMillis(data, eventId) > now.toMillis()) return { outcome: 'inFlight' };
-
-  return reclaimExpiredLease(ref, eventId, now, leaseMs);
+  return classifyExistingClaim(snapshot.data(), eventId, now)
+    ?? reclaimExpiredLease(ref, eventId, now, leaseMs);
 }
 
 /**
@@ -796,6 +967,7 @@ async function resolveExistingClaim(
  * `preferRest` / `FIRESTORE_PREFER_REST`.
  */
 export async function acquireClaim(input: AcquireClaimInput): Promise<AcquireResult> {
+  warnOnceIfPreferRest();
   assertValidEventId(input.eventId);
   requirePayloadObject(input.payload);
 
@@ -823,47 +995,55 @@ export async function acquireClaim(input: AcquireClaimInput): Promise<AcquireRes
   // Omitted, never written as `undefined` — Firestore rejects undefined values outright.
   if (input.businessId !== undefined) claim.businessId = input.businessId;
   // `result` is absent until completeClaim caches the handler's HTTP status.
-  const data: FirebaseFirestore.DocumentData = { ...claim };
 
   const ref = claimRef(eventId);
 
-  // Two iterations at most: the claim can only vanish under us (TTL or the sweeper) once
-  // before this is a bug rather than a race.
-  const maxCreateAttempts = 2;
-  for (let attempt = 1; attempt <= maxCreateAttempts; attempt += 1) {
-    let isCreated = false;
+  /**
+   * One create attempt: take the claim if it is free, otherwise resolve who owns it. Resolves
+   * `undefined` for the single retryable case — `create()` reported ALREADY_EXISTS but the
+   * claim read as **absent**, meaning it was deleted under us mid-operation.
+   *
+   * `claim` is passed to `create()` directly: it is a plain object literal built above, and it
+   * typechecks as `DocumentData` without an intermediate spread. Passing it also keeps
+   * `payload` **identity**-preserving, which is what makes "stored verbatim" true rather than
+   * merely deep-equal.
+   */
+  const tryAcquire = async (): Promise<AcquireResult | undefined> => {
     try {
-      // eslint-disable-next-line no-await-in-loop
-      await ref.create(data);
-      isCreated = true;
+      await ref.create(claim);
     } catch (err) {
       if (!isAlreadyExistsError(err)) throw err;
-    }
-
-    if (isCreated) {
-      // eslint-disable-next-line no-await-in-loop
-      await dualWriteLegacyNotification(claim);
-      return { outcome: 'acquired', claim };
-    }
-
-    // eslint-disable-next-line no-await-in-loop
-    const branch = await resolveExistingClaim(ref, eventId, now, leaseMs);
-    if (branch.outcome === 'resumed') {
-      // eslint-disable-next-line no-await-in-loop
-      await dualWriteLegacyNotification(branch.claim);
+      const branch = await resolveExistingClaim(ref, eventId, now, leaseMs);
+      if (branch.outcome === 'absent') return undefined;
+      if (branch.outcome === 'resumed') await dualWriteLegacyNotification(branch.claim);
       return branch;
     }
-    if (branch.outcome !== 'absent') return branch;
-  }
+    await dualWriteLegacyNotification(claim);
+    return { outcome: 'acquired', claim };
+  };
+
+  // Two attempts, spelled out rather than looped: the claim can only vanish under us (TTL or
+  // the sweeper) once before this is a bug rather than a race, and a two-iteration loop only
+  // bought a counter nothing read plus four `no-await-in-loop` suppressions.
+  const first = await tryAcquire();
+  if (first !== undefined) return first;
+  const second = await tryAcquire();
+  if (second !== undefined) return second;
 
   throw new Error(
     `webhookClaims/${eventId}: create() reported ALREADY_EXISTS but the claim was absent on `
-    + `read, ${maxCreateAttempts} times running`,
+    + 'read, 2 times running',
   );
 }
 
 /**
- * Assert the fence, or throw. Returns the claim so callers need not re-read it.
+ * Assert the fence, or throw. **Verdict only — it returns nothing.**
+ *
+ * It deliberately does not hydrate the claim. Every caller — {@link fencedUpdate}'s update
+ * builders and {@link withClaimFence} — needs only "is my generation still the current one",
+ * so hydrating would run a 12-field read-back inside every `advancePhase`, `completeClaim`,
+ * `releaseClaim` and fenced caller transaction and then discard it. A caller that genuinely
+ * wants the stored claim reads it itself.
  *
  * Missing document is a fence failure too (`actualGeneration: undefined`): if the claim is
  * gone, the caller's authority to write on its behalf is gone with it.
@@ -872,14 +1052,13 @@ function assertFence(
   eventId: string,
   expectedGeneration: number,
   snapshot: DocumentSnapshot,
-): WebhookClaim {
+): void {
   const data = snapshot.data();
   if (!data) throw new StaleLeaseError(eventId, expectedGeneration, undefined);
   const actual = typeof data.leaseGeneration === 'number' ? data.leaseGeneration : undefined;
   if (actual !== expectedGeneration) {
     throw new StaleLeaseError(eventId, expectedGeneration, actual);
   }
-  return hydrateClaim(eventId, data);
 }
 
 /**
@@ -890,14 +1069,28 @@ function assertFence(
 async function fencedUpdate(
   eventId: string,
   expectedGeneration: number,
-  buildUpdate: (claim: WebhookClaim, now: Timestamp) => FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData>,
+  buildUpdate: (now: Timestamp) => FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData>,
 ): Promise<void> {
   const ref = claimRef(eventId);
   await getFirestore().runTransaction(async (tx) => {
     const snapshot = await tx.get(ref);
-    const claim = assertFence(eventId, expectedGeneration, snapshot);
-    tx.update(ref, buildUpdate(claim, Timestamp.now()));
+    assertFence(eventId, expectedGeneration, snapshot);
+    tx.update(ref, buildUpdate(Timestamp.now()));
   });
+}
+
+/**
+ * The terminal `done` write shape, in one place so the two completion paths — out-of-band
+ * ({@link completeClaim}) and in the caller's own transaction ({@link completeClaimIn}) —
+ * cannot silently diverge.
+ *
+ * `phase` is deliberately absent: it stays as the last recovery point, which is what makes a
+ * `done` claim readable as a record of *what* happened rather than only *that* it happened.
+ */
+function doneUpdate(
+  result: number,
+): FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData> {
+  return { status: 'done', result };
 }
 
 /**
@@ -919,7 +1112,7 @@ export async function advancePhase(
   phase: string,
   leaseMs: number = DEFAULT_LEASE_MS,
 ): Promise<void> {
-  await fencedUpdate(eventId, expectedGeneration, (_claim, now) => ({
+  await fencedUpdate(eventId, expectedGeneration, (now) => ({
     phase,
     leaseExpiresAt: Timestamp.fromMillis(now.toMillis() + leaseMs),
   }));
@@ -938,7 +1131,7 @@ export async function completeClaim(
   expectedGeneration: number,
   result: number,
 ): Promise<void> {
-  await fencedUpdate(eventId, expectedGeneration, () => ({ status: 'done', result }));
+  await fencedUpdate(eventId, expectedGeneration, () => doneUpdate(result));
 }
 
 /**
@@ -955,7 +1148,7 @@ export async function completeClaim(
  * @throws {@link StaleLeaseError} if the claim was stolen or is gone — nothing is written.
  */
 export async function releaseClaim(eventId: string, expectedGeneration: number): Promise<void> {
-  await fencedUpdate(eventId, expectedGeneration, (_claim, now) => ({ leaseExpiresAt: now }));
+  await fencedUpdate(eventId, expectedGeneration, (now) => ({ leaseExpiresAt: now }));
 }
 
 /**
@@ -1015,5 +1208,5 @@ export function completeClaimIn(
   if (!Number.isInteger(expectedGeneration) || expectedGeneration < 0) {
     throw new StaleLeaseError(eventId, expectedGeneration, undefined);
   }
-  tx.update(claimRef(eventId), { status: 'done', result });
+  tx.update(claimRef(eventId), doneUpdate(result));
 }
