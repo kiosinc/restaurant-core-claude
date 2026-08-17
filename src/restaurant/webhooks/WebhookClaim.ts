@@ -145,6 +145,7 @@ import { PathResolver } from '../../persistence/firestore/PathResolver';
 import * as Constants from '../../firestore-core/Constants';
 import { ValidationError } from '../../domain/validation';
 import EventNotification from '../connected-accounts/EventNotification';
+import { isDualWriteLegacyNotification } from './dualWriteFlag';
 
 /**
  * Lifecycle state of a claim.
@@ -356,8 +357,13 @@ export const EVENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4
  *
  * Not exported from `src/index.ts` on purpose — consumers must not branch on it. Flip it to
  * `false`, then delete it along with the RTDB node in **rcc#167**.
+ *
+ * It lives in `./dualWriteFlag` rather than inline because the un-annotated `const` has the
+ * literal type `true`, which makes the dual-write-**off** path unreachable from a test by
+ * assignment; a one-symbol module can be `vi.mock`ed instead. Re-exported here so the name and
+ * the import path callers see are unchanged.
  */
-export const isDualWriteLegacyNotification = true;
+export { isDualWriteLegacyNotification } from './dualWriteFlag';
 
 /**
  * The `eventId` is missing, empty, or not UUID-shaped. Thrown **before any write**: no
