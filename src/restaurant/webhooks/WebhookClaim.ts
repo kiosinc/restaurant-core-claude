@@ -581,7 +581,10 @@ function requirePayloadObject(payload: unknown): void {
 function metadataOrEmpty(field: string, value: unknown, eventId: string): string {
   if (typeof value === 'string' && value.length > 0) return value;
   // eslint-disable-next-line no-console
-  console.warn(`[WebhookClaim] ${field} missing on event ${eventId}; storing '' and proceeding`);
+  console.warn(
+    "[WebhookClaim] metadata field missing on the event; storing '' and proceeding",
+    { field, eventId },
+  );
   return '';
 }
 
@@ -631,7 +634,8 @@ function assertEventNotTooOld(eventId: string, eventCreatedAt: unknown, now: Tim
   if (createdMs === undefined) {
     // eslint-disable-next-line no-console
     console.warn(
-      `[WebhookClaim] created_at missing or unparseable on event ${eventId}; skipping the age gate`,
+      '[WebhookClaim] created_at missing or unparseable on the event; skipping the age gate',
+      { eventId },
     );
     return;
   }
@@ -676,7 +680,8 @@ function leaseExpiryMillis(data: FirebaseFirestore.DocumentData, eventId: string
   if (ms === undefined) {
     // eslint-disable-next-line no-console
     console.warn(
-      `[WebhookClaim] webhookClaims/${eventId} has no readable leaseExpiresAt; treating the lease as expired`,
+      '[WebhookClaim] claim has no readable leaseExpiresAt; treating the lease as expired',
+      { eventId, businessId: data.businessId, merchantId: data.merchantId },
     );
     return 0;
   }
@@ -688,7 +693,8 @@ function doneResult(data: FirebaseFirestore.DocumentData, eventId: string): Acqu
   if (typeof data.result === 'number') return { outcome: 'done', result: data.result };
   // eslint-disable-next-line no-console
   console.warn(
-    `[WebhookClaim] webhookClaims/${eventId} is done with no cached result; replaying 200`,
+    '[WebhookClaim] claim is done with no cached result; replaying 200',
+    { eventId, businessId: data.businessId, merchantId: data.merchantId },
   );
   return { outcome: 'done', result: 200 };
 }
@@ -791,9 +797,9 @@ async function dualWriteLegacyNotification(claim: WebhookClaim): Promise<void> {
   if (!claim.businessId) {
     // eslint-disable-next-line no-console
     console.warn(
-      `[WebhookClaim] no businessId on event ${claim.eventId}; skipping the legacy RTDB `
-      + 'dual-write (an "undefined_" key would never be read back). This claim is not '
-      + 'rollback-protected.',
+      '[WebhookClaim] no businessId on the claim; skipping the legacy RTDB dual-write (an '
+      + '"undefined_" key would never be read back). This claim is not rollback-protected.',
+      { eventId: claim.eventId, merchantId: claim.merchantId },
     );
     return;
   }
@@ -808,9 +814,14 @@ async function dualWriteLegacyNotification(claim: WebhookClaim): Promise<void> {
     if (outcome.status === 'timeout') {
       // eslint-disable-next-line no-console
       console.warn(
-        `[WebhookClaim] legacy RTDB dual-write for event ${claim.eventId} did not settle within `
-        + `${LEGACY_DUAL_WRITE_TIMEOUT_MS}ms; abandoning the wait and proceeding (the claim is `
-        + 'already committed and the legacy node is rollback insurance, not the source of truth)',
+        '[WebhookClaim] legacy RTDB dual-write did not settle in time; abandoning the wait and '
+        + 'proceeding (the claim is already committed and the legacy node is rollback insurance, '
+        + 'not the source of truth)',
+        {
+          eventId: claim.eventId,
+          businessId: claim.businessId,
+          timeoutMs: LEGACY_DUAL_WRITE_TIMEOUT_MS,
+        },
       );
       return;
     }
@@ -818,9 +829,9 @@ async function dualWriteLegacyNotification(claim: WebhookClaim): Promise<void> {
   } catch (err) {
     // eslint-disable-next-line no-console
     console.warn(
-      `[WebhookClaim] legacy RTDB dual-write failed for event ${claim.eventId}; `
-      + 'the claim stands (the legacy node is rollback insurance, not the source of truth)',
-      err,
+      '[WebhookClaim] legacy RTDB dual-write failed; the claim stands (the legacy node is '
+      + 'rollback insurance, not the source of truth)',
+      { eventId: claim.eventId, businessId: claim.businessId, error: String(err) },
     );
   }
 }

@@ -103,6 +103,8 @@ import { ValidationError } from '../../../domain/validation';
 import { PathResolver } from '../../../persistence/firestore/PathResolver';
 import {
   EVENT_ID,
+  BUSINESS_ID,
+  MERCHANT_ID,
   NOW_ISO,
   NOW_MS,
   CREATED_ISO,
@@ -259,7 +261,10 @@ describe('acquireClaim — done / failed / inFlight', () => {
     const result = await acquireClaim(baseInput());
 
     expect(result).toEqual({ outcome: 'done', result: 200 });
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('done with no cached result'));
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('done with no cached result'),
+      expect.objectContaining({ eventId: EVENT_ID, businessId: BUSINESS_ID }),
+    );
     // "done" is still an outcome the caller must act on — never a silent skip.
     expect(result.outcome).not.toBe('skip');
   });
@@ -393,6 +398,7 @@ describe('acquireClaim — resumed', () => {
     expect(result.outcome).toBe('resumed');
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('no readable leaseExpiresAt; treating the lease as expired'),
+      expect.objectContaining({ eventId: EVENT_ID, businessId: BUSINESS_ID }),
     );
   });
 });
@@ -573,6 +579,7 @@ describe('acquireClaim — age gate', () => {
     expect(result.outcome).toBe('acquired');
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('created_at missing or unparseable'),
+      expect.objectContaining({ eventId: EVENT_ID }),
     );
   });
 
@@ -582,6 +589,7 @@ describe('acquireClaim — age gate', () => {
     expect(result.outcome).toBe('acquired');
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('created_at missing or unparseable'),
+      expect.objectContaining({ eventId: EVENT_ID }),
     );
   });
 });
@@ -661,7 +669,8 @@ describe('acquireClaim — metadata leniency', () => {
     expect(result.outcome).toBe('acquired');
     expect(createArg().eventType).toBe('');
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining("eventType missing on event"),
+      expect.stringContaining('metadata field missing on the event'),
+      expect.objectContaining({ field: 'eventType', eventId: EVENT_ID }),
     );
   });
 
@@ -673,7 +682,8 @@ describe('acquireClaim — metadata leniency', () => {
     expect(result.outcome).toBe('acquired');
     expect(createArg().merchantId).toBe('');
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('merchantId missing on event'),
+      expect.stringContaining('metadata field missing on the event'),
+      expect.objectContaining({ field: 'merchantId', eventId: EVENT_ID }),
     );
   });
 });
@@ -960,6 +970,9 @@ describe('legacy RTDB dual-write (req 6)', () => {
     expect(legacy.init).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('skipping the legacy RTDB'),
+      // No `businessId` to log — that absence is the reason for the warning — so the tenant
+      // filter falls back to `merchantId` (LOGGING.md rule 6).
+      expect.objectContaining({ eventId: EVENT_ID, merchantId: MERCHANT_ID }),
     );
   });
 
@@ -971,7 +984,11 @@ describe('legacy RTDB dual-write (req 6)', () => {
     expect(result.outcome).toBe('acquired');
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('legacy RTDB dual-write failed'),
-      expect.any(Error),
+      expect.objectContaining({
+        eventId: EVENT_ID,
+        businessId: BUSINESS_ID,
+        error: expect.stringContaining('RTDB unavailable'),
+      }),
     );
   });
 
@@ -991,7 +1008,12 @@ describe('legacy RTDB dual-write (req 6)', () => {
     expect(result.outcome).toBe('acquired');
     expect(legacy.init).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('did not settle within 5000ms'),
+      expect.stringContaining('did not settle in time'),
+      expect.objectContaining({
+        eventId: EVENT_ID,
+        businessId: BUSINESS_ID,
+        timeoutMs: 5_000,
+      }),
     );
   });
 
@@ -1001,7 +1023,10 @@ describe('legacy RTDB dual-write (req 6)', () => {
 
     expect(result.outcome).toBe('acquired');
     expect(vi.getTimerCount()).toBe(0);
-    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('did not settle within'));
+    expect(warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('did not settle in time'),
+      expect.anything(),
+    );
   });
 
   it('dual-write is not gated on useClaimLease — acquireClaim never reads the flag', async () => {
