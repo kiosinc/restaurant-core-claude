@@ -23,6 +23,15 @@
  * | A monotonic fencing token, so a resurrected holder cannot commit over the new holder | `leaseGeneration`, asserted `=== mine` inside every terminal transaction |
  * | Idempotency where the resource cannot honour a fencing token (Square's API) | {@link claimIdempotencyKey} — `kios-${eventId}-${phase}` |
  *
+ * The third row is the one that is easy to get wrong, and the reason it is here is
+ * Martin Kleppmann's argument in *How to do distributed locking*: **a lease expiring
+ * does not stop the original worker.** Nothing about the timeout reaches into a paused
+ * process and cancels its in-flight write. Correctness therefore cannot come from the
+ * clock — it has to come from the protected resource *rejecting* stale holders, which
+ * is exactly what asserting `leaseGeneration === mine` inside every terminal
+ * transaction does. The clock only decides *when a steal becomes permissible*; the
+ * fence decides *whose write is allowed to land*.
+ *
  * Plus a P42-specific fifth part: **the claim document is also the durable record**
  * of the delivery — see the `payload` rationale below.
  *

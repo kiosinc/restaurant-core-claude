@@ -9,3 +9,7 @@ node_modules
 lib
 build
 config
+
+# Firestore emulator artifacts (npm run test:emulator)
+firestore-debug.log
+firebase-debug.log
