@@ -41,4 +41,5 @@ export enum CollectionNames {
   onboardingOrders = 'onboardingOrders',
 
   semaphores = 'semaphores',
+  webhookClaims = 'webhookClaims',
 }

@@ -54,6 +54,17 @@ export interface WriteModelFlags {
    * so rollback needs no data restoration.
    */
   syncSquareMenuCategories: boolean;
+  /**
+   * #166 / P42 gate, consumed by square-gateway-claude's six webhook handlers and
+   * the two cloud-functions consumers. When true, a consumer gates delivery on the
+   * Firestore `webhookClaims/{eventId}` claim/lease (`acquireClaim`, which never
+   * yields a "skip" outcome); when false it keeps using the legacy
+   * `EventNotification` RTDB dedupe gate. Defaults off, so declaring it changes no
+   * behavior. Rollback is a flag flip: during the migration window the claim path
+   * dual-writes the legacy RTDB node, so a flip back to false still finds the node
+   * and needs no data restoration.
+   */
+  useClaimLease: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
@@ -68,6 +79,7 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   isImageDownsample: false,
   pruneMenuAssetsOnRebuild: true,
   syncSquareMenuCategories: false,
+  useClaimLease: false,
 };
 
 const CACHE_TTL_MS = 60_000;

@@ -22,6 +22,7 @@ const EXPECTED_DEFAULTS = {
   isImageDownsample: false,
   pruneMenuAssetsOnRebuild: true,
   syncSquareMenuCategories: false,
+  useClaimLease: false,
 };
 
 beforeEach(() => {
@@ -137,6 +138,23 @@ describe('FeatureFlagService', () => {
 
     const flags = await getFlags();
     expect(flags.syncSquareMenuCategories).toBe(true);
+  });
+
+  it('defaults useClaimLease to false when the config doc is absent', async () => {
+    mockDocGet.mockResolvedValue({ exists: false });
+
+    const flags = await getFlags();
+    expect(flags.useClaimLease).toBe(false);
+  });
+
+  it('reads useClaimLease: true from config/writeModelFlags', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ useClaimLease: true }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.useClaimLease).toBe(true);
   });
 
   it('caches result within TTL', async () => {
