@@ -29,3 +29,32 @@ export { default as EventNotification } from './restaurant/connected-accounts/Ev
 // Firestore-based distributed lock
 export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';
 export type { LockOptions } from './restaurant/vars/SemaphoreV2';
+
+// P42 webhook claim/lease/fence primitive — webhookClaims/{eventId} (rcc#166, contract rcc#165).
+// `isDualWriteLegacyNotification` is deliberately NOT exported: it is an internal migration
+// gate (rcc#167), and consumers must not branch on it.
+export {
+  acquireClaim,
+  advancePhase,
+  completeClaim,
+  releaseClaim,
+  withClaimFence,
+  completeClaimIn,
+  matchAcquireResult,
+  claimIdempotencyKey,
+  InvalidEventIdError,
+  StaleLeaseError,
+  EventTooOldError,
+  DEFAULT_LEASE_MS,
+  CLAIM_TTL_MS,
+  MAX_EVENT_AGE_MS,
+  INITIAL_PHASE,
+  EVENT_ID_PATTERN,
+} from './restaurant/webhooks/WebhookClaim';
+export type {
+  WebhookClaim,
+  ClaimStatus,
+  AcquireResult,
+  AcquireClaimInput,
+  AcquireHandlers,
+} from './restaurant/webhooks/WebhookClaim';
