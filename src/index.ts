@@ -31,8 +31,9 @@ export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';
 export type { LockOptions } from './restaurant/vars/SemaphoreV2';
 
 // P42 webhook claim/lease/fence primitive — webhookClaims/{eventId} (rcc#166, contract rcc#165).
-// `isDualWriteLegacyNotification` is deliberately NOT exported: it is an internal migration
-// gate (rcc#167), and consumers must not branch on it.
+// The legacy-RTDB dual-write is gated by the `writeLegacyEventNotification` flag on
+// `WriteModelFlags` (default true), not by an exported constant: retirement (rcc#167) is one
+// boolean per GCP project, and consumers must not branch on it in code.
 export {
   acquireClaim,
   advancePhase,

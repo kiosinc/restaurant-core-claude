@@ -144,9 +144,16 @@
  *
  * During the migration window an acquired or resumed claim also writes the legacy
  * `EventNotification` RTDB node, so flipping `useClaimLease` back off is a pure flag flip
- * with no data restoration. See {@link isDualWriteLegacyNotification}. The legacy module is
+ * with no data restoration. See {@link dualWriteLegacyNotification}. The legacy module is
  * untouched by P42 and keeps working exactly as before — coexistence, not replacement, until
  * rcc#167 retires the node.
+ *
+ * The dual-write is itself gated by the **`writeLegacyEventNotification`** flag on
+ * `WriteModelFlags`, default **`true`**. It is a feature flag rather than a module constant so
+ * that rcc#167's retirement is one boolean per GCP project rather than a library publish, a
+ * version repin and a redeploy across restaurant-core-claude, square-gateway-claude and
+ * cloud-functions. It is read **only on the dual-write path** — see
+ * {@link dualWriteLegacyNotification} for why the duplicate path must stay flag-read-free.
  *
  * @packageDocumentation
  */
@@ -158,7 +165,7 @@ import { toDateSafe } from '../../persistence/firestore/converters/baseFields';
 import * as Constants from '../../firestore-core/Constants';
 import { ValidationError } from '../../domain/validation';
 import EventNotification from '../connected-accounts/EventNotification';
-import { isDualWriteLegacyNotification } from './dualWriteFlag';
+import { getFlags } from '../../domain/services/FeatureFlagService';
 
 /**
  * Lifecycle state of a claim.
@@ -186,7 +193,7 @@ export type ClaimStatus = 'claimed' | 'done' | 'failed';
  *   tenant resolution has no `businessId`; it is written when known, and omitted entirely
  *   (never `undefined`, which Firestore rejects) when not. Consequence: such a claim gets no
  *   legacy dual-write, i.e. it is **not rollback-protected** — see
- *   {@link isDualWriteLegacyNotification}.
+ *   {@link dualWriteLegacyNotification}.
  * - `merchantId` — Square's `merchant_id`. Best-effort metadata like `eventType`.
  * - `status` — see {@link ClaimStatus}. Replaces the legacy "node exists ⇒ already seen"
  *   boolean, which could not tell *finished* from *in progress*.
@@ -359,24 +366,6 @@ export const INITIAL_PHASE = 'started';
  * not to police Square's UUID version.
  */
 export const EVENT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Internal migration gate for the legacy RTDB dual-write (req 6).
- *
- * While `true`, an `acquired` or `resumed` claim also writes the legacy
- * `EventNotification` node, so flipping the `useClaimLease` feature flag back off is a pure
- * flag flip: the legacy gate finds the node and skips the redelivery, with no data
- * restoration.
- *
- * Not exported from `src/index.ts` on purpose — consumers must not branch on it. Flip it to
- * `false`, then delete it along with the RTDB node in **rcc#167**.
- *
- * It lives in `./dualWriteFlag` rather than inline because the un-annotated `const` has the
- * literal type `true`, which makes the dual-write-**off** path unreachable from a test by
- * assignment; a one-symbol module can be `vi.mock`ed instead. Re-exported here so the name and
- * the import path callers see are unchanged.
- */
-export { isDualWriteLegacyNotification } from './dualWriteFlag';
 
 /**
  * The `eventId` is missing, empty, or not UUID-shaped. Thrown **before any write**: no
@@ -752,15 +741,68 @@ async function raceLegacyDualWrite(write: Promise<unknown>): Promise<DualWriteOu
 }
 
 /**
+ * Read the `writeLegacyEventNotification` gate, **failing safe to `true`**.
+ *
+ * Called from {@link dualWriteLegacyNotification} and nowhere else, so the read never touches
+ * the duplicate (`inFlight`/`done`/`failed`) path — see that function's TSDoc for the full
+ * rule about which P42 flag may be read where.
+ *
+ * `getFlags` memoises for 60 s per instance but does **not** swallow Firestore errors: a
+ * rejected `.get()` propagates to its caller. Hence the local `catch`. Defaulting to `true`
+ * (dual-write ON) is the safe direction — ON preserves the rollback protection that makes
+ * flipping `useClaimLease` back off a pure flag flip, while OFF would lose it silently — and
+ * the claim is already committed by this point, so a flag-read failure must not surface as a
+ * failed delivery.
+ */
+async function isLegacyDualWriteEnabled(claim: WebhookClaim): Promise<boolean> {
+  try {
+    return (await getFlags()).writeLegacyEventNotification;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[WebhookClaim] could not read writeLegacyEventNotification; defaulting the legacy RTDB '
+      + 'dual-write ON (rollback protection is preserved by writing, lost by skipping)',
+      {
+        eventId: claim.eventId,
+        businessId: claim.businessId,
+        merchantId: claim.merchantId,
+        error: String(err),
+      },
+    );
+    return true;
+  }
+}
+
+/**
  * Writes the legacy `EventNotification` RTDB node for an `acquired` or `resumed` claim
  * (req 6). Idempotent: `EventNotification.init()`'s RTDB `transaction()` aborts and sets
  * `isNew = false` when the node already exists, which is why running it on `resumed` as well
  * is safe.
  *
- * Gated on {@link isDualWriteLegacyNotification} **only** — `acquireClaim` deliberately does
- * **not** read the `useClaimLease` feature flag. Being called *is* the flag decision, already
- * made by the consumer; re-reading the flag here would add a Firestore read to the hot path
- * and let the primitive behave differently for a reason invisible at the call site.
+ * ## Which flags this path reads, and which it must never read
+ *
+ * Two P42 flags exist and they are read in opposite ways. Do not collapse them:
+ *
+ * - **`useClaimLease` — never read here, and that is permanent.** It is the *consumer's*
+ *   decision to call `acquireClaim` at all. Being called *is* the flag decision, already made
+ *   at the call site; re-reading it here would add a flag read to **every** delivery — half of
+ *   which are duplicates — and let the primitive behave differently for a reason invisible at
+ *   the call site.
+ * - **`writeLegacyEventNotification` — read here, inside this function only.** This is the one
+ *   place a flag read is correct, because this function runs on `acquired`/`resumed` only. The
+ *   ~50% duplicate path (`inFlight`/`done`/`failed`) therefore makes **zero** flag reads and
+ *   zero extra Firestore round-trips, exactly as before. `acquireClaim` itself still reads no
+ *   flag; nothing was added to the top of it.
+ *
+ * The read goes through {@link getFlags}, which memoises for 60 s per instance, so at ~16
+ * events/sec the steady-state cost is one Firestore read per minute per instance, not one per
+ * delivery.
+ *
+ * **It is wrapped in its own try/catch and defaults to `true` on failure.** `getFlags` does not
+ * catch Firestore errors — a rejected `.get()` propagates — and by the time this runs the claim
+ * is already committed. A flag-read failure must never fail an already-committed claim, and
+ * dual-write ON preserves rollback protection whereas OFF silently loses it, so the safe
+ * default is ON. The fallback warns (anomaly-gated: only when the read actually fails).
  *
  * Three behaviours worth stating:
  *
@@ -793,7 +835,7 @@ async function raceLegacyDualWrite(write: Promise<unknown>): Promise<DualWriteOu
  * the traffic, to save a few ms on the other half.
  */
 async function dualWriteLegacyNotification(claim: WebhookClaim): Promise<void> {
-  if (!isDualWriteLegacyNotification) return;
+  if (!await isLegacyDualWriteEnabled(claim)) return;
   if (!claim.businessId) {
     // eslint-disable-next-line no-console
     console.warn(
@@ -952,6 +994,13 @@ async function resolveExistingClaim(
  * a read-then-write would reopen the TOCTOU window in which two deliveries both decide the
  * claim is free. A transaction appears only on the reclaim path, where mutual exclusion has
  * to be established between two workers stealing the same expired lease.
+ *
+ * **Nothing at the top of this function reads a feature flag.** The only flag on this module's
+ * path is `writeLegacyEventNotification`, read inside {@link dualWriteLegacyNotification},
+ * which runs on `acquired`/`resumed` only and behind {@link getFlags}'s 60 s memo. The ~50% of
+ * deliveries that are duplicates (`inFlight`/`done`/`failed`) therefore still make **zero**
+ * flag reads and zero extra Firestore round-trips. `useClaimLease` is never read here at all —
+ * see {@link dualWriteLegacyNotification} for why.
  *
  * ## Timestamps
  *

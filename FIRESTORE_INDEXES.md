@@ -181,10 +181,32 @@ gcloud run services describe <svc> --region=<r> \
 Expect zero `preferRest: true` and `FIRESTORE_PREFER_REST` unset. If either is set, **block the
 rollout** until it is removed.
 
-**The flag rollout.** `useClaimLease` is declared in `WriteModelFlags` defaulting to `false`. After
-this merge there should be **no** `useClaimLease` field in `/config/writeModelFlags` in either
-project — absent must mean false. Write the doc field only when a handler migration is ready to use
-it; rollback is flipping the field off.
+**The flag rollout.** P42 declares **two** flags in `WriteModelFlags`, and they roll out in opposite
+directions. Do not conflate them.
+
+| Flag | Default | Consumed by | Rollout |
+|---|---|---|---|
+| `useClaimLease` | `false` | the six square-gateway-claude webhook handlers and the two cloud-functions consumers | write the doc field only when a handler migration is ready to use it |
+| `writeLegacyEventNotification` | `true` | `restaurant/webhooks/WebhookClaim` (library-internal) | leave absent for the whole migration window; writing `false` is the rcc#167 retirement step |
+
+- `useClaimLease` gates whether a consumer uses the claim/lease at all. After this merge there
+  should be **no** `useClaimLease` field in `/config/writeModelFlags` in either project — absent must
+  mean false. Rollback is flipping the field off.
+- `writeLegacyEventNotification` gates the legacy-RTDB dual-write **inside** `acquireClaim`, and it
+  defaults to **`true`** — absent means **on**. That is what makes a `useClaimLease` rollback a pure
+  flag flip, so it must stay on (i.e. stay absent) for as long as any consumer might roll back.
+  Setting it to `false` is the rcc#167 retirement step and must not be done before then. If the flag
+  read itself fails, `acquireClaim` falls back to **on** and warns: ON preserves rollback protection,
+  OFF loses it silently, and the claim is already committed by that point.
+
+It is a feature flag rather than a library constant deliberately: retirement is then **one boolean
+per GCP project**, not a restaurant-core-claude publish plus a version repin and a redeploy in
+square-gateway-claude and cloud-functions.
+
+The flag is read **only on the dual-write path** — i.e. on `acquired`/`resumed`. The ~50% of
+deliveries that are duplicates (`inFlight`/`done`/`failed`) make zero flag reads, and `getFlags`
+memoises for 60 s per instance, so the steady-state cost is roughly one Firestore read per minute
+per instance rather than one per delivery.
 
 **The pre-resolution dual-write gap.** During the migration window `acquireClaim` also writes the
 legacy RTDB `EventNotification` node, so a flag rollback is safe. But the legacy key is

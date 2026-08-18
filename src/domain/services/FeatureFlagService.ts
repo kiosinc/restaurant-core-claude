@@ -65,6 +65,32 @@ export interface WriteModelFlags {
    * and needs no data restoration.
    */
   useClaimLease: boolean;
+  /**
+   * #166 / P42 dual-write gate, consumed by `restaurant/webhooks/WebhookClaim`.
+   * When true (**the default**), an `acquired` or `resumed` claim also writes the
+   * legacy `EventNotification` RTDB node, so flipping `useClaimLease` back off is
+   * a pure flag flip: the legacy gate finds the node and skips the redelivery,
+   * with no data restoration. Defaults **on** for the whole P42 migration window,
+   * because dual-write ON preserves that rollback protection and OFF silently
+   * loses it.
+   *
+   * Turning it off is the **rcc#167 retirement step** — the point at which the
+   * legacy RTDB node stops being written and can be deleted.
+   *
+   * It is a flag rather than a module constant precisely so that retirement is
+   * **one boolean per GCP project**, not a library publish + version repin +
+   * redeploy across restaurant-core-claude, square-gateway-claude and
+   * cloud-functions.
+   *
+   * **Naming.** `WriteModelFlags` already has an exact semantic family —
+   * `writeLegacyOptionInventory` and `writeLegacyFirestorePresence` — and the
+   * latter is likewise a default-`true` dual-write migration gate, so this name
+   * is the third member of an established pattern. It carries no `is` prefix on
+   * purpose: only 1 of the 12 pre-existing flags (`isImageDownsample`) uses it,
+   * and `useClaimLease` — this feature's sibling flag — has none, so an
+   * `is`-prefixed name here would be the inconsistency rather than the fix.
+   */
+  writeLegacyEventNotification: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
@@ -80,6 +106,7 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   pruneMenuAssetsOnRebuild: true,
   syncSquareMenuCategories: false,
   useClaimLease: false,
+  writeLegacyEventNotification: true,
 };
 
 const CACHE_TTL_MS = 60_000;

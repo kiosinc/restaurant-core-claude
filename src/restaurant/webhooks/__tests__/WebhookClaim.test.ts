@@ -56,6 +56,14 @@ const legacy = vi.hoisted(() => ({
   init: vi.fn(),
 }));
 
+/**
+ * `writeLegacyEventNotification` is a real `WriteModelFlags` entry now, not a module constant,
+ * so the dual-write-**off** branch is reached by controlling `getFlags` rather than by mocking a
+ * one-symbol module. The service is mocked wholesale so the flag read never touches the
+ * Firestore double — which has no `collection()` — and so the read-failure path can be driven.
+ */
+const flags = vi.hoisted(() => ({ getFlags: vi.fn() }));
+
 vi.mock('firebase-admin/firestore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('firebase-admin/firestore')>();
   return { ...actual, getFirestore: () => fx.db };
@@ -77,6 +85,10 @@ vi.mock('../../connected-accounts/EventNotification', () => ({
       return legacy.init(...args);
     }
   },
+}));
+
+vi.mock('../../../domain/services/FeatureFlagService', () => ({
+  getFlags: flags.getFlags,
 }));
 
 import { Timestamp } from 'firebase-admin/firestore';
@@ -150,6 +162,8 @@ beforeEach(() => {
     async (fn: (t: unknown) => Promise<unknown>) => fn(fx.transaction),
   );
   legacy.init.mockResolvedValue(undefined);
+  // Default posture for the migration window: the gate is ON.
+  flags.getFlags.mockResolvedValue({ writeLegacyEventNotification: true });
 });
 
 afterEach(() => {
@@ -940,23 +954,49 @@ describe('legacy RTDB dual-write (req 6)', () => {
   });
 
   it('dual-write OFF: no legacy RTDB node is written', async () => {
-    // `isDualWriteLegacyNotification` is an un-annotated `export const … = true`, so its type is
-    // the literal `true` and it cannot be flipped by assignment. It lives in its own module
-    // (`../dualWriteFlag`) precisely so this branch is reachable.
-    vi.doMock('../dualWriteFlag', () => ({ isDualWriteLegacyNotification: false }));
-    vi.resetModules();
-    try {
-      const mod = await import('../WebhookClaim');
+    // The gate is the `writeLegacyEventNotification` WriteModelFlags entry (default true), so
+    // this branch is reached by the flag read returning false — which is exactly the rcc#167
+    // retirement step, one boolean per GCP project.
+    flags.getFlags.mockResolvedValue({ writeLegacyEventNotification: false });
 
-      const result = await mod.acquireClaim(baseInput());
+    const result = await acquireClaim(baseInput());
 
-      expect(result.outcome).toBe('acquired');
-      expect(legacy.ctor).not.toHaveBeenCalled();
-      expect(legacy.init).not.toHaveBeenCalled();
-    } finally {
-      vi.doUnmock('../dualWriteFlag');
-      vi.resetModules();
-    }
+    expect(result.outcome).toBe('acquired');
+    expect(legacy.ctor).not.toHaveBeenCalled();
+    expect(legacy.init).not.toHaveBeenCalled();
+  });
+
+  it('dual-write OFF on "resumed" too: the flag gates both acquire branches', async () => {
+    flags.getFlags.mockResolvedValue({ writeLegacyEventNotification: false });
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
+    const stored = storedClaim();
+    fx.docRef.get.mockResolvedValue(snapshot(stored));
+    fx.transaction.get.mockResolvedValue(snapshot(stored));
+
+    const result = await acquireClaim(baseInput());
+
+    expect(result.outcome).toBe('resumed');
+    expect(legacy.init).not.toHaveBeenCalled();
+  });
+
+  it('a failing flag read defaults the dual-write ON and warns — never fails the committed claim', async () => {
+    // getFlags does not catch Firestore errors; a rejected .get() propagates. The claim is
+    // already committed by then, and ON preserves rollback protection while OFF silently loses
+    // it, so the fallback is ON.
+    flags.getFlags.mockRejectedValue(new Error('Firestore unavailable'));
+
+    const result = await acquireClaim(baseInput());
+
+    expect(result.outcome).toBe('acquired');
+    expect(legacy.init).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('could not read writeLegacyEventNotification'),
+      expect.objectContaining({
+        eventId: EVENT_ID,
+        businessId: BUSINESS_ID,
+        error: expect.stringContaining('Firestore unavailable'),
+      }),
+    );
   });
 
   it('dual-write ON with businessId absent: skips the legacy node and warns (no "undefined_" key)', async () => {
@@ -1030,21 +1070,56 @@ describe('legacy RTDB dual-write (req 6)', () => {
   });
 
   it('dual-write is not gated on useClaimLease — acquireClaim never reads the flag', async () => {
-    // Structural: the module has no dependency on FeatureFlagService at all, so it cannot read
-    // `useClaimLease`. Being called *is* the flag decision, already made by the consumer.
+    // The module now imports FeatureFlagService for `writeLegacyEventNotification`, so the old
+    // "no dependency at all" assertion no longer holds. What must stay true is narrower and is
+    // the part that matters: `useClaimLease` is never *read*. Being called is the flag decision,
+    // already made by the consumer; re-reading it here would add a read to every delivery.
     const source = readWebhookClaimSource();
-    expect(source).not.toMatch(/FeatureFlagService/);
-    expect(source).not.toMatch(/getFlags\s*\(/);
-    expect(source).not.toMatch(/from '\.\.\/\.\.\/domain\/services/);
-    // Every mention of the flag is prose, not code: no statement reads it off an object.
+    // Every mention of useClaimLease is prose: no statement reads it off an object, and it is
+    // never destructured out of the flags object either.
     expect(source).not.toMatch(/\.\s*useClaimLease/);
+    expect(source).not.toMatch(/\buseClaimLease\s*[,}:]/);
+    // The one flag this module does read, read in exactly one place: a single getFlags() call
+    // site and a single property access off its result.
+    expect(source.match(/getFlags\s*\(/g)).toHaveLength(1);
+    expect(source.match(/\.writeLegacyEventNotification\b/g)).toHaveLength(1);
 
-    // Behavioural: the dual-write happens with no extra read beyond the create.
+    // Behavioural: the dual-write happens with no extra Firestore round-trip beyond the create.
     const result = await acquireClaim(baseInput());
 
     expect(result.outcome).toBe('acquired');
     expect(legacy.init).toHaveBeenCalledTimes(1);
     expect(fx.docRef.get).not.toHaveBeenCalled();
     expect(fx.db.runTransaction).not.toHaveBeenCalled();
+  });
+
+  it('the ~50% duplicate path makes zero flag reads', async () => {
+    // inFlight / done / failed must stay exactly as cheap as before the flag existed: the read
+    // lives inside the dual-write path, which those branches never enter.
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
+
+    fx.docRef.get.mockResolvedValue(snapshot(storedClaim({ status: 'done', result: 201 })));
+    await expect(acquireClaim(baseInput())).resolves.toEqual({ outcome: 'done', result: 201 });
+
+    fx.docRef.get.mockResolvedValue(snapshot(storedClaim({ status: 'failed' })));
+    await expect(acquireClaim(baseInput())).resolves.toEqual({ outcome: 'failed' });
+
+    fx.docRef.get.mockResolvedValue(snapshot(storedClaim({
+      leaseExpiresAt: Timestamp.fromMillis(NOW_MS + 30_000),
+    })));
+    await expect(acquireClaim(baseInput())).resolves.toEqual({ outcome: 'inFlight' });
+
+    expect(flags.getFlags).not.toHaveBeenCalled();
+    expect(legacy.init).not.toHaveBeenCalled();
+  });
+
+  it('the flag is read on the dual-write path only, and getFlags memoises it off the hot path', async () => {
+    await acquireClaim(baseInput());
+    await acquireClaim(baseInput());
+
+    // One read per acquire at this layer; getFlags itself caches for 60 s per instance, so the
+    // steady-state Firestore cost is a read per minute per instance, not one per delivery.
+    expect(flags.getFlags).toHaveBeenCalledTimes(2);
+    expect(legacy.init).toHaveBeenCalledTimes(2);
   });
 });

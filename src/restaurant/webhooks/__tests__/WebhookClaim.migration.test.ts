@@ -48,6 +48,11 @@ const fx = vi.hoisted(() => {
 
 const legacy = vi.hoisted(() => ({ ctor: vi.fn(), init: vi.fn() }));
 
+// The legacy dual-write is gated on the `writeLegacyEventNotification` WriteModelFlags entry,
+// read via getFlags(). Mocked here so the read never reaches the Firestore double (which has no
+// `collection()`) and so these rows run with the migration-window default: the gate ON.
+const flags = vi.hoisted(() => ({ getFlags: vi.fn() }));
+
 vi.mock('firebase-admin/firestore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('firebase-admin/firestore')>();
   return { ...actual, getFirestore: () => fx.db };
@@ -67,6 +72,10 @@ vi.mock('../../connected-accounts/EventNotification', () => ({
       return legacy.init(...args);
     }
   },
+}));
+
+vi.mock('../../../domain/services/FeatureFlagService', () => ({
+  getFlags: flags.getFlags,
 }));
 
 import { Timestamp } from 'firebase-admin/firestore';
@@ -116,6 +125,7 @@ beforeEach(() => {
     async (fn: (t: unknown) => Promise<unknown>) => fn(fx.transaction),
   );
   legacy.init.mockResolvedValue(undefined);
+  flags.getFlags.mockResolvedValue({ writeLegacyEventNotification: true });
 });
 
 afterEach(() => {
