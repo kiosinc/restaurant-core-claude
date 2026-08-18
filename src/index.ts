@@ -58,4 +58,7 @@ export type {
   AcquireResult,
   AcquireClaimInput,
   AcquireHandlers,
+  // Opaque proof that `withClaimFence` ran — the only thing `completeClaimIn` accepts. Exported
+  // so consumers can name it in signatures; it can only be *constructed* by `withClaimFence`.
+  ClaimFence,
 } from './restaurant/webhooks/WebhookClaim';

@@ -110,7 +110,7 @@ import {
   MAX_EVENT_AGE_MS,
   INITIAL_PHASE,
 } from '../WebhookClaim';
-import type { AcquireHandlers, AcquireResult } from '../WebhookClaim';
+import type { AcquireHandlers, AcquireResult, ClaimFence } from '../WebhookClaim';
 import { ValidationError } from '../../../domain/validation';
 import { PathResolver } from '../../../persistence/firestore/PathResolver';
 import {
@@ -803,10 +803,11 @@ describe('fencing helpers', () => {
       set: vi.fn(),
     };
 
-    await expect(
-      withClaimFence(callerTx as unknown as Transaction, EVENT_ID, 6),
-    ).resolves.toBeUndefined();
+    // It now resolves to the opaque ClaimFence handle — the only key completeClaimIn accepts —
+    // carrying the transaction it was asserted in alongside the eventId and generation.
+    const fence = await withClaimFence(callerTx as unknown as Transaction, EVENT_ID, 6);
 
+    expect(fence).toMatchObject({ eventId: EVENT_ID, leaseGeneration: 6, tx: callerTx });
     expect(callerTx.get).toHaveBeenCalledTimes(1);
     expect(callerTx.get).toHaveBeenCalledWith(fx.docRef);
     // The fence runs on the caller's transaction, not a new one of its own.
@@ -838,27 +839,83 @@ describe('fencing helpers', () => {
     expect(callerTx.update).not.toHaveBeenCalled();
   });
 
-  it("completeClaimIn queues the terminal write on the caller's transaction", () => {
-    const callerTx = { get: vi.fn(), update: vi.fn(), set: vi.fn() };
+  it("completeClaimIn queues the terminal write on the caller's transaction", async () => {
+    const callerTx = {
+      get: vi.fn(async () => snapshot(storedClaim({ leaseGeneration: 4 }))),
+      update: vi.fn(),
+      set: vi.fn(),
+    };
+    const fence = await withClaimFence(callerTx as unknown as Transaction, EVENT_ID, 4);
+    // Forget the fence's own read, so the assertion below is about completeClaimIn alone.
+    callerTx.get.mockClear();
 
-    completeClaimIn(callerTx as unknown as Transaction, EVENT_ID, 4, 200);
+    completeClaimIn(fence, 200);
 
     expect(callerTx.update).toHaveBeenCalledTimes(1);
     expect(callerTx.update).toHaveBeenCalledWith(fx.docRef, { status: 'done', result: 200 });
-    // Write-only: it assumes withClaimFence already read the claim in this same tx.
+    // Write-only: the fence already read the claim in this same tx, so it reads nothing itself.
     expect(callerTx.get).not.toHaveBeenCalled();
     expect(fx.db.runTransaction).not.toHaveBeenCalled();
   });
 
-  it('completeClaimIn rejects a non-integer or negative expectedGeneration with StaleLeaseError and writes nothing', () => {
+  it('completeClaimIn cannot be called without a fence — the precondition is a compile error', () => {
     const callerTx = { get: vi.fn(), update: vi.fn(), set: vi.fn() };
 
-    expect(() => completeClaimIn(callerTx as unknown as Transaction, EVENT_ID, 1.5, 200))
-      .toThrow(StaleLeaseError);
-    expect(() => completeClaimIn(callerTx as unknown as Transaction, EVENT_ID, -1, 200))
-      .toThrow(StaleLeaseError);
-    expect(() => completeClaimIn(callerTx as unknown as Transaction, EVENT_ID, NaN, 200))
-      .toThrow(StaleLeaseError);
+    // Replaces the old runtime `Number.isInteger(expectedGeneration)` guard, which existed only
+    // because the generation used to arrive as a loose caller-supplied number. `ClaimFence` is
+    // branded with a module-private `unique symbol`, so the loose call no longer typechecks —
+    // "completed without fencing" is now unrepresentable rather than merely discouraged.
+    //
+    // Deliberately never invoked: the assertion is that this does not compile, not what it
+    // would do at runtime.
+    const unfenced = () => {
+      // @ts-expect-error — completeClaimIn takes (fence: ClaimFence, result: number); the loose
+      // (tx, eventId, expectedGeneration, result) call is exactly the unfenced write this
+      // design exists to prevent.
+      completeClaimIn(callerTx as unknown as Transaction, EVENT_ID, 4, 200);
+    };
+
+    // @ts-expect-error — a hand-written object cannot satisfy ClaimFence: the brand symbol is
+    // declared but never exported, so no consumer can name the key.
+    const forged: ClaimFence = {
+      tx: callerTx as unknown as Transaction,
+      eventId: EVENT_ID,
+      leaseGeneration: 4,
+    };
+
+    expect(typeof unfenced).toBe('function');
+    expect(forged.eventId).toBe(EVENT_ID);
+    expect(callerTx.update).not.toHaveBeenCalled();
+  });
+
+  it('completeClaimIn writes through the fence\'s own transaction, never a second one', async () => {
+    const fencedTx = {
+      get: vi.fn(async () => snapshot(storedClaim({ leaseGeneration: 2 }))),
+      update: vi.fn(),
+      set: vi.fn(),
+    };
+    const otherTx = { get: vi.fn(), update: vi.fn(), set: vi.fn() };
+
+    const fence = await withClaimFence(fencedTx as unknown as Transaction, EVENT_ID, 2);
+    completeClaimIn(fence, 204);
+
+    // The handle carries the Transaction precisely so "fence in one tx, write in another" — a
+    // fence enforced against a read set the write never joins — cannot be expressed.
+    expect(fencedTx.update).toHaveBeenCalledTimes(1);
+    expect(fencedTx.update).toHaveBeenCalledWith(fx.docRef, { status: 'done', result: 204 });
+    expect(otherTx.update).not.toHaveBeenCalled();
+  });
+
+  it('completeClaimIn is unreachable when withClaimFence throws — no fence, no terminal write', async () => {
+    const callerTx = {
+      get: vi.fn(async () => snapshot(storedClaim({ leaseGeneration: 9 }))),
+      update: vi.fn(),
+      set: vi.fn(),
+    };
+
+    await expect(withClaimFence(callerTx as unknown as Transaction, EVENT_ID, 2))
+      .rejects.toThrow(StaleLeaseError);
+    // No fence was produced, so there is nothing to hand completeClaimIn.
     expect(callerTx.update).not.toHaveBeenCalled();
   });
 });

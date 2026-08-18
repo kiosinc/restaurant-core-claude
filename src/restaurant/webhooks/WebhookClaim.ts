@@ -32,6 +32,16 @@
  * transaction does. The clock only decides *when a steal becomes permissible*; the
  * fence decides *whose write is allowed to land*.
  *
+ * For the in-caller-transaction path, "the fence was actually checked" is enforced by the
+ * **type system**, not by documentation: {@link withClaimFence} returns an opaque
+ * {@link ClaimFence} handle and {@link completeClaimIn} accepts nothing else, so a handler
+ * cannot commit the terminal write without having fenced. The handle also carries the
+ * `Transaction`, which makes "fence in one transaction, write in another" — a fence enforced
+ * against a read set the write never joins — unrepresentable. What the types cannot enforce is
+ * *ordering*: Firestore requires all reads before all writes, so `await withClaimFence(tx, …)`
+ * must still come before any `tx.set`/`tx.update`/`tx.delete` in that transaction. That
+ * requirement is on the caller and is restated on {@link withClaimFence}.
+ *
  * Plus a P42-specific fifth part: **the claim document is also the durable record**
  * of the delivery — see the `payload` rationale below.
  *
@@ -1212,8 +1222,55 @@ export async function releaseClaim(eventId: string, expectedGeneration: number):
 }
 
 /**
+ * The brand that makes {@link ClaimFence} **opaque**.
+ *
+ * `declare const` + `unique symbol`, and deliberately **not exported**: a consumer cannot name
+ * this symbol, so it cannot write an object literal that satisfies {@link ClaimFence}. The only
+ * way to obtain one is {@link withClaimFence} — which is the whole point, because holding a
+ * fence *is* the proof that the fence check ran.
+ *
+ * It is a type-level declaration with no runtime value, so the handle is built with a cast in
+ * {@link withClaimFence} rather than by writing the key. Nothing reads the brand at runtime.
+ */
+declare const claimFenceBrand: unique symbol;
+
+/**
+ * Proof, carried in the type system, that {@link withClaimFence} has run in a given
+ * transaction — and the only key that opens {@link completeClaimIn}.
+ *
+ * **This replaces a precondition that used to be documentation only.** The pair
+ * `withClaimFence(tx, eventId, gen)` / `completeClaimIn(tx, eventId, gen, result)` were
+ * independent calls, so a consumer could complete a claim **without** ever fencing it, silently
+ * producing exactly the zombie write this design exists to prevent — and the only thing
+ * standing in the way was a paragraph asking them not to. With six square-gateway-claude
+ * handler migrations and two cloud-functions consumers ahead, that is now a **compile error**
+ * instead: `completeClaimIn` takes a `ClaimFence`, and a `ClaimFence` can only come from
+ * `withClaimFence`.
+ *
+ * **The `Transaction` is carried inside the handle on purpose.** Loose `tx` plus a fence value
+ * would still let a caller fence in one transaction and write in another — the fence would be
+ * enforced against a read set the write never joins, which is no fence at all. Carrying the tx
+ * makes that combination unrepresentable rather than merely discouraged.
+ *
+ * Unforgeable, not unfakeable: a deliberate `as unknown as ClaimFence` cast still compiles (as
+ * every TypeScript brand does). The guarantee is against *accidental* omission, which is the
+ * failure mode that actually occurs.
+ */
+export interface ClaimFence {
+  /** Phantom brand — never present at runtime, and unnameable outside this module. */
+  readonly [claimFenceBrand]: true;
+  /** The transaction the fence was asserted in; every fenced write must go through it. */
+  readonly tx: Transaction;
+  /** The claim the fence was asserted against. */
+  readonly eventId: string;
+  /** The generation that was current when the fence was asserted. */
+  readonly leaseGeneration: number;
+}
+
+/**
  * Assert the fence **inside the caller's own transaction**, so a handler can commit its
- * Firestore effects atomically with the claim check.
+ * Firestore effects atomically with the claim check, and hand back the {@link ClaimFence} that
+ * unlocks {@link completeClaimIn}.
  *
  * Two things this buys that an out-of-band check cannot:
  *
@@ -1225,12 +1282,22 @@ export async function releaseClaim(eventId: string, expectedGeneration: number):
  *
  * **Ordering requirement — `await withClaimFence(tx, …)` before any `tx.set`/`tx.update`/
  * `tx.delete` in that transaction.** Firestore requires all reads to precede all writes; a
- * fence attempted after a write throws a transport error instead of fencing.
+ * fence attempted after a write throws a transport error instead of fencing. The returned
+ * handle makes the *precondition* type-enforced; it does **not** make the *ordering*
+ * type-enforced, so this requirement is still on the caller and still documented here.
  *
- * **Divergence from the issue's sketch: this is `Promise<void>`, not `void`.** A synchronous
- * fence is not implementable — Firestore offers no synchronous precondition on a *field
- * value* (only `lastUpdateTime`, which the caller does not hold), so the generation has to be
- * read.
+ * **Divergence from the issue's sketch: this is `Promise<ClaimFence>`, not `void`.** A
+ * synchronous fence is not implementable — Firestore offers no synchronous precondition on a
+ * *field value* (only `lastUpdateTime`, which the caller does not hold), so the generation has
+ * to be read.
+ *
+ * ```ts
+ * await db.runTransaction(async (tx) => {
+ *   const fence = await withClaimFence(tx, eventId, claim.leaseGeneration);
+ *   tx.set(someEffectRef, effect);
+ *   completeClaimIn(fence, 200);
+ * });
+ * ```
  *
  * @throws {@link StaleLeaseError} if the claim was stolen or is gone — before the caller
  * writes anything.
@@ -1239,34 +1306,37 @@ export async function withClaimFence(
   tx: Transaction,
   eventId: string,
   expectedGeneration: number,
-): Promise<void> {
+): Promise<ClaimFence> {
   const snapshot = await tx.get(claimRef(eventId));
   assertFence(eventId, expectedGeneration, snapshot);
+  // The brand is type-only (`declare const`), so it has no runtime key to write; the cast is
+  // the module-private constructor. Everything a caller can read off the handle is real.
+  return { tx, eventId, leaseGeneration: expectedGeneration } as unknown as ClaimFence;
 }
 
 /**
- * Queue the terminal `done` write on the **caller's** transaction, so the claim completes in
- * the same commit as the handler's Firestore effects.
+ * Queue the terminal `done` write on the **fence's** transaction, so the claim completes in the
+ * same commit as the handler's Firestore effects.
  *
- * Write-only and synchronous: it **assumes {@link withClaimFence} has already run in this
- * same `tx`**, which is what makes the write safe (that call both verified the generation and
- * enrolled the claim in the read set, so a concurrent steal aborts this commit). Calling it
- * without the fence is a bug — the write would land unfenced.
+ * Write-only and synchronous. Taking a {@link ClaimFence} rather than a loose
+ * `(tx, eventId, expectedGeneration)` triple is what makes the write safe: the fence can only
+ * have come from {@link withClaimFence}, which verified the generation **and** enrolled the
+ * claim in that transaction's read set, so a concurrent steal aborts this commit. "Completing
+ * without fencing" is no longer a bug a reviewer has to catch — it does not typecheck.
  *
  * It exists so consumers never have to know the claim's collection path to commit atomically.
- * There is deliberately no `advancePhaseIn`/`releaseClaimIn` until a consumer needs one.
  *
- * @throws {@link StaleLeaseError} if `expectedGeneration` is not a plausible generation, which
- * can only mean {@link withClaimFence} was not the source of it.
+ * **No `advancePhaseIn`/`releaseClaimIn` siblings, deliberately.** The fence now makes them
+ * near-trivial — each would be one `fence.tx.update(claimRef(fence.eventId), …)` line — but an
+ * unused export is still surface to document, test and support, so they are added when a
+ * consumer actually needs one.
+ *
+ * There is no argument validation here any more, and none is needed: the old
+ * `Number.isInteger(expectedGeneration) || expectedGeneration < 0` guard existed only because
+ * the generation arrived as a loose caller-supplied number that could be forged or
+ * fat-fingered. It now arrives inside a branded handle produced by {@link withClaimFence} from
+ * a generation Firestore itself confirmed, so the guard was dead code and was removed.
  */
-export function completeClaimIn(
-  tx: Transaction,
-  eventId: string,
-  expectedGeneration: number,
-  result: number,
-): void {
-  if (!Number.isInteger(expectedGeneration) || expectedGeneration < 0) {
-    throw new StaleLeaseError(eventId, expectedGeneration, undefined);
-  }
-  tx.update(claimRef(eventId), doneUpdate(result));
+export function completeClaimIn(fence: ClaimFence, result: number): void {
+  fence.tx.update(claimRef(fence.eventId), doneUpdate(result));
 }

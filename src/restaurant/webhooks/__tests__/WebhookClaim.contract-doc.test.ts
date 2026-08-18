@@ -45,8 +45,11 @@ describe('WebhookClaim contract TSDoc (req 9)', () => {
       '## Precondition: REST transport must be off',
       'FIRESTORE_PREFER_REST',
       'firebase/firebase-admin-node#2587',
-      // Coexistence with the legacy RTDB gate.
+      // Coexistence with the legacy RTDB gate, and the flag that retires it (rcc#167).
       '## Relationship to the legacy RTDB gate',
+      '`writeLegacyEventNotification`',
+      // The fencing precondition is type-enforced, not merely documented.
+      '{@link ClaimFence}',
       // The acquire/branch table and the fencing rationale.
       '## Acquire / branch table',
       'Fencing tokens only work when the protected resource checks them',
