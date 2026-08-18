@@ -216,11 +216,23 @@ that a rolled-back handler would never look up. Consequence: an event claimed pr
 **not rollback-protected**. Handler migrations that care about the rollback window should claim
 after tenant resolution.
 
-**`payload` fidelity limits.** The claim stores the verbatim Square notification body as the only
-durable replay source — Square's Events API is unavailable to us, and Cloud Tasks has no DLQ (an
-exhausted task is deleted along with its body). kiosinc/cloud-functions#83 replays from this field.
-But Firestore sorts map keys and normalizes integral numbers, so a replayed body is **structurally**
-identical, not byte-identical. Therefore a replayed body **cannot be re-verified against Square's
-HMAC signature**: signature verification must stay at the receiver, before the claim, and the replay
-job must not attempt it. Firestore also rejects nested arrays and empty / `__reserved__` map keys
-outright, so such a payload fails the write rather than being stored.
+**`payload` fidelity limits.** The claim stores the Square notification body as a Firestore **map**
+— not a raw JSON string — and it is the only durable replay source: Square's Events API is
+unavailable to us, and Cloud Tasks has no DLQ (an exhausted task is deleted along with its body).
+kiosinc/cloud-functions#83 replays from this field. A map is kept deliberately, because nothing
+needs to re-verify the HMAC and a map stays readable in the Firestore console during an incident,
+which is the point of a forensics record.
+
+What is promised is **semantic** fidelity: **no field selection and no value transformation** —
+every field Square sent is stored, unaltered, and a read-back deep-equals what arrived.
+
+What is **not** promised is byte fidelity. Firestore sorts map keys (and integral numbers are
+already normalized by `express.json()` before the claim is written), so the stored payload is
+**not byte-identical** to the body Square sent and therefore **cannot be re-verified against
+Square's HMAC signature**. Consequently **signature verification must stay at the receiver, before
+the claim exists** (kiosinc/webhook-receiver#36), and the cf#83 replay job must not attempt it — it
+re-enqueues through Cloud Tasks, which is authenticated by queue rather than by signature.
+
+Firestore also rejects nested arrays and empty / `__reserved__` map keys outright, so such a payload
+fails the write rather than being stored. Claims (and their payloads) are reclaimed by the 72 h
+`expiresAt` TTL above.

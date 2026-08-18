@@ -87,6 +87,19 @@
  *
  * ## Why `payload` is stored verbatim
  *
+ * "Verbatim" here means **semantic** fidelity, and the promise is exact: **no field selection
+ * and no value transformation.** Every field Square sent is stored, unaltered — the body is
+ * handed to `create()` by identity, never copied, filtered, renamed, coerced or curated. It is
+ * **not** a byte-fidelity promise, and requirement 8's original "byte-fidelity" wording was
+ * simply wrong; see *Payload fidelity limits* below for what that costs and why it costs
+ * nothing that matters.
+ *
+ * It is stored as a Firestore **map**, not as a raw JSON string, decided deliberately:
+ * nothing needs to re-verify the HMAC (signatures are verified at the receiver before a claim
+ * exists — wr#36 — and cf#83's replay re-enqueues through Cloud Tasks, which is authenticated
+ * by queue rather than by signature), and a map stays readable in the Firestore console during
+ * an incident, which is the point of a forensics record.
+ *
  * The claim document is the **only durable record of the notification**:
  *
  * - Square's Events API (which would let us re-fetch an event by id) is **not available**
@@ -102,14 +115,30 @@
  *
  * ### Payload fidelity limits (know these before building a replay)
  *
- * A round-trip through Firestore preserves the *structure*, not the *bytes*:
+ * **What is promised: semantic fidelity.** No field selection, no value transformation — every
+ * field Square sent is stored, unaltered, and a read-back deep-equals what arrived.
  *
- * - **Map key order is not preserved** — Firestore stores map keys sorted. A replayed body
- *   is therefore **not byte-identical** to what Square sent, so it **cannot be re-verified
- *   against Square's HMAC signature**. Signature verification must stay at the receiver,
- *   *before* the claim is taken, and cf#83's replay must not attempt it.
+ * **What is explicitly NOT promised: byte fidelity.** Firestore stores map keys in sorted
+ * order, so the stored payload is **not byte-identical** to the body Square sent, and it
+ * therefore **cannot be re-verified against Square's HMAC signature**. This is a property of
+ * the storage engine, not a bug to be worked around, and no amount of care at the write site
+ * changes it.
+ *
+ * **Consequence, stated plainly for cf#83 and every future replay: signature verification must
+ * stay at the receiver, before the claim exists.** By the time a claim document is written the
+ * signature has already been checked (webhook-receiver, wr#36) and is no longer recoverable
+ * from the stored form. A replay job must not attempt HMAC verification and must not be
+ * designed as though it could; cf#83 re-enqueues through Cloud Tasks, which is authenticated by
+ * queue rather than by signature, so nothing downstream needs it.
+ *
+ * The remaining limits, all of them structural rather than transformations this module applies:
+ *
+ * - **Map key order is not preserved** — Firestore stores map keys sorted. This is the reason
+ *   for the byte-fidelity carve-out above; key *order* is the only thing lost, never a key or a
+ *   value.
  * - **Numbers are normalized** — integral JSON numbers come back as integers (`1.0` is
- *   already `1` after `express.json()`, before this module sees it).
+ *   already `1` after `express.json()`, before this module sees it), so the numeric *value*
+ *   survives even though its JSON spelling may not.
  * - **Nested arrays (`[[1, 2]]`) are rejected by Firestore outright.** `create()` throws and
  *   the delivery 500s rather than silently losing data. Square payloads are not known to
  *   contain them; the behaviour is pinned by an emulator test rather than worked around,
@@ -214,8 +243,10 @@ export type ClaimStatus = 'claimed' | 'done' | 'failed';
  * - `result` — **absent until completion**, then the HTTP status the handler returned
  *   ({@link completeClaim}). A duplicate delivery of a `done` claim replays this status
  *   instead of re-running the handler.
- * - `payload` — the **verbatim** Square notification body, the only durable replay source.
- *   See the file header for why it is stored and what fidelity it does and does not have.
+ * - `payload` — the Square notification body as a Firestore map, and the only durable replay
+ *   source. Stored with **semantic** fidelity: no field selection, no value transformation.
+ *   **Not** byte-identical to what Square sent (Firestore sorts map keys), so it cannot be
+ *   HMAC re-verified — signature verification stays at the receiver. See the file header.
  * - `leaseExpiresAt` — when the current holder's lease lapses. Compared against the reader's
  *   clock on read; nothing expires it server-side. Renewed by {@link advancePhase}
  *   (progress is a heartbeat) and force-expired by {@link releaseClaim}.
@@ -317,7 +348,11 @@ export interface AcquireClaimInput {
   eventType: string;
   /** Square's `merchant_id`. Absent ⇒ stored as `''` with a warning. */
   merchantId: string;
-  /** The verbatim notification body. Stored as-is; `{}` is legal, `null`/non-object is a `ValidationError`. */
+  /**
+   * The notification body. Stored as-is — no field selection, no value transformation; `{}` is
+   * legal, `null`/non-object is a `ValidationError`. Semantic, not byte, fidelity: see the file
+   * header's *Payload fidelity limits*.
+   */
   payload: Record<string, unknown>;
   /**
    * Square's `created_at` (an ISO string on `SquareEventNotification`, or a `Date`).
@@ -1075,8 +1110,9 @@ export async function acquireClaim(input: AcquireClaimInput): Promise<AcquireRes
    *
    * `claim` is passed to `create()` directly: it is a plain object literal built above, and it
    * typechecks as `DocumentData` without an intermediate spread. Passing it also keeps
-   * `payload` **identity**-preserving, which is what makes "stored verbatim" true rather than
-   * merely deep-equal.
+   * `payload` **identity**-preserving, which is what makes the "no field selection, no value
+   * transformation" promise true at the write site rather than merely deep-equal. (What
+   * Firestore then does with map key order is the storage engine's business — see the header.)
    */
   const tryAcquire = async (): Promise<AcquireResult | undefined> => {
     try {

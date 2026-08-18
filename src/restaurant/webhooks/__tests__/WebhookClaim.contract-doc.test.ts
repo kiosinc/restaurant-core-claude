@@ -29,9 +29,17 @@ describe('WebhookClaim contract TSDoc (req 9)', () => {
       '## Expiry is read from stored fields, never from TTL',
       'Data is typically deleted within 24 hours after its expiration date.',
       'Expired documents continue to appear in queries and lookup requests until the TTL',
-      // The payload rationale and its fidelity limits.
+      // The payload rationale and its fidelity limits. The promise is **semantic** fidelity —
+      // no field selection, no value transformation — and explicitly NOT byte fidelity, since
+      // Firestore sorts map keys. cf#83 reads this section as the replay contract.
       '## Why `payload` is stored verbatim',
       '### Payload fidelity limits',
+      'What is promised: semantic fidelity',
+      'no field selection, no value transformation',
+      'What is explicitly NOT promised: byte fidelity',
+      'not byte-identical',
+      'cannot be re-verified against Square\'s HMAC signature',
+      'signature verification must\n * stay at the receiver, before the claim exists',
       'Cloud Tasks has **no dead-letter queue**',
       'cf#83',
       'HMAC',
