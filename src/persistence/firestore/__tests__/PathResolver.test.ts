@@ -126,4 +126,9 @@ describe('PathResolver', () => {
     PathResolver.semaphoresCollection();
     expect(lastPath).toBe('semaphores');
   });
+
+  it('webhookClaimsCollection returns the top-level webhookClaims collection', () => {
+    PathResolver.webhookClaimsCollection();
+    expect(lastPath).toBe('webhookClaims');
+  });
 });

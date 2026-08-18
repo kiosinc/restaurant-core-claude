@@ -153,4 +153,14 @@ export class PathResolver {
   static semaphoresCollection(): FirebaseFirestore.CollectionReference {
     return this.db().collection(Paths.CollectionNames.semaphores);
   }
+
+  /**
+   * P42 webhook claim/lease docs, keyed by Square's globally unique `event_id`.
+   * Top-level (not under `businesses/{businessId}`) like `semaphores`: claims are
+   * delivery plumbing rather than tenant data, may be created before the tenant is
+   * resolved, and the sweeper's only query is cross-tenant. See rcc#166.
+   */
+  static webhookClaimsCollection(): FirebaseFirestore.CollectionReference {
+    return this.db().collection(Paths.CollectionNames.webhookClaims);
+  }
 }

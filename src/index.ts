@@ -29,3 +29,36 @@ export { default as EventNotification } from './restaurant/connected-accounts/Ev
 // Firestore-based distributed lock
 export { default as SemaphoreV2 } from './restaurant/vars/SemaphoreV2';
 export type { LockOptions } from './restaurant/vars/SemaphoreV2';
+
+// P42 webhook claim/lease/fence primitive — webhookClaims/{eventId} (rcc#166, contract rcc#165).
+// The legacy-RTDB dual-write is gated by the `writeLegacyEventNotification` flag on
+// `WriteModelFlags` (default true), not by an exported constant: retirement (rcc#167) is one
+// boolean per GCP project, and consumers must not branch on it in code.
+export {
+  acquireClaim,
+  advancePhase,
+  completeClaim,
+  releaseClaim,
+  withClaimFence,
+  completeClaimIn,
+  matchAcquireResult,
+  claimIdempotencyKey,
+  InvalidEventIdError,
+  StaleLeaseError,
+  EventTooOldError,
+  DEFAULT_LEASE_MS,
+  CLAIM_TTL_MS,
+  MAX_EVENT_AGE_MS,
+  INITIAL_PHASE,
+  EVENT_ID_PATTERN,
+} from './restaurant/webhooks/WebhookClaim';
+export type {
+  WebhookClaim,
+  ClaimStatus,
+  AcquireResult,
+  AcquireClaimInput,
+  AcquireHandlers,
+  // Opaque proof that `withClaimFence` ran — the only thing `completeClaimIn` accepts. Exported
+  // so consumers can name it in signatures; it can only be *constructed* by `withClaimFence`.
+  ClaimFence,
+} from './restaurant/webhooks/WebhookClaim';
