@@ -45,6 +45,7 @@ import { PathResolver } from '../../../persistence/firestore/PathResolver';
 import {
   acquireClaim,
   completeClaim,
+  failClaim,
   DEFAULT_LEASE_MS,
   INITIAL_PHASE,
   StaleLeaseError,
@@ -209,6 +210,80 @@ describe.skipIf(!isEmulator)('WebhookClaim against the Firestore emulator', () =
     // The winner's lease is live again.
     expect(data.leaseExpiresAt.toMillis()).toBeGreaterThan(Date.now());
     expect(data.leaseExpiresAt.toMillis()).toBeLessThanOrEqual(Date.now() + DEFAULT_LEASE_MS);
+  });
+
+  it('failClaim produces the "failed" state a later delivery reads back, with the payload intact', async () => {
+    const eventId = randomUUID();
+
+    const first = await acquireClaim(input(eventId));
+    expect(first.outcome).toBe('acquired');
+    const generation = first.outcome === 'acquired' ? first.claim.leaseGeneration : -1;
+
+    await failClaim(eventId, generation);
+
+    // The round trip that had no writer before this export: cf#82 marks the claim `failed`,
+    // and the next delivery of the same event resolves it through the acquire table.
+    const redelivery = await acquireClaim(input(eventId));
+    expect(redelivery.outcome).toBe('failed');
+
+    // Every piece of evidence cf#83's replay and the owning human need survives, and the
+    // status is the only field that moved.
+    const data = await readClaimData(eventId);
+    expect(data.status).toBe('failed');
+    expect(data.result).toBeUndefined();
+    expect(data.phase).toBe(INITIAL_PHASE);
+    expect(data.attemptCount).toBe(1);
+    expect(data.payload).toEqual({ event_id: eventId, type: 'order.updated' });
+  });
+
+  it('a sweeper failClaim racing a reclaim of the same expired lease: exactly one wins, and a failed claim never ends up holding a live lease', async () => {
+    const eventId = randomUUID();
+
+    // A `claimed` claim with a lapsed lease — simultaneously what cf#82's sweeper selects and
+    // what a live redelivery reclaims. Both observe generation 1.
+    const first = await acquireClaim(input(eventId, { leaseMs: 1 }));
+    expect(first.outcome).toBe('acquired');
+    await sleep(50);
+    const observedGeneration = first.outcome === 'acquired' ? first.claim.leaseGeneration : -1;
+    expect(observedGeneration).toBe(1);
+
+    // Fired together, never serialized. Both are transactions on the same document, so one
+    // commits and the other aborts and re-reads — the abort a mock cannot produce. **Which**
+    // one wins is genuinely undecided, so the assertion is on the invariant, not on a winner.
+    const [reclaim, failOutcome] = await Promise.all([
+      acquireClaim(input(eventId)),
+      failClaim(eventId, observedGeneration).then(() => 'ok' as const, (e: unknown) => e),
+    ]);
+
+    const data = await readClaimData(eventId);
+
+    if (failOutcome === 'ok') {
+      // The sweeper committed first. The reclaim's transaction re-read a `failed` claim and
+      // degraded to the `failed` branch instead of stealing it: no steal, no generation bump.
+      expect(reclaim.outcome).toBe('failed');
+      expect(data.status).toBe('failed');
+      expect(data.leaseGeneration).toBe(1);
+      expect(data.attemptCount).toBe(1);
+    } else {
+      // The reclaim committed first, so the sweeper is fenced out and writes nothing — which
+      // is the point: a delivery that is making progress again must not be parked in the
+      // human-owned terminal state.
+      expect(failOutcome).toBeInstanceOf(StaleLeaseError);
+      expect(reclaim.outcome).toBe('resumed');
+      expect(data.status).toBe('claimed');
+      expect(data.leaseGeneration).toBe(2);
+
+      // The new holder can still fail it, on the generation it actually owns.
+      const held = reclaim.outcome === 'resumed' ? reclaim.claim.leaseGeneration : -1;
+      await failClaim(eventId, held);
+      expect((await readClaimData(eventId)).status).toBe('failed');
+    }
+
+    // The lost update neither branch may produce: `failed` **and** a freshly bumped generation
+    // would mean the steal landed on top of the fail, handing a live lease to a terminal claim.
+    expect(data.status === 'failed' && data.leaseGeneration > 1).toBe(false);
+    // The payload survives either way — it is the only durable replay source.
+    expect(data.payload).toEqual({ event_id: eventId, type: 'order.updated' });
   });
 
   it('payload round-trips through Firestore: read-back deep-equals the original', async () => {

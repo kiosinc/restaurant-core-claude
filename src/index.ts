@@ -39,6 +39,9 @@ export {
   advancePhase,
   completeClaim,
   releaseClaim,
+  // The only writer of `status: 'failed'` — the human-owned end state cf#82 alerts on.
+  // Pick it over `releaseClaim` only when a person, not a retry, owns what happens next.
+  failClaim,
   withClaimFence,
   completeClaimIn,
   matchAcquireResult,
