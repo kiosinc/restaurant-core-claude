@@ -98,6 +98,7 @@ import {
   advancePhase,
   completeClaim,
   releaseClaim,
+  failClaim,
   withClaimFence,
   completeClaimIn,
   matchAcquireResult,
@@ -794,6 +795,68 @@ describe('fencing helpers', () => {
     await expect(releaseClaim(EVENT_ID, 1)).rejects.toThrow(StaleLeaseError);
     expect(fx.transaction.update).not.toHaveBeenCalled();
     expect(fx.transaction.delete).not.toHaveBeenCalled();
+  });
+
+  it('failClaim sets status "failed" and nothing else — no result, no lease change', async () => {
+    fx.transaction.get.mockResolvedValue(snapshot(storedClaim({ leaseGeneration: 3 })));
+
+    await failClaim(EVENT_ID, 3);
+
+    expect(fx.transaction.update).toHaveBeenCalledTimes(1);
+    // Exactly one field: `failed` is a status change, not a completion.
+    expect(updateArg()).toEqual({ status: 'failed' });
+    // `result` is completeClaim's cached success status; its absence is how a reader tells a
+    // `failed` claim from a `done` one that returned an error status.
+    expect(updateArg()).not.toHaveProperty('result');
+    // The evidence a human and cf#83 work from is untouched.
+    expect(updateArg()).not.toHaveProperty('phase');
+    expect(updateArg()).not.toHaveProperty('attemptCount');
+    expect(updateArg()).not.toHaveProperty('payload');
+    expect(updateArg()).not.toHaveProperty('leaseExpiresAt');
+  });
+
+  it('failClaim never deletes the claim — the payload is the only durable replay source', async () => {
+    fx.transaction.get.mockResolvedValue(snapshot(storedClaim({ leaseGeneration: 1 })));
+
+    await failClaim(EVENT_ID, 1);
+
+    expect(fx.transaction.delete).not.toHaveBeenCalled();
+    expect(fx.docRef.delete).not.toHaveBeenCalled();
+  });
+
+  it('failClaim with a stale generation throws StaleLeaseError and writes nothing', async () => {
+    // cf#82's sweeper reads, then fails: a claim stolen in between is making progress again
+    // and must be left alone. The fence is what makes that read-then-fail a compare-and-set.
+    fx.transaction.get.mockResolvedValue(snapshot(storedClaim({ leaseGeneration: 7 })));
+
+    await expect(failClaim(EVENT_ID, 6)).rejects.toThrow(StaleLeaseError);
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+    expect(fx.transaction.delete).not.toHaveBeenCalled();
+  });
+
+  it('failClaim on an absent claim throws StaleLeaseError', async () => {
+    fx.transaction.get.mockResolvedValue(snapshot(undefined));
+
+    await expect(failClaim(EVENT_ID, 2)).rejects.toMatchObject({
+      name: 'StaleLeaseError',
+      expectedGeneration: 2,
+      actualGeneration: undefined,
+    });
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+  });
+
+  it('failClaim writes the status acquireClaim reads back as the "failed" outcome', async () => {
+    // The round trip that was unbuildable before this export: nothing could produce the state
+    // the `failed` branch of the acquire table has always been able to read.
+    fx.transaction.get.mockResolvedValue(snapshot(storedClaim({ leaseGeneration: 1 })));
+    await failClaim(EVENT_ID, 1);
+    const written = updateArg();
+
+    fx.docRef.create.mockRejectedValue(alreadyExistsError());
+    fx.docRef.get.mockResolvedValue(snapshot(storedClaim({ ...written })));
+
+    const result = await acquireClaim(baseInput());
+    expect(result.outcome).toBe('failed');
   });
 
   it("withClaimFence resolves on a matching generation and reads the claim inside the caller's transaction", async () => {

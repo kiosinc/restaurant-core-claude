@@ -11,6 +11,7 @@
  * rename is supposed to make someone look at this list.
  */
 import { describe, it, expect } from 'vitest';
+import { CLAIM_TTL_MS, MAX_EVENT_AGE_MS } from '../WebhookClaim';
 import { readWebhookClaimSource } from './helpers/claimFixtures';
 
 const source = readWebhookClaimSource();
@@ -27,6 +28,12 @@ describe('WebhookClaim contract TSDoc (req 9)', () => {
       'claims do not cascade on\n * business delete',
       // Expiry read from stored fields, with both verified TTL caveats quoted.
       '## Expiry is read from stored fields, never from TTL',
+      // The 24 h replay / 72 h retention distinction. Calling the 72 h TTL "the replay window"
+      // overstates the recovery guarantee threefold and fails silently — a re-drive past 24 h
+      // is refused before any write and answers 200. cf#83 bounds itself on the 24 h.
+      '## Two windows: 24 h replay, 72 h retention — do not conflate them',
+      'Replay is the tighter of the two, and it is the one that binds',
+      'A replay job must bound itself on 24 h, not 72 h',
       'Data is typically deleted within 24 hours after its expiration date.',
       'Expired documents continue to appear in queries and lookup requests until the TTL',
       // The payload rationale and its fidelity limits. The promise is **semantic** fidelity —
@@ -72,6 +79,28 @@ describe('WebhookClaim contract TSDoc (req 9)', () => {
 
     const missing = requiredSections.filter((section) => !source.includes(section));
     expect(missing).toEqual([]);
+  });
+
+  it('contract TSDoc: the two windows table gives each constant its own role, and never calls the 72 h TTL the replay window', () => {
+    // The numbers the prose commits to are the numbers the module ships.
+    expect(MAX_EVENT_AGE_MS).toBe(24 * 60 * 60 * 1_000);
+    expect(CLAIM_TTL_MS).toBe(72 * 60 * 60 * 1_000);
+    // Replay is the tighter bound. If this ever inverts, the whole section is wrong.
+    expect(MAX_EVENT_AGE_MS).toBeLessThan(CLAIM_TTL_MS);
+
+    const start = source.indexOf('## Two windows');
+    expect(start).toBeGreaterThan(-1);
+    const table = source.slice(start, source.indexOf('## Why `payload` is stored verbatim', start));
+    expect(table).toContain('{@link MAX_EVENT_AGE_MS}');
+    expect(table).toContain('{@link CLAIM_TTL_MS}');
+    expect(table).toContain('**24 h**');
+    expect(table).toContain('**72 h**');
+    expect(table).toContain('EventTooOldError');
+
+    // The regression this section exists to prevent: 72 h described as the replay window.
+    // (`\d` rather than a literal 72 so a future change of the retention length still trips it.)
+    expect(source).not.toMatch(/\d+\s*h[^.]{0,80}the replay window/i);
+    expect(source).not.toMatch(/CLAIM_TTL_MS[^;]{0,200}the replay window/i);
   });
 
   it('contract TSDoc: the acquire/branch table names all five outcomes and the 429', () => {
