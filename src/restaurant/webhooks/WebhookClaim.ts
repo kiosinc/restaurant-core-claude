@@ -240,6 +240,13 @@ import { getFlags } from '../../domain/services/FeatureFlagService';
  *   claim (and its `payload`) stays for cf#83 to replay — re-drivable for 24 h, readable for 72 h;
  *   see *Two windows* in the file header. Written by {@link failClaim}, the only writer of this
  *   status.
+ *
+ * **`done` and `failed` are terminal, and terminality is enforced, not merely intended.** Every
+ * fenced mutator goes through {@link assertFence}, which refuses a claim that is not `claimed` —
+ * so a late holder cannot rewrite an end state, whatever generation it is carrying. The one
+ * legal way out of `failed` is cf#83's replay reset, which is not a fenced write: it runs in its
+ * own transaction, asserts `status === 'failed'`, and returns the claim to `claimed` with
+ * `leaseGeneration + 1`.
  */
 export type ClaimStatus = 'claimed' | 'done' | 'failed';
 
@@ -461,11 +468,23 @@ export class InvalidEventIdError extends Error {
 }
 
 /**
- * The caller's `leaseGeneration` is not the one on the claim — it was stolen (or the claim
- * is gone). The fencing failure.
+ * The caller has no authority to write this claim. Two distinct ways to lose it, one error
+ * class — because every caller reacts to both identically (see below):
+ *
+ * 1. **Stolen or gone** — the caller's `leaseGeneration` is not the one on the claim.
+ *    `actualGeneration` is `undefined` when the claim document is absent.
+ * 2. **Terminal** — the generation still matches, but the claim is no longer `claimed`.
+ *    `actualStatus` carries the status found. See {@link assertFence}.
  *
  * Thrown **before any write is queued** on the transaction, so a fenced-out worker cannot
- * commit anything. `actualGeneration` is `undefined` when the claim document is absent.
+ * commit anything.
+ *
+ * One class rather than two on purpose. Every consumer treats this error as a benign `raced`:
+ * cf#82's sweeper counts it and moves on, the gateway's `abandonClaim` swallows it, and the
+ * handlers let it reach the dispatcher so the delivery is retried — where `acquireClaim`
+ * re-reads the claim and replays its terminal branch. A second class would multiply those
+ * guards without changing a single reaction; `actualStatus` is there for the log line, which
+ * is the only place the difference matters.
  */
 export class StaleLeaseError extends Error {
   readonly eventId: string;
@@ -474,15 +493,33 @@ export class StaleLeaseError extends Error {
 
   readonly actualGeneration?: number;
 
-  constructor(eventId: string, expectedGeneration: number, actualGeneration?: number) {
+  /**
+   * The claim's `status` when the fence failed **because the claim was terminal**, and
+   * `undefined` on a generation mismatch. Present as a field, not only in the message, so a
+   * consumer can label a metric with it without parsing prose.
+   */
+  readonly actualStatus?: string;
+
+  constructor(
+    eventId: string,
+    expectedGeneration: number,
+    actualGeneration?: number,
+    actualStatus?: string,
+  ) {
     super(
-      `Stale lease for webhookClaims/${eventId}: expected leaseGeneration ${expectedGeneration}, `
-      + `found ${actualGeneration === undefined ? 'no claim' : actualGeneration}`,
+      actualStatus === undefined
+        ? `Stale lease for webhookClaims/${eventId}: expected leaseGeneration `
+          + `${expectedGeneration}, found `
+          + `${actualGeneration === undefined ? 'no claim' : actualGeneration}`
+        : `Stale lease for webhookClaims/${eventId}: leaseGeneration ${expectedGeneration} is `
+          + `still current, but the claim is no longer claimed (status ${actualStatus}) — a `
+          + 'terminal claim is immutable through the fence',
     );
     this.name = 'StaleLeaseError';
     this.eventId = eventId;
     this.expectedGeneration = expectedGeneration;
     this.actualGeneration = actualGeneration;
+    this.actualStatus = actualStatus;
   }
 }
 
@@ -1101,11 +1138,52 @@ export async function acquireClaim(input: AcquireClaimInput): Promise<AcquireRes
 
 /**
  * Assert the fence, or throw. **Verdict only — it returns nothing, and deliberately does not
- * hydrate the claim:** every caller needs no more than "is my generation still the current one",
- * so hydrating would run a 12-field read-back inside every fenced transaction and then discard it.
+ * hydrate the claim:** every caller needs no more than "may I still write this claim", so
+ * hydrating would run a 12-field read-back inside every fenced transaction and then discard it.
  *
- * A missing document is a fence failure too (`actualGeneration: undefined`): if the claim is gone,
- * the caller's authority to write on its behalf is gone with it.
+ * Three ways to fail, all of them {@link StaleLeaseError}:
+ *
+ * 1. **The document is gone** (`actualGeneration: undefined`) — if the claim is gone, the
+ *    caller's authority to write on its behalf is gone with it.
+ * 2. **The generation moved** — the ordinary fence: someone stole the lease.
+ * 3. **The claim is terminal** — `status` is no longer `claimed`. See below.
+ *
+ * ## Why the status check is here and not only in `failClaim`
+ *
+ * The generation alone is not sufficient, because **not every ownership change bumps it**.
+ * {@link failClaim} writes `status: 'failed'` and *only* that — deliberately, so a failed claim
+ * never ends up carrying a freshly bumped generation, which would look like a live lease on a
+ * terminal claim. That leaves a worker holding the pre-failure generation still numerically
+ * "current", so without this check its {@link completeClaim} would rewrite `failed` → `done`:
+ * silently clearing a claim cf#82 has already alerted on, and racing a cf#83 replay that is
+ * re-driving the same event from the stored payload.
+ *
+ * So the rule this function enforces is the stronger one the fence always meant:
+ * **a terminal claim is immutable through the fenced API.** `done` and `failed` are end states;
+ * the only transition out of one is cf#83's replay reset, which is a *different* operation —
+ * it runs in its own transaction, asserts `status === 'failed'` itself, and hands the claim
+ * back as `claimed` with `leaseGeneration + 1`. It does not, and must not, come through here:
+ * a fence is for a caller that already holds the claim, and the replay job holds nothing.
+ *
+ * ## The constant dependency this replaces — read before changing either number
+ *
+ * Before this check, the `failed` → `done` resurrection was unreachable only by arithmetic on
+ * two constants in two other repositories, with nothing in either stating the dependency:
+ *
+ * | Constant | Where | Value |
+ * |---|---|---|
+ * | `SWEEP_GRACE_MS` — how long a lease must have been lapsed before cf#82 will fail the claim | `cloud-functions/src/claimSweep.ts` | 2 h |
+ * | Cloud Run request timeout — the hard bound on how long a gateway worker can still be alive | square-gateway-claude service config, dev and prod | 900 s |
+ *
+ * The safety property was `SWEEP_GRACE_MS` > request timeout: a worker is killed at 15 min and
+ * so cannot still be running when the sweeper acts 2 h later. **Lowering the grace to speed up
+ * recovery, or raising the timeout toward Cloud Run's 3600 s maximum, silently reopens the
+ * window** — and cf#82's manual `?eventId=` path already passes `graceMs: 0`, which removes the
+ * ordering entirely for an operator acting on a single claim. Nothing failed loudly in any of
+ * those cases; the claim just got quietly resurrected.
+ *
+ * The check makes the property structural instead: it holds for any values of those two
+ * constants, and for callers that do not exist yet.
  */
 function assertFence(
   eventId: string,
@@ -1117,6 +1195,12 @@ function assertFence(
   const actual = typeof data.leaseGeneration === 'number' ? data.leaseGeneration : undefined;
   if (actual !== expectedGeneration) {
     throw new StaleLeaseError(eventId, expectedGeneration, actual);
+  }
+  // Fail closed on an unreadable status too: a claim whose lifecycle state cannot be read is
+  // not one this caller can prove it still owns. `String()` so the message is honest about
+  // whatever was actually stored.
+  if (data.status !== 'claimed') {
+    throw new StaleLeaseError(eventId, expectedGeneration, actual, String(data.status));
   }
 }
 
@@ -1160,7 +1244,8 @@ function doneUpdate(
  * it advances only on a *steal*. Bumping it on progress would invalidate the holder's own
  * token and make every subsequent fenced write fail.
  *
- * @throws {@link StaleLeaseError} if the claim was stolen or is gone — nothing is written.
+ * @throws {@link StaleLeaseError} if the claim was stolen, is gone, or has already reached a
+ * terminal status — nothing is written.
  */
 export async function advancePhase(
   eventId: string,
@@ -1180,7 +1265,13 @@ export async function advancePhase(
  * `phase` is left alone as the last recovery point, which is what makes a `done` claim
  * readable as a record of *what* happened rather than only *that* it happened.
  *
- * @throws {@link StaleLeaseError} if the claim was stolen or is gone — nothing is written.
+ * Completing a claim that is already `done` or `failed` is **not** a legal transition: a
+ * terminal claim is immutable through the fence, so it throws rather than rewriting the end
+ * state. That is the guard that stops a late worker resurrecting a swept-`failed` claim — see
+ * {@link assertFence}.
+ *
+ * @throws {@link StaleLeaseError} if the claim was stolen, is gone, or has already reached a
+ * terminal status — nothing is written.
  */
 export async function completeClaim(
   eventId: string,
@@ -1201,7 +1292,8 @@ export async function completeClaim(
  * the very next delivery sees an expired lease and gets `resumed` **immediately**: the retry
  * is instant, not lease-delayed.
  *
- * @throws {@link StaleLeaseError} if the claim was stolen or is gone — nothing is written.
+ * @throws {@link StaleLeaseError} if the claim was stolen, is gone, or has already reached a
+ * terminal status — nothing is written.
  */
 export async function releaseClaim(eventId: string, expectedGeneration: number): Promise<void> {
   await fencedUpdate(eventId, expectedGeneration, (now) => ({ leaseExpiresAt: now }));
@@ -1247,16 +1339,27 @@ export async function releaseClaim(eventId: string, expectedGeneration: number):
  * ## Fencing
  *
  * Fenced exactly like the other mutators: `expectedGeneration` must still be the claim's
- * `leaseGeneration` or nothing is written. For cf#82's sweeper — which observes an expired
- * lease rather than holding one — that read-then-`failClaim` pair is a compare-and-set: a
- * claim another worker has since stolen (generation bumped) or completed is left alone, so the
- * sweeper cannot fail a delivery that is once again making progress.
+ * `leaseGeneration` **and** the claim must still be `claimed`, or nothing is written. For
+ * cf#82's sweeper — which observes an expired lease rather than holding one — that
+ * read-then-`failClaim` pair is a compare-and-set: a claim another worker has since stolen
+ * (generation bumped) or completed (now terminal) is left alone, so the sweeper cannot fail a
+ * delivery that is once again making progress, and cannot re-fail a claim twice.
+ *
+ * **The other half of that fence matters more than it looks: nothing else stops the outgoing
+ * worker.** Because this writes `status` and not `leaseGeneration`, the worker whose delivery
+ * was just failed still holds a numerically current token, and its {@link completeClaim} would
+ * rewrite `failed` → `done` if the fence checked only the generation. {@link assertFence} is
+ * what closes that, and its TSDoc records the two-constant ordering
+ * (`claimSweep.SWEEP_GRACE_MS` = 2 h > the gateway's 900 s Cloud Run request timeout) that
+ * used to be the *only* reason the window stayed shut. **Read that table before changing
+ * either constant.**
  *
  * There is no `failClaimIn` sibling, for the same reason there is no `advancePhaseIn` — see
  * {@link completeClaimIn}. Failing a claim is an out-of-band judgement about a delivery that is
  * *not* running, so there is no caller transaction to join.
  *
- * @throws {@link StaleLeaseError} if the claim was stolen or is gone — nothing is written.
+ * @throws {@link StaleLeaseError} if the claim was stolen, is gone, or has already reached a
+ * terminal status — nothing is written.
  */
 export async function failClaim(eventId: string, expectedGeneration: number): Promise<void> {
   await fencedUpdate(eventId, expectedGeneration, () => ({ status: 'failed' }));
@@ -1336,8 +1439,8 @@ export interface ClaimFence {
  * });
  * ```
  *
- * @throws {@link StaleLeaseError} if the claim was stolen or is gone — before the caller
- * writes anything.
+ * @throws {@link StaleLeaseError} if the claim was stolen, is gone, or has already reached a
+ * terminal status — before the caller writes anything.
  */
 export async function withClaimFence(
   tx: Transaction,

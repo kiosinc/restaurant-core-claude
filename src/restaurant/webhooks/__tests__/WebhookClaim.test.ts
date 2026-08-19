@@ -983,6 +983,167 @@ describe('fencing helpers', () => {
   });
 });
 
+// --- terminal-claim immutability -----------------------------------------------------------
+
+/**
+ * The fence asserts `status === 'claimed'` as well as `leaseGeneration`, because the two are
+ * not the same guarantee: `failClaim` writes `status` and deliberately **not**
+ * `leaseGeneration`, so the worker whose delivery was just failed still holds a numerically
+ * current token.
+ *
+ * The race this closes was unreachable in production only by arithmetic on two constants in
+ * two other repositories — `claimSweep.SWEEP_GRACE_MS` (2 h) being larger than the gateway's
+ * Cloud Run request timeout (900 s) — with nothing stating the dependency, and with cf#82's
+ * manual `?eventId=` path already passing `graceMs: 0`. These tests are what make it
+ * unreachable by construction instead.
+ */
+describe('fencing helpers — a terminal claim is immutable through the fence', () => {
+  const terminal = ['done', 'failed'] as const;
+
+  it('the cf#82 sweeper race: a late completeClaim at the pre-failure generation cannot resurrect the failed claim', async () => {
+    // 1. A worker holds generation 3. cf#82's sweeper sees the lapsed lease and fails the claim
+    //    on that same generation — its documented read-then-`failClaim` compare-and-set.
+    const held = storedClaim({ leaseGeneration: 3 });
+    fx.transaction.get.mockResolvedValue(snapshot(held));
+
+    await failClaim(EVENT_ID, 3);
+
+    // 2. The claim as the sweeper leaves it: `failed`, generation untouched. That is the whole
+    //    hazard — the outgoing worker's token is *still current*, so a generation-only fence
+    //    lets it through.
+    const swept = { ...held, ...updateArg() };
+    expect(swept.status).toBe('failed');
+    expect(swept.leaseGeneration).toBe(3);
+
+    fx.transaction.update.mockClear();
+    fx.transaction.set.mockClear();
+    fx.transaction.delete.mockClear();
+    fx.transaction.get.mockResolvedValue(snapshot(swept));
+
+    // 3. The worker — still alive, still holding generation 3 — finishes and completes. Before
+    //    the status check this rewrote `failed` → `done`: silently clearing a claim cf#82 had
+    //    already alerted on, and racing a cf#83 replay re-driving the same event from the
+    //    stored payload. It must now write nothing at all.
+    await expect(completeClaim(EVENT_ID, 3, 200)).rejects.toThrow(StaleLeaseError);
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+    expect(fx.transaction.set).not.toHaveBeenCalled();
+    expect(fx.transaction.delete).not.toHaveBeenCalled();
+  });
+
+  it('the fence failure is the status, not the generation: actualGeneration still matches, actualStatus says why', async () => {
+    fx.transaction.get.mockResolvedValue(
+      snapshot(storedClaim({ leaseGeneration: 3, status: 'failed' })),
+    );
+
+    // `actualGeneration === expectedGeneration` is the assertion that matters: it is the proof
+    // that a generation-only fence would have passed this write straight through.
+    await expect(completeClaim(EVENT_ID, 3, 200)).rejects.toMatchObject({
+      name: 'StaleLeaseError',
+      expectedGeneration: 3,
+      actualGeneration: 3,
+      actualStatus: 'failed',
+    });
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+  });
+
+  it.each(terminal)('completeClaim on a %s claim throws and writes nothing', async (status) => {
+    fx.transaction.get.mockResolvedValue(snapshot(storedClaim({ leaseGeneration: 2, status })));
+
+    await expect(completeClaim(EVENT_ID, 2, 200)).rejects.toThrow(StaleLeaseError);
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+  });
+
+  it.each(terminal)('advancePhase on a %s claim throws and writes nothing', async (status) => {
+    fx.transaction.get.mockResolvedValue(snapshot(storedClaim({ leaseGeneration: 2, status })));
+
+    await expect(advancePhase(EVENT_ID, 2, 'phase-2')).rejects.toThrow(StaleLeaseError);
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+  });
+
+  it.each(terminal)('releaseClaim on a %s claim throws and writes nothing', async (status) => {
+    // Otherwise a stale holder's cleanup path would expire the lease on a terminal claim,
+    // which is a write to an end state even though it leaves `status` alone.
+    fx.transaction.get.mockResolvedValue(snapshot(storedClaim({ leaseGeneration: 2, status })));
+
+    await expect(releaseClaim(EVENT_ID, 2)).rejects.toThrow(StaleLeaseError);
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+  });
+
+  it.each(terminal)('failClaim on a %s claim throws and writes nothing', async (status) => {
+    // cf#82 never reaches this — the scheduled query filters `status == 'claimed'` and the
+    // manual path guards on it — so the sweeper's behaviour is unchanged. It is the belt to
+    // that braces: re-failing a claim is not a legal transition either.
+    fx.transaction.get.mockResolvedValue(snapshot(storedClaim({ leaseGeneration: 2, status })));
+
+    await expect(failClaim(EVENT_ID, 2)).rejects.toThrow(StaleLeaseError);
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+  });
+
+  it.each(terminal)('withClaimFence on a %s claim throws before the caller writes', async (status) => {
+    const callerTx = {
+      get: vi.fn(async () => snapshot(storedClaim({ leaseGeneration: 5, status }))),
+      update: vi.fn(),
+      set: vi.fn(),
+    };
+
+    // No fence handle is produced, so `completeClaimIn` is unreachable — the in-transaction
+    // completion path closes on exactly the same rule as the out-of-band one.
+    await expect(withClaimFence(callerTx as unknown as Transaction, EVENT_ID, 5))
+      .rejects.toThrow(StaleLeaseError);
+    expect(callerTx.update).not.toHaveBeenCalled();
+    expect(callerTx.set).not.toHaveBeenCalled();
+  });
+
+  it('an unreadable status fails closed: a claim whose lifecycle state cannot be read is not writable', async () => {
+    const { status, ...noStatus } = storedClaim({ leaseGeneration: 2 });
+    expect(status).toBe('claimed');
+    fx.transaction.get.mockResolvedValue(snapshot(noStatus));
+
+    await expect(completeClaim(EVENT_ID, 2, 200)).rejects.toMatchObject({
+      name: 'StaleLeaseError',
+      actualGeneration: 2,
+      actualStatus: 'undefined',
+    });
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+  });
+
+  it("cf#83's replay reset is unaffected, and the claim it hands back fences normally", async () => {
+    // The one legal transition out of `failed` is cf#83's `resetClaimForReplay`
+    // (cloud-functions/src/claimReplay.ts), and it is **not** a fenced write: it runs in its own
+    // transaction, asserts `status === 'failed'` itself, and never calls into this module — so
+    // the status check cannot break it. What it produces is an ordinary `claimed` claim at
+    // `leaseGeneration + 1`, which is what this asserts.
+    fx.transaction.get.mockResolvedValue(
+      snapshot(storedClaim({ status: 'claimed', leaseGeneration: 4 })),
+    );
+
+    // The replayed worker, holding the post-reset generation, completes normally.
+    await completeClaim(EVENT_ID, 4, 200);
+    expect(updateArg()).toEqual({ status: 'done', result: 200 });
+
+    // The worker from before the failure is still fenced out — now by the generation, as always.
+    fx.transaction.update.mockClear();
+    await expect(completeClaim(EVENT_ID, 3, 200)).rejects.toThrow(StaleLeaseError);
+    expect(fx.transaction.update).not.toHaveBeenCalled();
+  });
+
+  it('assertFence records the two-constant dependency it replaced', () => {
+    // The point of the change is that the safety used to come from two unrelated constants
+    // happening to be ordered correctly, with nothing stating it. If someone deletes the check,
+    // they must also delete this reasoning — and this test is what makes them look at it.
+    const source = readWebhookClaimSource();
+    const start = source.indexOf('## The constant dependency this replaces');
+    expect(start).toBeGreaterThan(-1);
+    const section = source.slice(start, source.indexOf('function assertFence(', start));
+
+    expect(section).toContain('SWEEP_GRACE_MS');
+    expect(section).toContain('claimSweep.ts');
+    expect(section).toContain('Cloud Run request timeout');
+    expect(section).toContain('900 s');
+    expect(section).toContain('graceMs: 0');
+  });
+});
+
 // --- union / helpers -----------------------------------------------------------------------
 
 describe('union and helpers', () => {
