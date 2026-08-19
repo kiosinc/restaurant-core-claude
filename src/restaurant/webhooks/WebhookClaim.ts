@@ -34,13 +34,9 @@
  *
  * For the in-caller-transaction path, "the fence was actually checked" is enforced by the
  * **type system**, not by documentation: {@link withClaimFence} returns an opaque
- * {@link ClaimFence} handle and {@link completeClaimIn} accepts nothing else, so a handler
- * cannot commit the terminal write without having fenced. The handle also carries the
- * `Transaction`, which makes "fence in one transaction, write in another" — a fence enforced
- * against a read set the write never joins — unrepresentable. What the types cannot enforce is
- * *ordering*: Firestore requires all reads before all writes, so `await withClaimFence(tx, …)`
- * must still come before any `tx.set`/`tx.update`/`tx.delete` in that transaction. That
- * requirement is on the caller and is restated on {@link withClaimFence}.
+ * {@link ClaimFence} handle, {@link completeClaimIn} accepts nothing else, and the handle
+ * carries the `Transaction`, so "fence in one transaction, write in another" is
+ * unrepresentable. What the types cannot enforce is *ordering* — see {@link withClaimFence}.
  *
  * Plus a P42-specific fifth part: **the claim document is also the durable record**
  * of the delivery — see the `payload` rationale below.
@@ -87,11 +83,6 @@
  *
  * ## Two windows: 24 h replay, 72 h retention — do not conflate them
  *
- * There are two durations in this module and they mean different things. Treating the longer
- * one as the replay window overstates the recovery guarantee threefold, and the way it fails is
- * silent: a re-drive past 24 h enqueues work that is refused *before any write*, answers **200**
- * and looks like a success.
- *
  * | Window | Constant | Length | What it bounds | Enforced by | Failure mode if you get it wrong |
  * |---|---|---|---|---|---|
  * | **Replay** | {@link MAX_EVENT_AGE_MS} | **24 h** | How old a notification may be and still be *processed* | {@link acquireClaim} throws {@link EventTooOldError} **before any write** | A re-drive past it is a guaranteed no-op that reports success |
@@ -102,7 +93,7 @@
  * re-processed, but a human still has the verbatim body to read for another 48 h. The gap is
  * forensics, not recovery.
  *
- * Two consequences worth stating, because both have already been written down wrongly once:
+ * Two consequences:
  *
  * - **A replay job must bound itself on 24 h, not 72 h.** cloud-functions#83 does
  *   (`classifyClaim` returns `expired` at {@link MAX_EVENT_AGE_MS}); anything else building on
@@ -113,12 +104,9 @@
  *
  * ## Why `payload` is stored verbatim
  *
- * "Verbatim" here means **semantic** fidelity, and the promise is exact: **no field selection
- * and no value transformation.** Every field Square sent is stored, unaltered — the body is
- * handed to `create()` by identity, never copied, filtered, renamed, coerced or curated. It is
- * **not** a byte-fidelity promise, and requirement 8's original "byte-fidelity" wording was
- * simply wrong; see *Payload fidelity limits* below for what that costs and why it costs
- * nothing that matters.
+ * "Verbatim" here means **semantic** fidelity: the body is handed to `create()` by identity,
+ * never copied, filtered, renamed, coerced or curated. It is **not** a byte-fidelity promise —
+ * see *Payload fidelity limits* below.
  *
  * It is stored as a Firestore **map**, not as a raw JSON string, decided deliberately:
  * nothing needs to re-verify the HMAC (signatures are verified at the receiver before a claim
@@ -147,15 +135,12 @@
  * **What is explicitly NOT promised: byte fidelity.** Firestore stores map keys in sorted
  * order, so the stored payload is **not byte-identical** to the body Square sent, and it
  * therefore **cannot be re-verified against Square's HMAC signature**. This is a property of
- * the storage engine, not a bug to be worked around, and no amount of care at the write site
- * changes it.
+ * the storage engine, not a bug to be worked around.
  *
  * **Consequence, stated plainly for cf#83 and every future replay: signature verification must
  * stay at the receiver, before the claim exists.** By the time a claim document is written the
  * signature has already been checked (webhook-receiver, wr#36) and is no longer recoverable
- * from the stored form. A replay job must not attempt HMAC verification and must not be
- * designed as though it could; cf#83 re-enqueues through Cloud Tasks, which is authenticated by
- * queue rather than by signature, so nothing downstream needs it.
+ * from the stored form. A replay job must not attempt HMAC verification.
  *
  * The remaining limits, all of them structural rather than transformations this module applies:
  *
@@ -197,13 +182,10 @@
  * env can silently break this primitive.
  *
  * **Required of every consumer:** do not pass `preferRest: true` to `initializeFirestore`,
- * and do not set `FIRESTORE_PREFER_REST` in the service's environment. This module logs a
- * warning — once per instance — from the **first {@link acquireClaim} call** if it sees the
- * variable; the check is at first use rather than at module load because `src/index.ts`
- * re-exports this module, so a load-time check would fire on every consumer of the library,
- * webhook-handling or not, and would read the environment before a consumer could change it.
- * It is deliberately **not** worked around in code: a create-timeout-then-read fallback would
- * reintroduce exactly the read-then-write race the `create()` precondition exists to remove.
+ * and do not set `FIRESTORE_PREFER_REST` in the service's environment. {@link acquireClaim}
+ * warns once per instance if it sees the variable set. It is deliberately **not** worked
+ * around in code: a create-timeout-then-read fallback would reintroduce exactly the
+ * read-then-write race the `create()` precondition exists to remove.
  *
  * ## Relationship to the legacy RTDB gate
  *
@@ -214,10 +196,7 @@
  * rcc#167 retires the node.
  *
  * The dual-write is itself gated by the **`writeLegacyEventNotification`** flag on
- * `WriteModelFlags`, default **`true`**. It is a feature flag rather than a module constant so
- * that rcc#167's retirement is one boolean per GCP project rather than a library publish, a
- * version repin and a redeploy across restaurant-core-claude, square-gateway-claude and
- * cloud-functions. It is read **only on the dual-write path** — see
+ * `WriteModelFlags`, default **`true`**, and read **only on the dual-write path** — see
  * {@link dualWriteLegacyNotification} for why the duplicate path must stay flag-read-free.
  *
  * ### What the flag does and does not buy (read before attempting rcc#167)
@@ -257,11 +236,10 @@ import { getFlags } from '../../domain/services/FeatureFlagService';
  *   the holder is alive is decided by `leaseExpiresAt`, not by this field.
  * - `done` — the delivery finished and `result` caches the HTTP status the handler returned.
  * - `failed` — the delivery is human-owned: it exhausted its attempts or hit a
- *   non-retryable error. Redeliveries reply 200 so Square and Cloud Tasks stop retrying,
- *   while the claim (and its `payload`) stays for cf#83 to replay — **re-drivable for 24 h
- *   from Square's `created_at` ({@link MAX_EVENT_AGE_MS}), then merely readable for the rest
- *   of the 72 h retention; see *Two windows* in the file header.** Written by
- *   {@link failClaim}, which is the only writer of this status.
+ *   non-retryable error. Redeliveries reply 200 so Square and Cloud Tasks stop retrying, while the
+ *   claim (and its `payload`) stays for cf#83 to replay — re-drivable for 24 h, readable for 72 h;
+ *   see *Two windows* in the file header. Written by {@link failClaim}, the only writer of this
+ *   status.
  */
 export type ClaimStatus = 'claimed' | 'done' | 'failed';
 
@@ -291,9 +269,9 @@ export type ClaimStatus = 'claimed' | 'done' | 'failed';
  *   ({@link completeClaim}). A duplicate delivery of a `done` claim replays this status
  *   instead of re-running the handler.
  * - `payload` — the Square notification body as a Firestore map, and the only durable replay
- *   source. Stored with **semantic** fidelity: no field selection, no value transformation.
- *   **Not** byte-identical to what Square sent (Firestore sorts map keys), so it cannot be
- *   HMAC re-verified — signature verification stays at the receiver. See the file header.
+ *   source. Stored with **semantic** fidelity — no field selection, no value transformation — and
+ *   deliberately not byte-identical to what Square sent; see *Payload fidelity limits* in the file
+ *   header.
  * - `leaseExpiresAt` — when the current holder's lease lapses. Compared against the reader's
  *   clock on read; nothing expires it server-side. Renewed by {@link advancePhase}
  *   (progress is a heartbeat) and force-expired by {@link releaseClaim}.
@@ -307,10 +285,10 @@ export type ClaimStatus = 'claimed' | 'done' | 'failed';
  *   `payload`, and duplicating it would put the stored field set out of step with the
  *   contract.
  * - `expiresAt` — `createdAt` + {@link CLAIM_TTL_MS} (72 h), and **TTL input only.** No code
- *   branches on it; it exists so Firestore's TTL service reclaims the claim (and its payload)
- *   once the **retention** window closes. That is *not* the replay window and outlives it
- *   threefold — see *Two windows* in the file header. Never slid forward by a reclaim, so a
- *   repeatedly stolen claim still expires 72 h after its first delivery.
+ *   branches on it; it exists so Firestore's TTL service reclaims the claim (and its payload) once
+ *   the **retention** window closes — which is not the replay bound; see *Two windows* in the file
+ *   header. Never slid forward by a reclaim, so a repeatedly stolen claim still expires 72 h after
+ *   its first delivery.
  */
 export interface WebhookClaim {
   eventId: string;
@@ -436,22 +414,19 @@ export const DEFAULT_LEASE_MS = 60_000;
  * **Retention** window: how long a claim (and therefore its `payload`) stays readable — 72 h.
  * Applied as `expiresAt` and enforced only by Firestore's TTL service.
  *
- * **This is not the replay window.** {@link MAX_EVENT_AGE_MS} (24 h) is, and it is the tighter
- * of the two; see *Two windows* in the file header before writing anything that re-drives a
- * claim. Retention is longer than replay on purpose: a claim outlives its own re-drivability
- * so a human still has the `payload` to read during the forensics that follow.
+ * This is not the bound on re-driving a claim; {@link MAX_EVENT_AGE_MS} (24 h) is, and it is the
+ * tighter of the two. See *Two windows* in the file header.
  */
 export const CLAIM_TTL_MS = 72 * 60 * 60 * 1_000;
 
 /**
  * **Replay** window: the age beyond which a notification is considered undeliverable and is
- * rejected with {@link EventTooOldError} **before any write** — Square stops retrying long
- * before this, so a body this old is a replay or a stuck queue, not a live delivery.
+ * rejected with {@link EventTooOldError} **before any write** — Square stops retrying long before
+ * this, so a body this old is a replay or a stuck queue, not a live delivery.
  *
- * Because the refusal happens before any write, this is also the hard bound on **every**
- * re-drive: enqueueing an older body produces a guaranteed no-op that answers 200 and reads
- * as success. Do not mistake {@link CLAIM_TTL_MS} (72 h retention) for this; see *Two windows*
- * in the file header.
+ * Because the refusal happens before any write, this is also the hard bound on **every** re-drive:
+ * enqueueing an older body produces a guaranteed no-op that answers 200 and reads as success. See
+ * *Two windows* in the file header.
  */
 export const MAX_EVENT_AGE_MS = 24 * 60 * 60 * 1_000;
 
@@ -547,18 +522,13 @@ let isPreferRestWarned = false;
 
 /**
  * Warn, at most once per instance, if Firestore's REST transport has been selected through the
- * environment.
+ * environment. See the file header (*Precondition: REST transport must be off*) for the hazard.
  *
- * See the file header (*Precondition: REST transport must be off*) for the hazard itself:
- * under REST, `create()` cannot distinguish "document already exists" from a server-aborted
- * request, so `acquireClaim`'s duplicate path hangs instead of rejecting.
- *
- * **Checked here rather than at module load, deliberately.** `src/index.ts` re-exports this
- * module, so a module-load check fires on any `require('@kiosinc/restaurant-core-claude')` —
- * including cloud-functions cold starts that never touch a webhook — and it would freeze the
- * environment as it stood at import time, going stale if a consumer sets or clears the
- * variable afterwards. Checking on first use warns exactly the processes the precondition
- * applies to, against the live value.
+ * **Checked here rather than at module load, deliberately.** `src/index.ts` re-exports this module,
+ * so a module-load check would fire on any `require('@kiosinc/restaurant-core-claude')` —
+ * including cold starts that never touch a webhook — and would freeze the environment as it stood
+ * at import time. Checking on first use warns exactly the processes the precondition applies to,
+ * against the live value.
  */
 function warnOnceIfPreferRest(): void {
   if (isPreferRestWarned || !process.env.FIRESTORE_PREFER_REST) return;
@@ -598,13 +568,10 @@ function assertNever(value: never): never {
 /**
  * Dispatch an {@link AcquireResult} to a handler per outcome.
  *
- * **This is the exhaustiveness enforcement mechanism**, and the reason it exists as a
- * function rather than as advice in a comment. {@link AcquireHandlers} has five required
- * keys, so a handler map that omits `inFlight` (or `done`, or `failed`) **fails to
- * typecheck unconditionally** — no reliance on the consumer's `tsconfig`, unlike a bare
- * `switch`, which needs `noImplicitReturns` or an explicit `never` tail to catch the same
- * mistake. With six square-gateway-claude webhook handlers and two cloud-functions consumers
- * to migrate, "hope everyone wrote an exhaustive switch" is not a control.
+ * **This is the exhaustiveness enforcement mechanism**, and the reason it exists as a function
+ * rather than as advice in a comment: {@link AcquireHandlers} has five required keys, so a handler
+ * map that omits `inFlight` (or `done`, or `failed`) **fails to typecheck unconditionally** — no
+ * reliance on the consumer's `tsconfig`, unlike a bare `switch`.
  */
 export function matchAcquireResult<T>(result: AcquireResult, handlers: AcquireHandlers<T>): T {
   switch (result.outcome) {
@@ -633,21 +600,16 @@ function assertValidEventId(eventId: unknown): asserts eventId is string {
   }
 }
 
-/**
- * Firestore's own `Document already exists: …` text, hoisted to module scope for the same
- * reason {@link EVENT_ID_PATTERN} is: a literal in the function body allocates a fresh
- * `RegExp` on every evaluation.
- */
+/** Firestore's own `Document already exists: …` text, hoisted so the regex is allocated once. */
 const ALREADY_EXISTS_MESSAGE_PATTERN = /already exists/i;
 
 /**
  * `ALREADY_EXISTS` detection, defensively.
  *
- * The canonical signal is `GrpcStatus.ALREADY_EXISTS` (`6`), which is what `create()` rejects
- * with over gRPC. Detection also accepts the string `'ALREADY_EXISTS'` and falls back to the
- * message (`6 ALREADY_EXISTS: Document already exists: …`), because the shape reported in the
- * wild varies with transport and SDK version — and misclassifying this error would turn a
- * duplicate delivery into a 500 loop.
+ * The canonical signal is `GrpcStatus.ALREADY_EXISTS` (`6`), which is what `create()` rejects with
+ * over gRPC. The string `'ALREADY_EXISTS'` and the message fallback are also accepted because the
+ * shape reported in the wild varies with transport and SDK version — and misclassifying this error
+ * would turn a duplicate delivery into a 500 loop.
  */
 function isAlreadyExistsError(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false;
@@ -682,25 +644,20 @@ function metadataOrEmpty(field: string, value: unknown, eventId: string): string
 
 /**
  * Epoch millis from Firestore's "`Timestamp` **or** ISO string **or** `Date`" ambiguity, or
- * `undefined` when the value is absent or unparseable.
+ * `undefined` when the value is absent or unparseable. The coercion is delegated to
+ * {@link toDateSafe} — the repo's single answer to that ambiguity, already used by the sibling
+ * lease primitive `SemaphoreV2` for exactly this expiry comparison.
  *
- * The coercion itself is delegated to {@link toDateSafe} — the repo's single answer to that
- * ambiguity, which the sibling lease primitive `SemaphoreV2` already uses for exactly this
- * expiry comparison — so this module does not re-derive it with a second duck-type.
+ * **The guards in front of it are load-bearing; do not "simplify" them away.** `toDateSafe` always
+ * produces a `Date`: `toDateSafe(null)` returns **epoch 0** and `toDateSafe(undefined)` an *Invalid
+ * Date*. Both call sites here need `undefined` instead — {@link leaseExpiryMillis} warns on it and
+ * treats the lease as expired, and {@link assertEventNotTooOld} *skips* the age gate — so passing
+ * `null` straight through would make a missing `created_at` look like 1970 and turn "warn and
+ * proceed" into a spurious {@link EventTooOldError}.
  *
- * **The guards in front of it are load-bearing; do not "simplify" them away.** `toDateSafe`
- * is a converter helper and always produces a `Date`: `toDateSafe(null)` returns **epoch 0**
- * and `toDateSafe(undefined)` an *Invalid Date*. Both call sites here need `undefined`
- * instead — {@link leaseExpiryMillis} warns on it and treats the lease as expired, and
- * {@link assertEventNotTooOld} *skips* the age gate on it. Passing `null` straight through
- * would make a missing `created_at` look like 1970 and turn "warn and proceed" into a
- * spurious {@link EventTooOldError}.
- *
- * The `number` limb is kept as a defence against a writer that stored **raw epoch millis**
- * rather than a `Timestamp` — no current writer does (both call sites' declared types are
- * `Timestamp | string | Date`), but a hand-repaired claim document or a future sweeper
- * (cf#82) writing millis would land here, and coercing it beats silently declaring the lease
- * expired.
+ * The `number` limb defends against a writer that stored **raw epoch millis** rather than a
+ * `Timestamp` — no current writer does, but a hand-repaired claim or a future sweeper (cf#82)
+ * would land here, and coercing it beats silently declaring the lease expired.
  */
 function toMillisOrUndefined(value: unknown): number | undefined {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
@@ -794,11 +751,10 @@ function doneResult(data: FirebaseFirestore.DocumentData, eventId: string): Acqu
 /**
  * How long the legacy RTDB dual-write is waited on before it is abandoned.
  *
- * Chosen against the numbers on this path: an acquire is a couple of Firestore RPCs (tens of
- * ms), a healthy RTDB `transaction()` is one round-trip, and the webhook ingestion rate is
- * ~16 events/sec with roughly half of them acquiring. 5 s is therefore an eternity for a
- * healthy write and still bounds the damage of an unhealthy one to a few seconds of added
- * latency rather than a stalled request.
+ * Sized against the numbers on this path: a healthy RTDB `transaction()` is one round-trip against
+ * an ingestion rate of ~16 events/sec. 5 s is therefore an eternity for a healthy write and still
+ * bounds the damage of an unhealthy one to a few seconds of added latency rather than a stalled
+ * request.
  */
 const LEGACY_DUAL_WRITE_TIMEOUT_MS = 5_000;
 
@@ -809,21 +765,18 @@ type DualWriteOutcome =
   | { status: 'timeout' };
 
 /**
- * Wait on the legacy RTDB write for at most {@link LEGACY_DUAL_WRITE_TIMEOUT_MS}, reporting
- * how it settled rather than throwing.
+ * Wait on the legacy RTDB write for at most {@link LEGACY_DUAL_WRITE_TIMEOUT_MS}, reporting how it
+ * settled rather than throwing.
  *
  * **Why a timeout is needed at all, given the caller already catches.** A `catch` only covers
  * *rejections*, and firebase-admin's RTDB `transaction()` does not reject while the client is
- * disconnected — it **queues indefinitely** and settles only after a server ack. So the
- * documented guarantee "a failing RTDB write never changes the outcome" does not, on its own,
- * cover a *stall*: there is nothing to catch. The claim is already committed by then, so
- * without this bound an RTDB incident would convert into a webhook-ingestion outage — the
- * exact inversion of what this primitive is for.
+ * disconnected — it **queues indefinitely** and settles only after a server ack. The claim is
+ * already committed by then, so without this bound an RTDB incident would convert into a
+ * webhook-ingestion outage — the exact inversion of what this primitive is for.
  *
- * Both settlements of `write` are handled here (the error is carried as a **value**, never
- * left as a rejection), so the promise this function abandons on timeout cannot later surface
- * as an unhandled rejection. The timer is cleared in a `finally` on every path, so it neither
- * leaks nor holds the event loop open.
+ * Both settlements of `write` are handled here (the error is carried as a **value**, never left as
+ * a rejection), so the promise this function abandons on timeout cannot later surface as an
+ * unhandled rejection. The timer is cleared in a `finally` on every path.
  */
 async function raceLegacyDualWrite(write: Promise<unknown>): Promise<DualWriteOutcome> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -846,16 +799,11 @@ async function raceLegacyDualWrite(write: Promise<unknown>): Promise<DualWriteOu
 /**
  * Read the `writeLegacyEventNotification` gate, **failing safe to `true`**.
  *
- * Called from {@link dualWriteLegacyNotification} and nowhere else, so the read never touches
- * the duplicate (`inFlight`/`done`/`failed`) path — see that function's TSDoc for the full
- * rule about which P42 flag may be read where.
- *
- * `getFlags` memoises for 60 s per instance but does **not** swallow Firestore errors: a
- * rejected `.get()` propagates to its caller. Hence the local `catch`. Defaulting to `true`
- * (dual-write ON) is the safe direction — ON preserves the rollback protection that makes
- * flipping `useClaimLease` back off a pure flag flip, while OFF would lose it silently — and
- * the claim is already committed by this point, so a flag-read failure must not surface as a
- * failed delivery.
+ * {@link getFlags} memoises for 60 s per instance but does **not** swallow Firestore errors — a
+ * rejected `.get()` propagates — hence the local catch. Defaulting to dual-write ON is the safe
+ * direction: ON preserves the rollback protection that makes a claim-lease rollback a pure flag
+ * flip, while OFF would lose it silently, and the claim is already committed by this point, so a
+ * flag-read failure must not surface as a failed delivery.
  */
 async function isLegacyDualWriteEnabled(claim: WebhookClaim): Promise<boolean> {
   try {
@@ -877,65 +825,39 @@ async function isLegacyDualWriteEnabled(claim: WebhookClaim): Promise<boolean> {
 }
 
 /**
- * Writes the legacy `EventNotification` RTDB node for an `acquired` or `resumed` claim
- * (req 6). Idempotent: `EventNotification.init()`'s RTDB `transaction()` aborts and sets
- * `isNew = false` when the node already exists, which is why running it on `resumed` as well
- * is safe.
+ * Writes the legacy `EventNotification` RTDB node for an `acquired` or `resumed` claim (req 6).
+ * Idempotent: `EventNotification.init()`'s RTDB `transaction()` aborts and sets `isNew = false`
+ * when the node already exists, which is why running it on `resumed` as well is safe.
  *
  * ## Which flags this path reads, and which it must never read
  *
- * Two P42 flags exist and they are read in opposite ways. Do not collapse them:
- *
- * - **`useClaimLease` — never read here, and that is permanent.** It is the *consumer's*
- *   decision to call `acquireClaim` at all. Being called *is* the flag decision, already made
- *   at the call site; re-reading it here would add a flag read to **every** delivery — half of
- *   which are duplicates — and let the primitive behave differently for a reason invisible at
- *   the call site.
- * - **`writeLegacyEventNotification` — read here, inside this function only.** This is the one
- *   place a flag read is correct, because this function runs on `acquired`/`resumed` only. The
- *   ~50% duplicate path (`inFlight`/`done`/`failed`) therefore makes **zero** flag reads and
- *   zero extra Firestore round-trips, exactly as before. `acquireClaim` itself still reads no
- *   flag; nothing was added to the top of it.
- *
- * The read goes through {@link getFlags}, which memoises for 60 s per instance, so at ~16
- * events/sec the steady-state cost is one Firestore read per minute per instance, not one per
- * delivery.
- *
- * **It is wrapped in its own try/catch and defaults to `true` on failure.** `getFlags` does not
- * catch Firestore errors — a rejected `.get()` propagates — and by the time this runs the claim
- * is already committed. A flag-read failure must never fail an already-committed claim, and
- * dual-write ON preserves rollback protection whereas OFF silently loses it, so the safe
- * default is ON. The fallback warns (anomaly-gated: only when the read actually fails).
+ * - **`useClaimLease` — never read here, and that is permanent.** It is the *consumer's* decision
+ *   to call `acquireClaim` at all; being called *is* the flag decision, already made at the call
+ *   site. Re-reading it here would add a flag read to **every** delivery — half of which are
+ *   duplicates — and let the primitive behave differently for a reason invisible at the call site.
+ * - **`writeLegacyEventNotification` — read here, inside this function only**, which is what keeps
+ *   the ~50% duplicate path (`inFlight`/`done`/`failed`) at **zero** flag reads and zero extra
+ *   Firestore round-trips. The read goes through {@link isLegacyDualWriteEnabled}, which memoises
+ *   via {@link getFlags} and fails safe to ON.
  *
  * Three behaviours worth stating:
  *
- * - **`businessId` absent ⇒ skip and warn.** The legacy key is `${businessId}_${Id}`, so
- *   writing it without a tenant would create an `undefined_<eventId>` node that a
- *   rolled-back handler never looks up (rollback resolves `businessId` first, then keys on
- *   it) — the mirror image of the `${businessId}_undefined` garbage class the contract calls
- *   out. **Consequence: a claim taken before tenant resolution is not rollback-protected**,
- *   so handler migrations that care about the rollback window should claim *after* resolving
- *   the tenant.
- * - **RTDB failures are caught, warned and swallowed.** The claim is the source of truth and
- *   the legacy node is only rollback insurance; failing the claim because the insurance
- *   failed would create losses in the name of preventing them.
+ * - **`businessId` absent ⇒ skip and warn.** The legacy key is `${businessId}_${Id}`, so writing
+ *   it without a tenant would create an `undefined_<eventId>` node that a rolled-back handler
+ *   never looks up (rollback resolves `businessId` first, then keys on it). **Consequence: a claim
+ *   taken before tenant resolution is not rollback-protected**, so handler migrations that care
+ *   about the rollback window should claim *after* resolving the tenant.
+ * - **RTDB failures are caught, warned and swallowed.** The claim is the source of truth and the
+ *   legacy node is only rollback insurance; failing the claim because the insurance failed would
+ *   create losses in the name of preventing them.
  * - **A stalled RTDB write is abandoned after {@link LEGACY_DUAL_WRITE_TIMEOUT_MS}** — see
  *   {@link raceLegacyDualWrite} for why swallowing rejections is not sufficient on its own.
  *
- * ## Latency tradeoff — read this before "optimizing" it
- *
- * The wait is **awaited, not detached, and that is deliberate.** Firing the write off as a
- * floating promise would look free, but Cloud Run may freeze (and eventually reclaim) an
- * instance once the response is sent, so the write could simply never happen — silently
- * voiding rollback protection for exactly the deliveries that needed it, and doing so
- * invisibly. Bounding the wait keeps the guarantee while capping the cost; removing the wait
- * removes the guarantee.
- *
- * Nor is it worth starting the write **concurrently with `create()`** to hide its latency:
- * roughly half the deliveries on this path are duplicates that end in `inFlight`, `done` or
- * `failed`, and those touch RTDB **zero times** today. Racing the write against the create
- * would add an RTDB round-trip to every one of them — a net loss, paid on the hotter half of
- * the traffic, to save a few ms on the other half.
+ * **The wait is awaited, not detached, and that is deliberate.** Cloud Run may freeze (and
+ * eventually reclaim) an instance once the response is sent, so a floating write could simply never
+ * happen — silently voiding rollback protection for exactly the deliveries that needed it. Nor is
+ * it worth starting the write concurrently with `create()` to hide its latency: that would add an
+ * RTDB round-trip to the duplicate half of the traffic, which touches RTDB zero times today.
  */
 async function dualWriteLegacyNotification(claim: WebhookClaim): Promise<void> {
   if (!await isLegacyDualWriteEnabled(claim)) return;
@@ -985,33 +907,20 @@ async function dualWriteLegacyNotification(claim: WebhookClaim): Promise<void> {
 type ExistingClaimBranch = AcquireResult | { outcome: 'absent' };
 
 /**
- * The status-and-lease ladder of the acquire path, in **one** place.
+ * The status-and-lease ladder of the acquire path, in **one** place: this function *is* the
+ * acquire/branch table documented on {@link AcquireResult}, expressed as code. Read the two
+ * together.
  *
- * This function *is* the acquire/branch table documented on {@link AcquireResult}, expressed
- * as code — read the two together:
- *
- * - **no document** ⇒ `absent`. The claim vanished under us (Firestore's TTL service or the
- *   cf#82 sweeper deleted it mid-operation), so the caller retries the create and treats the
- *   delivery as fresh.
- * - **`done`** ⇒ replay the cached status via {@link doneResult} — 200 if it was never
- *   recorded, never a skip.
- * - **`failed`** ⇒ the claim is human-owned; the caller answers 200 so Square and Cloud Tasks
- *   stop retrying, and cf#83 can still replay it from `payload`.
- * - **an unrecognised status** (data written by a future or broken version) ⇒ `inFlight`. It
- *   is a *retryable* unknown: degrade to **retry**, never to **drop**.
- * - **`claimed` with a live lease** ⇒ `inFlight`. Another worker owns this delivery; no write
- *   happens and the caller returns 429.
- *
- * `undefined` is the one remaining case: **`claimed` with a lapsed lease, i.e. stealable.** An
- * unreadable `leaseExpiresAt` deliberately counts as lapsed — a malformed lease must not wedge
- * an event forever, and stealing it is safe because `leaseGeneration` still fences whoever
- * wrote it (see {@link leaseExpiryMillis}, which also emits the warning).
+ * `undefined` is the one case the table does not name, because it is not an outcome:
+ * **`claimed` with a lapsed lease, i.e. stealable.** An unreadable `leaseExpiresAt` deliberately
+ * counts as lapsed — a malformed lease must not wedge an event forever, and stealing it is safe
+ * because `leaseGeneration` still fences whoever wrote it (see {@link leaseExpiryMillis}, which
+ * also emits the warning).
  *
  * It is evaluated **twice per reclaim, and that is not redundancy**: once against the
  * pre-transaction read in {@link resolveExistingClaim}, and again against the transaction's own
- * read in {@link reclaimExpiredLease}, because the claim can move between the two — another
- * worker may complete it or refresh the lease. Both *call sites* are load-bearing; the
- * *policy* they apply must not be duplicated, which is why it lives here.
+ * read in {@link reclaimExpiredLease}, because the claim can move between the two — another worker
+ * may complete it or refresh the lease.
  */
 function classifyExistingClaim(
   data: FirebaseFirestore.DocumentData | undefined,
@@ -1044,14 +953,12 @@ async function reclaimExpiredLease(
   return getFirestore().runTransaction(async (tx): Promise<ExistingClaimBranch> => {
     const snapshot = await tx.get(ref);
     const data = snapshot.data();
-    // Second evaluation of the same ladder, deliberately: the claim can have been completed,
-    // failed, or had its lease refreshed by another worker between the pre-read in
-    // resolveExistingClaim and this transaction's own read.
+    // Second evaluation of the same ladder, deliberately — see classifyExistingClaim.
     const branch = classifyExistingClaim(data, eventId, now);
     // A branch means the claim moved on us. `undefined` means `claimed` with a lapsed lease —
-    // stealable, and necessarily a document that exists (an absent one classifies as `absent`),
-    // which is what narrows `data` for the steal below.
-    if (branch !== undefined || data === undefined) return branch ?? { outcome: 'absent' };
+    // stealable, and necessarily a document that exists, which is what narrows `data` below.
+    if (branch !== undefined) return branch;
+    if (data === undefined) return { outcome: 'absent' };
 
     const leaseGeneration = (typeof data.leaseGeneration === 'number' ? data.leaseGeneration : 0) + 1;
     const attemptCount = (typeof data.attemptCount === 'number' ? data.attemptCount : 0) + 1;
@@ -1099,27 +1006,23 @@ async function resolveExistingClaim(
  * to be established between two workers stealing the same expired lease.
  *
  * **Nothing at the top of this function reads a feature flag.** The only flag on this module's
- * path is `writeLegacyEventNotification`, read inside {@link dualWriteLegacyNotification},
- * which runs on `acquired`/`resumed` only and behind {@link getFlags}'s 60 s memo. The ~50% of
- * deliveries that are duplicates (`inFlight`/`done`/`failed`) therefore still make **zero**
- * flag reads and zero extra Firestore round-trips. `useClaimLease` is never read here at all —
- * see {@link dualWriteLegacyNotification} for why.
+ * path is `writeLegacyEventNotification`, read inside {@link dualWriteLegacyNotification}, which
+ * runs on `acquired`/`resumed` only — so the ~50% of deliveries that are duplicates stay exactly
+ * as cheap as they were.
  *
  * ## Timestamps
  *
  * One client instant per call — `Timestamp.now()` — derives `createdAt`, `leaseExpiresAt` and
  * `expiresAt`, so the three are mutually consistent by construction.
  *
- * `FieldValue.serverTimestamp()` is **unusable** here: it is a write-time sentinel that
- * cannot be read back inside the same write, so `createdAt + 60 s` and `createdAt + 72 h`
- * cannot be derived from it. (`SemaphoreV2` hits the same wall and mixes a sentinel `updated`
- * with a client-computed `expiresAt`.)
+ * `FieldValue.serverTimestamp()` is **unusable** here: a write-time sentinel cannot be read back
+ * inside the same write, so `createdAt + 60 s` and `createdAt + 72 h` cannot be derived from it.
+ * (`SemaphoreV2` hits the same wall.)
  *
- * The tradeoff, stated plainly: lease comparisons are then between one machine's clock and
- * another's. Cloud Run and Cloud Functions clocks are NTP-synced to milliseconds against a
- * 60 s lease, and — the load-bearing point — **clock skew degrades liveness, not safety.** A
- * mis-timed expiry only causes an *early steal*, and the worker stolen from is still rejected
- * by `leaseGeneration` fencing. The fence, not the clock, is the correctness mechanism.
+ * Lease comparisons are therefore between one machine's clock and another's, which is safe
+ * because **clock skew degrades liveness, not safety.** A mis-timed expiry only causes an *early
+ * steal*, and the worker stolen from is still rejected by `leaseGeneration` fencing. The fence,
+ * not the clock, is the correctness mechanism.
  *
  * @throws {@link InvalidEventIdError} if `eventId` is missing, empty or not UUID-shaped.
  * @throws ValidationError if `payload` is not an object.
@@ -1166,11 +1069,8 @@ export async function acquireClaim(input: AcquireClaimInput): Promise<AcquireRes
    * `undefined` for the single retryable case — `create()` reported ALREADY_EXISTS but the
    * claim read as **absent**, meaning it was deleted under us mid-operation.
    *
-   * `claim` is passed to `create()` directly: it is a plain object literal built above, and it
-   * typechecks as `DocumentData` without an intermediate spread. Passing it also keeps
-   * `payload` **identity**-preserving, which is what makes the "no field selection, no value
-   * transformation" promise true at the write site rather than merely deep-equal. (What
-   * Firestore then does with map key order is the storage engine's business — see the header.)
+   * `claim` is handed to `create()` by identity, never copied or filtered, which is what makes the
+   * payload promise true at the write site — see *Payload fidelity limits* in the file header.
    */
   const tryAcquire = async (): Promise<AcquireResult | undefined> => {
     try {
@@ -1186,9 +1086,8 @@ export async function acquireClaim(input: AcquireClaimInput): Promise<AcquireRes
     return { outcome: 'acquired', claim };
   };
 
-  // Two attempts, spelled out rather than looped: the claim can only vanish under us (TTL or
-  // the sweeper) once before this is a bug rather than a race, and a two-iteration loop only
-  // bought a counter nothing read plus four `no-await-in-loop` suppressions.
+  // Two attempts rather than a loop: the claim can only vanish under us (TTL or the sweeper) once
+  // before this is a bug rather than a race.
   const first = await tryAcquire();
   if (first !== undefined) return first;
   const second = await tryAcquire();
@@ -1201,16 +1100,12 @@ export async function acquireClaim(input: AcquireClaimInput): Promise<AcquireRes
 }
 
 /**
- * Assert the fence, or throw. **Verdict only — it returns nothing.**
+ * Assert the fence, or throw. **Verdict only — it returns nothing, and deliberately does not
+ * hydrate the claim:** every caller needs no more than "is my generation still the current one",
+ * so hydrating would run a 12-field read-back inside every fenced transaction and then discard it.
  *
- * It deliberately does not hydrate the claim. Every caller — {@link fencedUpdate}'s update
- * builders and {@link withClaimFence} — needs only "is my generation still the current one",
- * so hydrating would run a 12-field read-back inside every `advancePhase`, `completeClaim`,
- * `releaseClaim` and fenced caller transaction and then discard it. A caller that genuinely
- * wants the stored claim reads it itself.
- *
- * Missing document is a fence failure too (`actualGeneration: undefined`): if the claim is
- * gone, the caller's authority to write on its behalf is gone with it.
+ * A missing document is a fence failure too (`actualGeneration: undefined`): if the claim is gone,
+ * the caller's authority to write on its behalf is gone with it.
  */
 function assertFence(
   eventId: string,
@@ -1247,9 +1142,6 @@ async function fencedUpdate(
  * The terminal `done` write shape, in one place so the two completion paths — out-of-band
  * ({@link completeClaim}) and in the caller's own transaction ({@link completeClaimIn}) —
  * cannot silently diverge.
- *
- * `phase` is deliberately absent: it stays as the last recovery point, which is what makes a
- * `done` claim readable as a record of *what* happened rather than only *that* it happened.
  */
 function doneUpdate(
   result: number,
@@ -1318,12 +1210,9 @@ export async function releaseClaim(eventId: string, expectedGeneration: number):
 /**
  * Terminal failure: `status: 'failed'`, the **human-owned** end state.
  *
- * This is the only writer of `'failed'`. Before it existed the status could be *read*
- * (`classifyExistingClaim`, the `failed` row of the acquire table) and *typed*
- * ({@link ClaimStatus}) but never *written*, so kiosinc/cloud-functions#82's sweeper — whose
- * whole job is "an over-threshold claim becomes `failed`, emits a metric and fires an alert" —
- * had no way to produce the state it alerts on except by hand-building the `webhookClaims`
- * path this module deliberately does not export, unfenced.
+ * This is the only writer of `'failed'`, and therefore the only way kiosinc/cloud-functions#82's
+ * sweeper can produce the state it alerts on without hand-building an unfenced write to the
+ * `webhookClaims` path this module deliberately does not export.
  *
  * ## `failClaim` versus {@link releaseClaim} — pick by *who owns the retry*
  *
@@ -1348,20 +1237,12 @@ export async function releaseClaim(eventId: string, expectedGeneration: number):
  *
  * Exactly one field: `status`. In particular —
  *
- * - **No `result`.** `result` is the status {@link completeClaim} caches for a *successful*
- *   delivery to replay; the `failed` branch answers a fixed 200 (retries stop) regardless, so
- *   caching one would be a value nothing reads. `result` staying absent is also how a reader
- *   tells a `failed` claim from a `done` one that happened to return an error status.
- * - **No `leaseExpiresAt` change.** {@link classifyExistingClaim} tests `status` before it
- *   looks at the lease, so a `failed` claim's lease is unreachable. Leaving it alone keeps the
- *   write minimal and mirrors {@link completeClaim}.
- * - **No `phase`, `attemptCount` or `payload` change, and no delete.** All three are the
- *   evidence the human and cf#83 work from: `phase` is how far it got, `attemptCount` is
- *   cf#83's poison bound (`REPLAY_ATTEMPT_CEILING`, deliberately set above cf#82's fail
- *   threshold), and `payload` is the only surviving copy of the body.
- *
- * The claim is re-drivable for 24 h from Square's `created_at` and readable for the full 72 h —
- * these are different windows; see *Two windows* in the file header.
+ * - **No `result`.** The `failed` branch answers a fixed 200 regardless, and `result` staying
+ *   absent is how a reader tells a `failed` claim from a `done` one that returned an error status.
+ * - **No `leaseExpiresAt` change.** {@link classifyExistingClaim} tests `status` before it looks
+ *   at the lease, so a `failed` claim's lease is unreachable.
+ * - **No `phase`, `attemptCount` or `payload` change, and no delete.** All three are the evidence
+ *   the human and cf#83 work from.
  *
  * ## Fencing
  *
@@ -1398,13 +1279,10 @@ declare const claimFenceBrand: unique symbol;
  * Proof, carried in the type system, that {@link withClaimFence} has run in a given
  * transaction — and the only key that opens {@link completeClaimIn}.
  *
- * **This replaces a precondition that used to be documentation only.** The pair
- * `withClaimFence(tx, eventId, gen)` / `completeClaimIn(tx, eventId, gen, result)` were
- * independent calls, so a consumer could complete a claim **without** ever fencing it, silently
- * producing exactly the zombie write this design exists to prevent — and the only thing
- * standing in the way was a paragraph asking them not to. With six square-gateway-claude
- * handler migrations and two cloud-functions consumers ahead, that is now a **compile error**
- * instead: `completeClaimIn` takes a `ClaimFence`, and a `ClaimFence` can only come from
+ * **This replaces a precondition that used to be documentation only.** Were the two calls
+ * independent, a consumer could complete a claim **without** ever fencing it, silently producing
+ * exactly the zombie write this design exists to prevent. It is now a compile error instead:
+ * `completeClaimIn` takes a `ClaimFence`, and a `ClaimFence` can only come from
  * `withClaimFence`.
  *
  * **The `Transaction` is carried inside the handle on purpose.** Loose `tx` plus a fence value
@@ -1446,10 +1324,9 @@ export interface ClaimFence {
  * handle makes the *precondition* type-enforced; it does **not** make the *ordering*
  * type-enforced, so this requirement is still on the caller and still documented here.
  *
- * **Divergence from the issue's sketch: this is `Promise<ClaimFence>`, not `void`.** A
- * synchronous fence is not implementable — Firestore offers no synchronous precondition on a
- * *field value* (only `lastUpdateTime`, which the caller does not hold), so the generation has
- * to be read.
+ * It resolves rather than returning synchronously because a synchronous fence is not
+ * implementable: Firestore offers no synchronous precondition on a *field value* (only
+ * `lastUpdateTime`, which the caller does not hold), so the generation has to be read.
  *
  * ```ts
  * await db.runTransaction(async (tx) => {
@@ -1490,12 +1367,6 @@ export async function withClaimFence(
  * near-trivial — each would be one `fence.tx.update(claimRef(fence.eventId), …)` line — but an
  * unused export is still surface to document, test and support, so they are added when a
  * consumer actually needs one.
- *
- * There is no argument validation here any more, and none is needed: the old
- * `Number.isInteger(expectedGeneration) || expectedGeneration < 0` guard existed only because
- * the generation arrived as a loose caller-supplied number that could be forged or
- * fat-fingered. It now arrives inside a branded handle produced by {@link withClaimFence} from
- * a generation Firestore itself confirmed, so the guard was dead code and was removed.
  */
 export function completeClaimIn(fence: ClaimFence, result: number): void {
   fence.tx.update(claimRef(fence.eventId), doneUpdate(result));
