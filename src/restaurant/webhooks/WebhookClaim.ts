@@ -85,6 +85,32 @@
  * `expiresAt` **must** be a real Firestore `Timestamp`: TTL policies only accept a
  * *Date and time* field, and silently ignore documents whose field is a string.
  *
+ * ## Two windows: 24 h replay, 72 h retention — do not conflate them
+ *
+ * There are two durations in this module and they mean different things. Treating the longer
+ * one as the replay window overstates the recovery guarantee threefold, and the way it fails is
+ * silent: a re-drive past 24 h enqueues work that is refused *before any write*, answers **200**
+ * and looks like a success.
+ *
+ * | Window | Constant | Length | What it bounds | Enforced by | Failure mode if you get it wrong |
+ * |---|---|---|---|---|---|
+ * | **Replay** | {@link MAX_EVENT_AGE_MS} | **24 h** | How old a notification may be and still be *processed* | {@link acquireClaim} throws {@link EventTooOldError} **before any write** | A re-drive past it is a guaranteed no-op that reports success |
+ * | **Retention** | {@link CLAIM_TTL_MS} | **72 h** | How long the claim document and its `payload` stay *readable* | Firestore TTL on `expiresAt`, best-effort and lagging | The record is gone; nothing can be reconstructed |
+ *
+ * **Replay is the tighter of the two, and it is the one that binds.** Retention is deliberately
+ * longer so a claim outlives its own re-drivability: after 24 h the event can no longer be
+ * re-processed, but a human still has the verbatim body to read for another 48 h. The gap is
+ * forensics, not recovery.
+ *
+ * Two consequences worth stating, because both have already been written down wrongly once:
+ *
+ * - **A replay job must bound itself on 24 h, not 72 h.** cloud-functions#83 does
+ *   (`classifyClaim` returns `expired` at {@link MAX_EVENT_AGE_MS}); anything else building on
+ *   `payload` must too. Nothing in this module re-checks it on the caller's behalf beyond the
+ *   gate in `acquireClaim`, which is precisely where the no-op comes from.
+ * - **A `failed` claim is not a replayable claim for its whole life.** It is replayable for
+ *   24 h from Square's `created_at` and merely readable for the rest of the 72 h.
+ *
  * ## Why `payload` is stored verbatim
  *
  * "Verbatim" here means **semantic** fidelity, and the promise is exact: **no field selection
@@ -194,6 +220,24 @@
  * cloud-functions. It is read **only on the dual-write path** — see
  * {@link dualWriteLegacyNotification} for why the duplicate path must stay flag-read-free.
  *
+ * ### What the flag does and does not buy (read before attempting rcc#167)
+ *
+ * The flag retires the **writes**. It does not retire the **module**, and the two are a step
+ * apart:
+ *
+ * - Flipping `writeLegacyEventNotification` to `false` stops every claim-path RTDB write — this
+ *   module's, and cloud-functions#81's separately keyed one, which is gated on the same flag for
+ *   exactly this reason. That step is a per-project boolean, as designed.
+ * - **Deleting `EventNotification` is not.** It is still imported as a *value* by the pre-P42
+ *   path a consumer selects with `useClaimLease` off — six square-gateway-claude handlers, its
+ *   three `system`-provider callers (`/sync/start`, `/tasks`, `PUT /orders/:orderId/cancel`)
+ *   and cloud-functions' legacy report task — so removing it breaks their compile, not just
+ *   their behaviour. Those call sites must migrate, and `useClaimLease` must be retired, before
+ *   this import can go.
+ *
+ * The ordering that follows: flag off → observe zero RTDB writes → migrate and retire the
+ * flag-off paths → then delete the module. rcc#167 tracks the last step.
+ *
  * @packageDocumentation
  */
 
@@ -214,7 +258,10 @@ import { getFlags } from '../../domain/services/FeatureFlagService';
  * - `done` — the delivery finished and `result` caches the HTTP status the handler returned.
  * - `failed` — the delivery is human-owned: it exhausted its attempts or hit a
  *   non-retryable error. Redeliveries reply 200 so Square and Cloud Tasks stop retrying,
- *   while the claim (and its `payload`) stays for cf#83 to replay.
+ *   while the claim (and its `payload`) stays for cf#83 to replay — **re-drivable for 24 h
+ *   from Square's `created_at` ({@link MAX_EVENT_AGE_MS}), then merely readable for the rest
+ *   of the 72 h retention; see *Two windows* in the file header.** Written by
+ *   {@link failClaim}, which is the only writer of this status.
  */
 export type ClaimStatus = 'claimed' | 'done' | 'failed';
 
@@ -259,10 +306,11 @@ export type ClaimStatus = 'claimed' | 'done' | 'failed';
  *   `created_at` is deliberately **not** a separate field: it is already inside the verbatim
  *   `payload`, and duplicating it would put the stored field set out of step with the
  *   contract.
- * - `expiresAt` — `createdAt + 72 h`, and **TTL input only.** No code branches on it; it
- *   exists so Firestore's TTL service reclaims the claim (and its payload) after the replay
- *   window closes. Never slid forward by a reclaim, so a repeatedly stolen claim still
- *   expires 72 h after its first delivery.
+ * - `expiresAt` — `createdAt` + {@link CLAIM_TTL_MS} (72 h), and **TTL input only.** No code
+ *   branches on it; it exists so Firestore's TTL service reclaims the claim (and its payload)
+ *   once the **retention** window closes. That is *not* the replay window and outlives it
+ *   threefold — see *Two windows* in the file header. Never slid forward by a reclaim, so a
+ *   repeatedly stolen claim still expires 72 h after its first delivery.
  */
 export interface WebhookClaim {
   eventId: string;
@@ -385,15 +433,25 @@ export interface AcquireHandlers<T> {
 export const DEFAULT_LEASE_MS = 60_000;
 
 /**
- * How long a claim (and therefore its `payload`) is retained: 72 h, the replay window for
- * cf#83. Applied as `expiresAt` and enforced only by Firestore's TTL service.
+ * **Retention** window: how long a claim (and therefore its `payload`) stays readable — 72 h.
+ * Applied as `expiresAt` and enforced only by Firestore's TTL service.
+ *
+ * **This is not the replay window.** {@link MAX_EVENT_AGE_MS} (24 h) is, and it is the tighter
+ * of the two; see *Two windows* in the file header before writing anything that re-drives a
+ * claim. Retention is longer than replay on purpose: a claim outlives its own re-drivability
+ * so a human still has the `payload` to read during the forensics that follow.
  */
 export const CLAIM_TTL_MS = 72 * 60 * 60 * 1_000;
 
 /**
- * Age beyond which a notification is considered undeliverable and is rejected with
- * {@link EventTooOldError} **before any write** — Square stops retrying long before this, so
- * a body this old is a replay or a stuck queue, not a live delivery.
+ * **Replay** window: the age beyond which a notification is considered undeliverable and is
+ * rejected with {@link EventTooOldError} **before any write** — Square stops retrying long
+ * before this, so a body this old is a replay or a stuck queue, not a live delivery.
+ *
+ * Because the refusal happens before any write, this is also the hard bound on **every**
+ * re-drive: enqueueing an older body produces a guaranteed no-op that answers 200 and reads
+ * as success. Do not mistake {@link CLAIM_TTL_MS} (72 h retention) for this; see *Two windows*
+ * in the file header.
  */
 export const MAX_EVENT_AGE_MS = 24 * 60 * 60 * 1_000;
 
@@ -1255,6 +1313,72 @@ export async function completeClaim(
  */
 export async function releaseClaim(eventId: string, expectedGeneration: number): Promise<void> {
   await fencedUpdate(eventId, expectedGeneration, (now) => ({ leaseExpiresAt: now }));
+}
+
+/**
+ * Terminal failure: `status: 'failed'`, the **human-owned** end state.
+ *
+ * This is the only writer of `'failed'`. Before it existed the status could be *read*
+ * (`classifyExistingClaim`, the `failed` row of the acquire table) and *typed*
+ * ({@link ClaimStatus}) but never *written*, so kiosinc/cloud-functions#82's sweeper — whose
+ * whole job is "an over-threshold claim becomes `failed`, emits a metric and fires an alert" —
+ * had no way to produce the state it alerts on except by hand-building the `webhookClaims`
+ * path this module deliberately does not export, unfenced.
+ *
+ * ## `failClaim` versus {@link releaseClaim} — pick by *who owns the retry*
+ *
+ * Both give a held claim up without completing it, and choosing wrongly is not cosmetic: it
+ * decides whether a human is paged.
+ *
+ * | | {@link releaseClaim} | `failClaim` |
+ * |---|---|---|
+ * | Resulting status | stays `claimed`, lease force-expired | `failed` |
+ * | Next delivery gets | `resumed`, **immediately** | `failed` ⇒ caller answers **200**, retries stop |
+ * | Who owns the retry | the machine — it happens on its own | a human, via the cf#83 replay job |
+ * | Alerting | none; routine | cf#82 alerts on this status |
+ * | Use it for | a retryable bail-out: graceful shutdown, a dependency momentarily down, backpressure | attempts exhausted, or a non-retryable error that will fail identically forever |
+ *
+ * **Backpressure is `releaseClaim`, not `failClaim`.** kiosinc/square-gateway-claude#276 chose
+ * `releaseClaim` for its at-cap catalog drop precisely for this reason: an at-cap drop is
+ * normal operation on a busy merchant, the running sync coalesces the change anyway, and
+ * routing it to `failed` would page on-call for something working as designed. Reserve
+ * `failed` for deliveries that genuinely need a person.
+ *
+ * ## What it writes, and what it deliberately does not
+ *
+ * Exactly one field: `status`. In particular —
+ *
+ * - **No `result`.** `result` is the status {@link completeClaim} caches for a *successful*
+ *   delivery to replay; the `failed` branch answers a fixed 200 (retries stop) regardless, so
+ *   caching one would be a value nothing reads. `result` staying absent is also how a reader
+ *   tells a `failed` claim from a `done` one that happened to return an error status.
+ * - **No `leaseExpiresAt` change.** {@link classifyExistingClaim} tests `status` before it
+ *   looks at the lease, so a `failed` claim's lease is unreachable. Leaving it alone keeps the
+ *   write minimal and mirrors {@link completeClaim}.
+ * - **No `phase`, `attemptCount` or `payload` change, and no delete.** All three are the
+ *   evidence the human and cf#83 work from: `phase` is how far it got, `attemptCount` is
+ *   cf#83's poison bound (`REPLAY_ATTEMPT_CEILING`, deliberately set above cf#82's fail
+ *   threshold), and `payload` is the only surviving copy of the body.
+ *
+ * The claim is re-drivable for 24 h from Square's `created_at` and readable for the full 72 h —
+ * these are different windows; see *Two windows* in the file header.
+ *
+ * ## Fencing
+ *
+ * Fenced exactly like the other mutators: `expectedGeneration` must still be the claim's
+ * `leaseGeneration` or nothing is written. For cf#82's sweeper — which observes an expired
+ * lease rather than holding one — that read-then-`failClaim` pair is a compare-and-set: a
+ * claim another worker has since stolen (generation bumped) or completed is left alone, so the
+ * sweeper cannot fail a delivery that is once again making progress.
+ *
+ * There is no `failClaimIn` sibling, for the same reason there is no `advancePhaseIn` — see
+ * {@link completeClaimIn}. Failing a claim is an out-of-band judgement about a delivery that is
+ * *not* running, so there is no caller transaction to join.
+ *
+ * @throws {@link StaleLeaseError} if the claim was stolen or is gone — nothing is written.
+ */
+export async function failClaim(eventId: string, expectedGeneration: number): Promise<void> {
+  await fencedUpdate(eventId, expectedGeneration, () => ({ status: 'failed' }));
 }
 
 /**
