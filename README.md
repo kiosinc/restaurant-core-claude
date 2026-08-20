@@ -191,6 +191,28 @@ Three levels of automatic denormalization happen inside transactions:
 
 Models that sync with external systems (Square POS) carry a `linkedObjects: LinkedObjectMap` field keyed by provider name. The `Event` model drives sync via a queue (`queueCap`/`queueCount`) that triggers Google Cloud Tasks.
 
+### Ownership-rule liveness
+
+The P44 ownership rule for anything that waits: **no wait may end on a clock the operation does not own**. Server-side, its canonical form is the **heartbeat lease**: every distributed lock or claim carries a TTL that the acquirer owns and refreshes while it makes progress; once the TTL lapses, any peer may recover the lock; and each recovery emits a health metric. That metric belongs to the consumer — this library emits no metrics.
+
+Two reference implementations live in this library:
+
+**`SemaphoreV2`** (`src/restaurant/vars/SemaphoreV2.ts`) — Firestore-based distributed lock:
+
+- `lock()` stamps `expiresAt` (plus `lastHeartbeat`/`heartbeatTtlMs`) when a `heartbeatTtlMs` is passed
+- `updateHeartbeat()` renews `expiresAt` — owner-checked via `syncTraceId`
+- `isExpired()` / `releaseIfExpired()` let any peer detect and recover a lapsed lock, comparing the stored `expiresAt` against the reader's clock
+- Consumer reference: square-gateway-claude `src/persistence/semaphoreGuard.ts` (5-minute TTL, emits `semaphore_stale_recovered` on recovery)
+
+**`WebhookClaim`** (`src/restaurant/webhooks/WebhookClaim.ts`) — the P42 claim + lease + fence primitive:
+
+- `reclaimExpiredLease()` is the peer-recovery half: a `claimed` claim whose `leaseExpiresAt` has lapsed is stolen by bumping `leaseGeneration`
+- `advancePhase()` records progress and renews the lease — progress *is* the heartbeat, so a handler that keeps advancing is never stolen from mid-flight
+
+The two differ in strength, and the difference must not be blurred: the lease TTL decides only *when a steal becomes permissible*; a **fencing token** decides *whose write is allowed to land*. `WebhookClaim` has a fence (`leaseGeneration`, asserted inside every terminal transaction); `SemaphoreV2` does not — only `syncTraceId` ownership checks on heartbeat and release, so nothing rejects a stale holder's writes to the resources the lock protects.
+
+Client-side, the counterpart is bounded kiosk/mobile waits (`withTimeout`/`watch`), being extracted into `@kiosinc/commons-rn` (kiosinc/kios-commons-rn#214).
+
 ### Entity Relationships
 
 ```mermaid
