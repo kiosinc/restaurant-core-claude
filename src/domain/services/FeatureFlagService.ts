@@ -54,6 +54,29 @@ export interface WriteModelFlags {
    * so rollback needs no data restoration.
    */
   syncSquareMenuCategories: boolean;
+  /**
+   * #166 / P42 gate, consumed by square-gateway-claude's six webhook handlers and
+   * the two cloud-functions consumers. When true, a consumer gates delivery on the
+   * Firestore `webhookClaims/{eventId}` claim/lease (`acquireClaim`, which never
+   * yields a "skip" outcome); when false it keeps using the legacy
+   * `EventNotification` RTDB dedupe gate. Defaults off, so declaring it changes no
+   * behavior. Rollback is a flag flip: during the migration window the claim path
+   * dual-writes the legacy RTDB node, so a flip back to false still finds the node
+   * and needs no data restoration.
+   */
+  useClaimLease: boolean;
+  /**
+   * #166 / P42 dual-write gate, consumed by `restaurant/webhooks/WebhookClaim`.
+   * When true (**the default**), an `acquired` or `resumed` claim also writes the
+   * legacy `EventNotification` RTDB node, so flipping `useClaimLease` back off is
+   * a pure flag flip: the legacy gate finds the node and skips the redelivery,
+   * with no data restoration. Defaults **on** for the whole P42 migration window,
+   * because dual-write ON preserves that rollback protection and OFF silently
+   * loses it. Turning it off is the **rcc#167 retirement step**, and it is a flag
+   * rather than a module constant so that retirement is one boolean per GCP
+   * project rather than a library publish, a version repin and three redeploys.
+   */
+  writeLegacyEventNotification: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
@@ -68,6 +91,8 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   isImageDownsample: false,
   pruneMenuAssetsOnRebuild: true,
   syncSquareMenuCategories: false,
+  useClaimLease: false,
+  writeLegacyEventNotification: true,
 };
 
 const CACHE_TTL_MS = 60_000;
