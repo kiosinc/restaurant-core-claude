@@ -106,4 +106,20 @@ describe('Option (domain)', () => {
       expect(() => createOption(createTestOptionInput({ price: 0 }))).not.toThrow();
     });
   });
+
+  // #198: isActive was the one field createOption neither defaulted nor validated, so an absent
+  // key survived hydration and optionMeta emitted undefined.
+  describe('#198 — isActive defaults', () => {
+    it('defaults an absent isActive to false', () => {
+      const option = createOption(
+        { name: 'Legacy', price: 100 } as unknown as Parameters<typeof createOption>[0],
+      );
+      expect(option.isActive).toBe(false);
+    });
+
+    it('preserves an explicit isActive', () => {
+      expect(createOption(createTestOptionInput({ isActive: true })).isActive).toBe(true);
+      expect(createOption(createTestOptionInput({ isActive: false })).isActive).toBe(false);
+    });
+  });
 });

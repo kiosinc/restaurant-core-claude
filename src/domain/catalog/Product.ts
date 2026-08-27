@@ -1,5 +1,5 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
-import { requireString, requireNonNegativeNumber, requireNonNegativeInteger, requireMinLessOrEqual } from '../validation';
+import { requireString } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
 import { ProductOptionSetSetting, OptionSetMeta } from './OptionSet';
 import { LocationInventoryMap } from './InventoryCount';
@@ -66,12 +66,26 @@ export interface Product extends BaseEntity {
   calorieCount?: number;
 }
 
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && value >= 0;
+}
+
 export function createProduct(input: ProductInput & Partial<BaseEntity>): Product {
   requireString('name', input.name);
-  requireNonNegativeNumber('minPrice', input.minPrice);
-  requireNonNegativeNumber('maxPrice', input.maxPrice);
-  requireMinLessOrEqual('minPrice', input.minPrice, 'maxPrice', input.maxPrice);
-  requireNonNegativeInteger('variationCount', input.variationCount);
+
+  // #93: minPrice/maxPrice/variationCount are derived — catalog sync recomputes them from the
+  // item's variations on every pass — so they are repairable data, not user-authored input.
+  // Validating them made a legacy document unreadable through productConverter.fromFirestore, and
+  // the read happens inside upsertCatalogEntity *before* the recompute that would have fixed it,
+  // so the poison pill took down the whole Items stage instead. Default on read: the doc hydrates
+  // with zeroes, the processor overwrites them with the real values, and the next sync repairs it.
+  const minPrice = isNonNegativeNumber(input.minPrice) ? input.minPrice : 0;
+  const maxPrice = isNonNegativeNumber(input.maxPrice) ? input.maxPrice : 0;
+  const variationCount =
+    isNonNegativeNumber(input.variationCount) && Number.isInteger(input.variationCount)
+      ? input.variationCount
+      : 0;
+
   return {
     ...baseEntityDefaults(input),
     name: input.name,
@@ -81,11 +95,16 @@ export function createProduct(input: ProductInput & Partial<BaseEntity>): Produc
     imageGsls: input.imageGsls ?? [],
     optionSets: input.optionSets ?? {},
     optionSetsSelection: input.optionSetsSelection ?? {},
-    minPrice: input.minPrice,
-    maxPrice: input.maxPrice,
-    variationCount: input.variationCount,
+    // Clamp rather than throw: defaulting one side of the pair can break min <= max on its own,
+    // and re-introducing a throw there would just move the poison pill.
+    minPrice: Math.min(minPrice, maxPrice),
+    maxPrice,
+    variationCount,
     locationInventory: input.locationInventory ?? {},
-    isActive: input.isActive,
+    // #198: defaulted, not validated — productMeta emits this into a parent document's map via a
+    // raw batch.update(), where an undefined would fail the whole write. Prod population needing
+    // the default is zero, so validating would change behaviour for nothing.
+    isActive: input.isActive ?? false,
     linkedObjects: input.linkedObjects ?? {},
     dietaryPreferences: input.dietaryPreferences ?? [],
     allergens: input.allergens ?? [],
