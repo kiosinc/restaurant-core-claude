@@ -1,5 +1,6 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { PathResolver } from '../../persistence/firestore/PathResolver';
+import { stripUndefined } from '../../persistence/firestore/sanitize';
 import type { MenuAsset, MenuProductMeta, MenuCollectionMeta } from '../surfaces/Menu';
 import type { MenuGroupMeta } from '../surfaces/MenuGroup';
 import { getFlags } from './FeatureFlagService';
@@ -35,7 +36,9 @@ interface MaterializedMenuDoc {
   collections: Record<string, MenuCollectionMeta>;
   menuAssets: Record<string, MenuAsset>;
   menuAssetDisplayOrder: string[];
-  version?: string;
+  // #199: not optional — this document is written by a whole-document set(), so every key
+  // resolves to a terminal value. `string | null` matches the `Menu` entity createMenu produces.
+  version: string | null;
 }
 
 /** Filters out empty-string IDs from a Firestore productDisplayOrder array. */
@@ -447,10 +450,19 @@ async function attemptRebuild(
       collections: materializedCollections,
       menuAssets: refs.menuAssets,
       menuAssetDisplayOrder: refs.menuAssetDisplayOrder,
-      version: existingData.version ?? menu.data.version,
+      // #199: a terminal fallback, like every sibling field. Without it the chain ends undefined
+      // on the 31.2% of prod menus written before `version` existed, and because this is a
+      // whole-document set() Firestore rejects the entire menu rather than the one field. `null`
+      // rather than a conditional spread: the write is a fixed shape, so omitting the key would
+      // let set() silently drop a version a previous revision did have.
+      version: existingData.version ?? menu.data.version ?? null,
     };
 
-    t.set(menuDocRef, merged);
+    // #200: this is a raw transaction write, so it does not go through FirestoreRepository and
+    // does not inherit its undefined-stripping. Sanitize for the fields that have no terminal
+    // default of their own — `created`/`updated` are copied straight off the doc — and for
+    // whatever gets added to MaterializedMenuDoc next.
+    t.set(menuDocRef, stripUndefined(merged));
   });
 
   // #132: log only when something was actually pruned — this runs for every menu on every

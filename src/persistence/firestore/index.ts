@@ -1,4 +1,5 @@
 export { FirestoreRepository, FirestoreRepositoryConfig } from './FirestoreRepository';
+export { stripUndefined } from './sanitize';
 export { locationMetadataSpec } from './LocationMetadataSpec';
 export { linkedObjectQuery, findByLinkedObjectId } from './LinkedObjectQueries';
 export { menuMetadataSpec } from './MenuMetadataSpec';

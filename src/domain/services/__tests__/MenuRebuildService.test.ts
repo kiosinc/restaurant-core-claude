@@ -16,6 +16,7 @@ import {
   getOrCreateCollectionRef,
   resetMockFirestore,
 } from './helpers/mockFirestore';
+import { undefinedPaths } from '../../__tests__/helpers/undefinedPaths';
 
 // Mock firebase-admin/firestore
 vi.mock('firebase-admin/firestore', () => ({
@@ -693,6 +694,70 @@ describe('MenuRebuildService', () => {
       expect(transactionSets).toHaveLength(3);
       const menuIds = transactionSets.map((s) => s.ref._docId).sort();
       expect(menuIds).toEqual(['CcUqgkBxEnk1qYaNZ3K2', 'LShRjmDOXBNL7yVSD65V', 'TdGQqmNhA3AjNeoyYrQn'].sort());
+    });
+  });
+
+  // ─── #199 — the materialized write can never carry undefined ────────
+
+  describe('#199 — undefined-free materialized write', () => {
+    /**
+     * A menu written before `version` existed — the key is absent entirely. 210 of 673 prod
+     * menus (31.2%) across 175 businesses look like this, and every one of them fails its
+     * rebuild: `existingData.version ?? menu.data.version` ends undefined, and because the write
+     * is a whole-document t.set() Firestore rejects the entire menu, not the one field.
+     */
+    const legacyMenuData: Record<string, unknown> = {
+      name: 'Legacy', displayName: null, coverImageGsl: null, coverBackgroundImageGsl: null,
+      coverVideoGsl: null, logoImageGsl: null, gratuityRates: [], managedBy: null,
+      isDeleted: false, created: new Date('2024-01-01'), updated: new Date('2024-06-01'),
+      groupDisplayOrder: ['mg4'],
+      groups: { mg4: { name: 'Beverages', displayName: 'Drinks' } },
+      menuAssets: { mg4: { assetType: 'group' } },
+      menuAssetDisplayOrder: ['mg4'],
+    };
+
+    it('materializes version as null on a menu that predates the field', async () => {
+      registerCollection(MENUS_PATH, [{ id: 'legacyMenu', data: legacyMenuData }]);
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(transactionSets).toHaveLength(1);
+      expect(transactionSets[0].data).toHaveProperty('version');
+      expect(transactionSets[0].data.version).toBeNull();
+    });
+
+    it('no key in any materialized write is undefined', async () => {
+      registerCollection(MENUS_PATH, [...menus, { id: 'legacyMenu', data: legacyMenuData }]);
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(transactionSets).toHaveLength(5);
+      for (const set of transactionSets) {
+        expect({ menuId: set.ref._docId, undefinedPaths: undefinedPaths(set.data) })
+          .toEqual({ menuId: set.ref._docId, undefinedPaths: [] });
+      }
+    });
+
+    it('omits the key rather than writing undefined for a field with no terminal default', async () => {
+      // `created`/`updated` are declared non-optional but copied straight off the doc, so a menu
+      // predating them would carry undefined into the set(). The sanitize drops the key instead;
+      // Firestore accepts a missing key, it only rejects an explicit undefined.
+      const { created: _created, updated: _updated, ...noTimestamps } = legacyMenuData;
+      registerCollection(MENUS_PATH, [{ id: 'legacyMenu', data: noTimestamps }]);
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(transactionSets).toHaveLength(1);
+      expect(transactionSets[0].data).not.toHaveProperty('created');
+      expect(transactionSets[0].data).not.toHaveProperty('updated');
+      expect(undefinedPaths(transactionSets[0].data)).toEqual([]);
+    });
+
+    it('passes date instances through instead of flattening them', async () => {
+      // The sanitize must not rebuild non-plain objects from their entries: a Firestore
+      // Timestamp (a Date here, since firebase-admin is mocked) would become {}.
+      registerCollection(MENUS_PATH, [{ id: 'legacyMenu', data: legacyMenuData }]);
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(transactionSets[0].data.created).toBeInstanceOf(Date);
+      expect(transactionSets[0].data.created).toEqual(new Date('2024-01-01'));
     });
   });
 
