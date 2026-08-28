@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createLocation, locationMeta } from '../Location';
+import { createLocation, locationMeta, LocationInput } from '../Location';
 import { createTestLocationInput } from '../../__tests__/helpers/LocationFixtures';
 import { emptyAddress } from '../../misc/Address';
 import { ValidationError } from '../../validation';
@@ -127,6 +127,21 @@ describe('Location (domain)', () => {
     it('allows empty name', () => {
       const location = createLocation(createTestLocationInput({ name: '' }));
       expect(location.name).toBe('');
+    });
+  });
+
+  // #198: isActive was the one field createLocation neither defaulted nor validated, so an
+  // absent key survived hydration and locationMeta emitted undefined.
+  describe('#198 — isActive defaults', () => {
+    it('defaults an absent isActive to false', () => {
+      const { isActive: _isActive, ...noIsActive } = createTestLocationInput();
+      const location = createLocation(noIsActive as LocationInput);
+      expect(location.isActive).toBe(false);
+    });
+
+    it('preserves an explicit isActive', () => {
+      expect(createLocation(createTestLocationInput({ isActive: true })).isActive).toBe(true);
+      expect(createLocation(createTestLocationInput({ isActive: false })).isActive).toBe(false);
     });
   });
 });

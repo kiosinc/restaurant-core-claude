@@ -47,7 +47,10 @@ export function createOption(input: OptionInput & Partial<BaseEntity>): Option {
     imageGsls: input.imageGsls ?? [],
     locationPrices: input.locationPrices ?? {},
     locationInventory: input.locationInventory ?? {},
-    isActive: input.isActive,
+    // #198: defaulted, not validated — optionMeta emits this into a parent document's map via a
+    // raw batch.update(), where an undefined would fail the whole write. Prod population needing
+    // the default is zero, so validating would change behaviour for nothing.
+    isActive: input.isActive ?? false,
     linkedObjects: input.linkedObjects ?? {},
   };
 }

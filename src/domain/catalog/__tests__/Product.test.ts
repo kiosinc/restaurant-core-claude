@@ -129,24 +129,69 @@ describe('Product (domain)', () => {
       expect(product.name).toBe('');
     });
 
-    it('throws for negative minPrice', () => {
-      expect(() => createProduct(createTestProductInput({ minPrice: -1 }))).toThrow(ValidationError);
-    });
-
-    it('throws for negative maxPrice', () => {
-      expect(() => createProduct(createTestProductInput({ maxPrice: -1, minPrice: -2 }))).toThrow(ValidationError);
-    });
-
-    it('throws when minPrice > maxPrice', () => {
-      expect(() => createProduct(createTestProductInput({ minPrice: 1000, maxPrice: 500 }))).toThrow(ValidationError);
+    it('throws for a non-string name', () => {
+      expect(() => createProduct(createTestProductInput({ name: undefined as unknown as string })))
+        .toThrow(ValidationError);
     });
 
     it('allows minPrice equal to maxPrice', () => {
       expect(() => createProduct(createTestProductInput({ minPrice: 500, maxPrice: 500 }))).not.toThrow();
     });
+  });
 
-    it('throws for negative variationCount', () => {
-      expect(() => createProduct(createTestProductInput({ variationCount: -1 }))).toThrow(ValidationError);
+  // #93: minPrice/maxPrice/variationCount are recomputed by catalog sync on every pass, so a
+  // document missing or holding a bad value is repairable — but only if it can be read first.
+  // Throwing on them made productConverter.fromFirestore unreadable, which aborted the Items
+  // stage before the recompute that would have fixed it. 481 products across 20 businesses.
+  describe('#93 — derived fields default on read', () => {
+    const legacyProductInput = { name: 'Legacy' } as unknown as Parameters<typeof createProduct>[0];
+
+    it('hydrates a document with no derived fields instead of throwing', () => {
+      const product = createProduct(legacyProductInput);
+      expect(product.minPrice).toBe(0);
+      expect(product.maxPrice).toBe(0);
+      expect(product.variationCount).toBe(0);
+    });
+
+    it('defaults a negative minPrice/maxPrice to 0', () => {
+      const product = createProduct(createTestProductInput({ minPrice: -1, maxPrice: -1 }));
+      expect(product.minPrice).toBe(0);
+      expect(product.maxPrice).toBe(0);
+    });
+
+    it('defaults a non-integer or negative variationCount to 0', () => {
+      expect(createProduct(createTestProductInput({ variationCount: -1 })).variationCount).toBe(0);
+      expect(createProduct(createTestProductInput({ variationCount: 1.5 })).variationCount).toBe(0);
+    });
+
+    it('clamps minPrice to maxPrice rather than throwing on the invariant', () => {
+      const product = createProduct(createTestProductInput({ minPrice: 1000, maxPrice: 500 }));
+      expect(product.minPrice).toBe(500);
+      expect(product.maxPrice).toBe(500);
+    });
+
+    it('leaves valid derived values untouched', () => {
+      const product = createProduct(createTestProductInput({ minPrice: 500, maxPrice: 800, variationCount: 3 }));
+      expect(product.minPrice).toBe(500);
+      expect(product.maxPrice).toBe(800);
+      expect(product.variationCount).toBe(3);
+    });
+  });
+
+  // #198: isActive was the one field createProduct neither defaulted nor validated, so an
+  // absent key survived hydration and productMeta emitted undefined — rejected far downstream,
+  // at the consumer's raw batch.update().
+  describe('#198 — isActive defaults', () => {
+    it('defaults an absent isActive to false', () => {
+      const product = createProduct(
+        { name: 'Legacy' } as unknown as Parameters<typeof createProduct>[0],
+      );
+      expect(product.isActive).toBe(false);
+    });
+
+    it('preserves an explicit isActive', () => {
+      expect(createProduct(createTestProductInput({ isActive: true })).isActive).toBe(true);
+      expect(createProduct(createTestProductInput({ isActive: false })).isActive).toBe(false);
     });
   });
 });
