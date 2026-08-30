@@ -24,6 +24,7 @@ export {
 
 export {
   RebuildScope,
+  RebuildOptions,
   rebuildMenus,
   resolveChangedProducts,
   resolveChangedCategories,
