@@ -45,7 +45,7 @@ All business logic lives under `src/domain/` organized by subdomain:
 - **surfaces/** — Menu, MenuGroup, KioskConfiguration, CheckoutOptions, SurfaceConfiguration
 - **locations/** — Location model with location-specific settings
 - **connected-accounts/** — External integrations (Square POS), Event queue, Tokens
-- **services/** — CatalogCascadeService (denormalization cascade), MenuRebuildService (menu rebuild from catalog), AvailabilityService (per-location product/option availability), FeatureFlagService (cached feature flags)
+- **services/** — CatalogCascadeService (denormalization cascade), MenuRebuildService (menu rebuild from catalog), RebuildRelevance (exported rebuild-relevant field sets + `affectsRebuild`), AvailabilityService (per-location product/option availability), FeatureFlagService (cached feature flags)
 
 Supporting modules:
 - **src/firestore-core/** — Base persistence classes and Firestore path constants

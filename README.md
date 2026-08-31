@@ -38,7 +38,7 @@ src/
 │   ├── roots/                 #   Business, Catalog, Surfaces, Locations, Orders, ConnectedAccounts, Services, Onboarding
 │   ├── onboarding/            #   OnboardingOrder
 │   ├── misc/                  #   Address, BusinessProfile (value objects)
-│   ├── services/              #   CatalogCascadeService, MenuRebuildService, AvailabilityService, FeatureFlagService
+│   ├── services/              #   CatalogCascadeService, MenuRebuildService, RebuildRelevance, AvailabilityService, FeatureFlagService
 │   ├── BaseEntity.ts          #   Base interface for all domain models
 │   ├── MetadataSpec.ts        #   Denormalization contract
 │   ├── LinkedObjectRef.ts     #   External provider cross-references
