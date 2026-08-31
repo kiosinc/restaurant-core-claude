@@ -123,7 +123,123 @@ function pruneDanglingAssetRefs(
 
 const MAX_REBUILD_RETRIES = 3;
 
-export async function rebuildMenus(businessId: string, scope?: RebuildScope): Promise<void> {
+/**
+ * #205: default ceiling on how many menus materialize concurrently inside one rebuildMenus
+ * call. Four is deliberately conservative: the businesses cascade runs this at 1 GiB with
+ * containerConcurrency 80, so two co-scheduled sweeps share one instance's memory.
+ */
+const DEFAULT_MAX_CONCURRENT_MENUS = 4;
+
+export interface RebuildOptions {
+  /**
+   * Maximum menus materialized at once. Defaults to DEFAULT_MAX_CONCURRENT_MENUS. Values below
+   * 1 are clamped to 1 — a zero would deadlock the limiter rather than disable it.
+   */
+  maxConcurrentMenus?: number;
+}
+
+/** Reads docs by id, hiding whether they came from Firestore or this call's cache. */
+type DocReader = (
+  collectionRef: FirebaseFirestore.CollectionReference,
+  ids: string[],
+) => Promise<DocData[]>;
+
+/**
+ * #205: minimal counting semaphore. This repo has no p-limit dependency and this is its only
+ * caller, so a local one is cheaper than adding a runtime dependency to a published library.
+ *
+ * The slot is handed straight from a finishing task to the next waiter rather than released
+ * and re-acquired: decrementing first would open a window in which a newly arriving task sees
+ * a free slot that a queued waiter is already about to take, letting concurrency overshoot.
+ */
+function createLimiter(max: number) {
+  const ceiling = Math.max(1, Math.floor(max));
+  const waiters: Array<() => void> = [];
+  let active = 0;
+
+  const acquire = async (): Promise<void> => {
+    if (active < ceiling) {
+      active += 1;
+      return;
+    }
+    await new Promise<void>((resolve) => { waiters.push(resolve); });
+  };
+
+  const release = (): void => {
+    const next = waiters.shift();
+    // Hand the slot over without touching `active` — the waiter inherits it.
+    if (next) next();
+    else active -= 1;
+  };
+
+  return async function run<T>(task: () => Promise<T>): Promise<T> {
+    await acquire();
+    try {
+      return await task();
+    } finally {
+      release();
+    }
+  };
+}
+
+/**
+ * #205: per-invocation document cache, keyed by collection path then doc id.
+ *
+ * Menus that share a menu group also share its products, and their mirror categories come from
+ * the same small set, so the unbounded version read the same docs once per menu. This collapses
+ * tier 2's footprint to the number of DISTINCT docs the selected menus reference — the
+ * menus × groups × products scaling measured in kiosinc/businesses#408.
+ *
+ * Entries hold the in-flight PROMISE, not the resolved value, so menus materializing
+ * concurrently coalesce onto one read instead of racing to issue their own. Absent docs are
+ * cached as null for the same reason — a dangling id must not be re-fetched per menu.
+ *
+ * No cross-call state: the cache is created per rebuildMenus and dies with it. Within one call
+ * every menu therefore materializes from the same snapshot, which is more consistent than the
+ * previous behaviour, where concurrent menus each read at their own instant.
+ */
+function createDocCache(db: FirebaseFirestore.Firestore): DocReader {
+  const byCollection = new Map<string, Map<string, Promise<DocData | null>>>();
+
+  return async function readDocs(
+    collectionRef: FirebaseFirestore.CollectionReference,
+    ids: string[],
+  ): Promise<DocData[]> {
+    let cache = byCollection.get(collectionRef.path);
+    if (!cache) {
+      cache = new Map<string, Promise<DocData | null>>();
+      byCollection.set(collectionRef.path, cache);
+    }
+    const entries = cache;
+
+    const wanted = [...new Set(ids.filter((id) => id))];
+    const misses = wanted.filter((id) => !entries.has(id));
+
+    if (misses.length > 0) {
+      const batch = batchGetDocs(db, collectionRef, misses)
+        .then((docs) => new Map(docs.map((d) => [d.id, d])));
+
+      for (const id of misses) {
+        const entry = batch.then((found) => found.get(id) ?? null);
+        // A failed read must not poison the cache for the rest of the call: drop the entry so a
+        // later menu re-reads it. The rejection still reaches this caller via `wanted` below.
+        entry.catch(() => {
+          if (entries.get(id) === entry) entries.delete(id);
+        });
+        entries.set(id, entry);
+      }
+    }
+
+    const docs = await Promise.all(wanted.map((id) => entries.get(id)!));
+    return docs.filter((doc): doc is DocData => doc !== null);
+  };
+}
+
+export async function rebuildMenus(
+  businessId: string,
+  scope?: RebuildScope,
+  options?: RebuildOptions,
+): Promise<void> {
   const db = getFirestore();
   const menusRef = PathResolver.menusCollection(businessId);
 
@@ -131,13 +247,25 @@ export async function rebuildMenus(businessId: string, scope?: RebuildScope): Pr
   const menuSnapshot = await menusRef.get();
   const allMenus: DocData[] = menuSnapshot.docs.map((d) => ({ id: d.id, data: d.data() }));
 
+  // #205: one cache for the whole call. It spans selection and materialization, so mirror
+  // categories read to decide WHICH menus to rebuild are not read again to rebuild them.
+  const readDocs = createDocCache(db);
+
   // Resolve which menus to rebuild
-  const menuIdsToRebuild = await resolveMenuIds(db, businessId, allMenus, scope);
+  const menuIdsToRebuild = await resolveMenuIds(db, businessId, allMenus, scope, readDocs);
   if (menuIdsToRebuild.size === 0) return;
 
   const menusToRebuild = allMenus.filter((m) => menuIdsToRebuild.has(m.id));
 
-  await Promise.all(menusToRebuild.map((menu) => rebuildSingleMenu(db, businessId, menu)));
+  // #205: cap how many menus materialize at once. The unbounded Promise.all let every selected
+  // menu hold its groups, collections, mirror categories and products in memory at the same
+  // time. Promise.all is kept around the limiter so one menu's failure still rejects the whole
+  // call, and the remaining menus still run — exactly as before.
+  const limit = createLimiter(options?.maxConcurrentMenus ?? DEFAULT_MAX_CONCURRENT_MENUS);
+
+  await Promise.all(
+    menusToRebuild.map((menu) => limit(() => rebuildSingleMenu(db, businessId, menu, readDocs))),
+  );
 }
 
 function addMenusByAssetType(
@@ -179,7 +307,8 @@ async function resolveMenuIds(
   db: FirebaseFirestore.Firestore,
   businessId: string,
   allMenus: DocData[],
-  scope?: RebuildScope,
+  scope: RebuildScope | undefined,
+  readDocs: DocReader,
 ): Promise<Set<string>> {
   if (!scope) {
     return new Set(allMenus.map((m) => m.id));
@@ -224,7 +353,7 @@ async function resolveMenuIds(
     // #79: A mirror group's effective product list lives on the mirror CATEGORY, not the
     // group's own (possibly stale) productDisplayOrder. Batch-read referenced categories.
     const categoriesRef = PathResolver.categoriesCollection(businessId);
-    const categoryDocs = await batchGetDocs(db, categoriesRef, [...referencedCategoryIds]);
+    const categoryDocs = await readDocs(categoriesRef, [...referencedCategoryIds]);
     const categoryMap = new Map(categoryDocs.map((c) => [c.id, c]));
 
     // Per-group effective product list (mirror category when set, else the group's own).
@@ -343,6 +472,7 @@ async function attemptRebuild(
   db: FirebaseFirestore.Firestore,
   businessId: string,
   menu: DocData,
+  readDocs: DocReader,
 ): Promise<AttemptResult> {
   // Phase A: Bulk reads (outside transaction)
   const menuAssets: Record<string, MenuAsset> = menu.data.menuAssets ?? {};
@@ -377,14 +507,14 @@ async function attemptRebuild(
   // productMap a guaranteed superset of everything materializeGroups() iterates.
   const productsRef = PathResolver.productsCollection(businessId);
   const categoriesRef = PathResolver.categoriesCollection(businessId);
-  const categories = await batchGetDocs(db, categoriesRef, [...mirrorCategoryIds]);
+  const categories = await readDocs(categoriesRef, [...mirrorCategoryIds]);
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
   for (const category of categories) {
     if (category.data.isDeleted) continue;
     for (const pid of validProductIds(category.data.productDisplayOrder)) allProductIds.add(pid);
   }
 
-  const products = await batchGetDocs(db, productsRef, [...allProductIds]);
+  const products = await readDocs(productsRef, [...allProductIds]);
   const productMap = new Map(products.map((p) => [p.id, p]));
 
   const materializedGroups = materializeGroups(menuGroups, productMap, categoryMap);
@@ -485,11 +615,12 @@ async function rebuildSingleMenu(
   db: FirebaseFirestore.Firestore,
   businessId: string,
   menu: DocData,
+  readDocs: DocReader,
 ): Promise<void> {
   let currentMenu = menu;
 
   for (let attempt = 1; attempt <= MAX_REBUILD_RETRIES; attempt++) {
-    const result = await attemptRebuild(db, businessId, currentMenu);
+    const result = await attemptRebuild(db, businessId, currentMenu, readDocs);
     if (result.success) return;
 
     console.warn(
