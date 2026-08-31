@@ -1429,4 +1429,112 @@ describe('MenuRebuildService', () => {
       expect(written.groups['SKoGd62OfNyZqMXqsKSX'].name).toBe('Chicken');
     });
   });
+
+  // ─── #205: bounded fan-out and per-call read sharing ────────────────
+
+  describe('#205 — bounded fan-out and shared reads', () => {
+    /**
+     * Counts how many menus sit inside runTransaction at once. Every menu's rebuild passes
+     * through the transaction, and holding each one there for a macrotask lets every menu the
+     * limiter has admitted pile up — so the peak is the limiter's ceiling rather than an
+     * artifact of how the read promises happened to interleave.
+     */
+    function instrumentConcurrency() {
+      const seen = { inFlight: 0, peak: 0 };
+      mockDb.runTransaction.mockImplementation(async (fn: (t: any) => Promise<void>) => {
+        seen.inFlight += 1;
+        seen.peak = Math.max(seen.peak, seen.inFlight);
+        await new Promise((resolve) => { setTimeout(resolve, 0); });
+        await fn(mockTransaction);
+        seen.inFlight -= 1;
+      });
+      return seen;
+    }
+
+    function idsReadFrom(collectionPath: string): string[] {
+      return mockDb.getAll.mock.calls
+        .flat()
+        .filter((ref: any) => ref._collectionPath === collectionPath)
+        .map((ref: any) => ref._docId);
+    }
+
+    const rebuiltMenuIds = () => new Set(transactionSets.map((t) => t.ref._docId));
+
+    it('never materializes more menus at once than maxConcurrentMenus', async () => {
+      const seen = instrumentConcurrency();
+
+      await rebuildMenus(BUSINESS_ID, undefined, { maxConcurrentMenus: 2 });
+
+      expect(seen.peak).toBe(2);
+      // The cap defers work, it never drops it — all four menus still get rebuilt.
+      expect(rebuiltMenuIds().size).toBe(4);
+    });
+
+    it('defaults to 4 concurrent menus when options is omitted', async () => {
+      // The fixture has exactly 4 menus, so a default of 4 would be indistinguishable from
+      // unbounded. Two extra menus make the default actually bind.
+      registerCollection(MENUS_PATH, [
+        ...menus,
+        { id: 'menu5', data: { ...menus[3].data, name: 'Menu 5' } },
+        { id: 'menu6', data: { ...menus[3].data, name: 'Menu 6' } },
+      ]);
+      const seen = instrumentConcurrency();
+
+      await rebuildMenus(BUSINESS_ID);
+
+      expect(seen.peak).toBe(4);
+      expect(rebuiltMenuIds().size).toBe(6);
+    });
+
+    it('clamps a cap below 1 to 1 rather than deadlocking', async () => {
+      const seen = instrumentConcurrency();
+
+      await rebuildMenus(BUSINESS_ID, undefined, { maxConcurrentMenus: 0 });
+
+      expect(seen.peak).toBe(1);
+      expect(rebuiltMenuIds().size).toBe(4);
+    });
+
+    it('reads a product shared by every menu exactly once', async () => {
+      // ozil5WuJ4qeSGhwcusPS sits in group 0YRxtglWpkDyxcW8WCTD, which all 4 menus reference.
+      await rebuildMenus(BUSINESS_ID);
+
+      const reads = idsReadFrom(PRODUCTS_PATH);
+      expect(reads.filter((id) => id === 'ozil5WuJ4qeSGhwcusPS')).toHaveLength(1);
+      // Nor is anything else re-read: every product id appears once for the whole call.
+      expect(new Set(reads).size).toBe(reads.length);
+    });
+
+    it('shares the mirror-category read between menu selection and materialization', async () => {
+      // changedProductIds makes resolveMenuIds read dKlTguVV2yNCVFJjH2sH to decide whether the
+      // mirror group matched; attemptRebuild then needs the same doc to materialize that group.
+      await rebuildMenus(BUSINESS_ID, { changedProductIds: ['mirP1'] });
+
+      const reads = idsReadFrom(CATEGORIES_PATH);
+      expect(reads.filter((id) => id === 'dKlTguVV2yNCVFJjH2sH')).toHaveLength(1);
+    });
+
+    it('still rejects the whole call when one menu fails', async () => {
+      // businesses treats a rejection here as `rebuildFailed` and keeps its tier-1 work (#400),
+      // so the limiter must not convert a failure into a silently skipped menu.
+      const failingMenuId = 'LShRjmDOXBNL7yVSD65V';
+      mockDb.runTransaction.mockImplementation(async (fn: (t: any) => Promise<void>) => {
+        // Identify the menu from the ref handed to t.set, not from a transactionSets index:
+        // menus commit concurrently, so an index captured before the callback can belong to
+        // a different menu by the time it resolves.
+        let wroteFailingMenu = false;
+        await fn({
+          get: mockTransaction.get,
+          set: (ref: any, data: any) => {
+            if (ref._docId === failingMenuId) wroteFailingMenu = true;
+            return mockTransaction.set(ref, data);
+          },
+        });
+        if (wroteFailingMenu) throw new Error('menu write failed');
+      });
+
+      await expect(rebuildMenus(BUSINESS_ID, undefined, { maxConcurrentMenus: 2 }))
+        .rejects.toThrow('menu write failed');
+    });
+  });
 });
