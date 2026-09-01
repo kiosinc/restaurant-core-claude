@@ -493,9 +493,13 @@ describe('AvailabilityService', () => {
       );
     });
 
-    // The prune decides whether to keep a WHOLE entity; it never rewrites a
-    // surviving entity's contents, so default-config behaviour is unchanged.
-    it('keeps a surviving entity unmodified, undefined keys included', async () => {
+    // #204: the prune still decides only whether a WHOLE entity survives — the strip that runs
+    // after it is what removes a survivor's undefined keys, turning what used to be a
+    // `Cannot use "undefined" as a Firestore value` throw under the default SDK config into a
+    // correct partial merge that leaves any stored `state`/`count` alone.
+    // Absence is asserted with `in`: toEqual and toBeUndefined both pass on a present-but-undefined
+    // key, so neither would catch the payload reverting to the old shape.
+    it('strips the undefined keys off a surviving entity instead of writing them', async () => {
       await setOptionAvailability('biz-1', 'loc-1', 'opt-1', {
         isAvailable: true,
         state: undefined,
@@ -503,9 +507,9 @@ describe('AvailabilityService', () => {
       });
 
       const entry = mockDocSet.mock.calls[0][0].options['opt-1'];
-      expect(Object.keys(entry)).toEqual(['isAvailable', 'state', 'count']);
-      expect(entry.state).toBeUndefined();
-      expect(entry.count).toBeUndefined();
+      expect(entry).toEqual({ isAvailable: true });
+      expect('state' in entry).toBe(false);
+      expect('count' in entry).toBe(false);
     });
 
     it('never hands set() a payload containing an empty object node', async () => {

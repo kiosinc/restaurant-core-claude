@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createLocation, locationMeta, LocationInput } from '../Location';
 import { createTestLocationInput } from '../../__tests__/helpers/LocationFixtures';
+import { undefinedPaths } from '../../__tests__/helpers/undefinedPaths';
 import { emptyAddress } from '../../misc/Address';
 import { ValidationError } from '../../validation';
 
@@ -142,6 +143,58 @@ describe('Location (domain)', () => {
     it('preserves an explicit isActive', () => {
       expect(createLocation(createTestLocationInput({ isActive: true })).isActive).toBe(true);
       expect(createLocation(createTestLocationInput({ isActive: false })).isActive).toBe(false);
+    });
+  });
+
+  // #204: `address` and `linkedObjects` are typed non-optional, so these guard the untyped
+  // runtime read path — a legacy document missing either key hydrates as undefined and fails the
+  // next write. Both are hydrated the way Firestore actually hands a document to the factory.
+  describe('#204 — address and linkedObjects defaults', () => {
+    const legacyLocationInput = {
+      businessId: 'biz-1', name: 'Legacy',
+    } as unknown as Parameters<typeof createLocation>[0];
+
+    it('defaults an absent address to an empty address', () => {
+      expect(createLocation(legacyLocationInput).address).toEqual(emptyAddress);
+    });
+
+    // Pins the `{ ...emptyAddress }` decision specifically: defaulting to the bare module const
+    // would satisfy the toEqual above while handing every defaulted Location the same object, so
+    // one caller mutating its address would silently rewrite everyone else's.
+    it('gives each defaulted location its own address, never the shared const', () => {
+      const first = createLocation(legacyLocationInput);
+      const second = createLocation(legacyLocationInput);
+
+      expect(first.address).not.toBe(emptyAddress);
+      expect(second.address).not.toBe(emptyAddress);
+      expect(first.address).not.toBe(second.address);
+    });
+
+    it('preserves a supplied address', () => {
+      const address = { ...emptyAddress, addressLine1: '123 Main St', city: 'Portland' };
+      const location = createLocation(createTestLocationInput({ address }));
+      expect(location.address).toEqual(address);
+    });
+
+    it('defaults an absent linkedObjects to an empty map', () => {
+      expect(createLocation(legacyLocationInput).linkedObjects).toEqual({});
+    });
+
+    it('gives each defaulted location its own linkedObjects map', () => {
+      const first = createLocation(legacyLocationInput);
+      const second = createLocation(legacyLocationInput);
+      expect(first.linkedObjects).not.toBe(second.linkedObjects);
+    });
+
+    it('preserves a supplied linkedObjects', () => {
+      const location = createLocation(createTestLocationInput({
+        linkedObjects: { square: { linkedObjectId: 'sq-loc-1' } },
+      }));
+      expect(location.linkedObjects).toEqual({ square: { linkedObjectId: 'sq-loc-1' } });
+    });
+
+    it('emits no undefined value from a legacy document', () => {
+      expect(undefinedPaths(createLocation(legacyLocationInput))).toEqual([]);
     });
   });
 });
