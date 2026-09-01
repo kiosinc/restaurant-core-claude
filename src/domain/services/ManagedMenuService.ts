@@ -604,6 +604,8 @@ export async function syncManagedSquareMenu(
   // end-to-end atomicity is unreachable regardless of how these writes are grouped.
   const groupsRef = PathResolver.menuGroupsCollection(businessId);
   for (const group of plan.groupCreates) {
+    // Converter output, so already stripped at the converter boundary (#204). The assembly update
+    // in Phase D is hand-built and needs the explicit call; this asymmetry is deliberate.
     await groupsRef.doc(group.Id).set(menuGroupConverter.toFirestore(group));
   }
 
