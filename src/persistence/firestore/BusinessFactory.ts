@@ -14,6 +14,7 @@ import {
   surfacesRootConverter, onboardingConverter, servicesConverter,
   locationsRootConverter, orderSettingsConverter,
 } from './converters';
+import { stripUndefined } from './sanitize';
 
 const FEATURELIST_PATH = '/_firebase_ext_/defaultFeatureList';
 
@@ -89,7 +90,7 @@ export async function createBusiness(input: CreateBusinessInput): Promise<string
         enabled: { ...featureList },
       };
       const featureListPath = `/businesses/${businessId}/featurelist`;
-      t.set(getFirestore().collection(featureListPath).doc(), update);
+      t.set(getFirestore().collection(featureListPath).doc(), stripUndefined(update));
     }
   });
 

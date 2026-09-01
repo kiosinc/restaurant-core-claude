@@ -6,6 +6,7 @@ import { createMenuGroup } from '../surfaces/MenuGroup';
 import type { MenuGroup } from '../surfaces/MenuGroup';
 import { menuConverter, menuGroupConverter } from '../../persistence/firestore/converters/simpleConverters';
 import { rebuildMenus } from './MenuRebuildService';
+import { stripUndefined } from '../../persistence/firestore/sanitize';
 
 /**
  * #174 / #85 Amendment 1: the Square menu MIRROR.
@@ -642,7 +643,7 @@ export async function syncManagedSquareMenu(
     } else {
       menuId = menuPlan.existingMenu.id;
       if (!assemblyEquals(menuPlan.existingMenu.data, assembly)) {
-        await menusRef.doc(menuId).update({ ...assembly, updated: nowIso });
+        await menusRef.doc(menuId).update(stripUndefined({ ...assembly, updated: nowIso }));
         changedMenuCount += 1;
       }
     }

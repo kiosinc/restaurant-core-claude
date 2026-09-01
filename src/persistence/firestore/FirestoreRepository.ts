@@ -3,6 +3,7 @@ import { BaseEntity } from '../../domain/BaseEntity';
 import { MetadataRegistry } from '../MetadataRegistry';
 import { RelationshipHandlerRegistry } from './handlers/RelationshipHandlerRegistry';
 import { MetaLinkDeclaration } from '../../domain/MetadataSpec';
+import { stripUndefined } from './sanitize';
 
 export interface FirestoreRepositoryConfig<T> {
   modelKey: string;
@@ -53,7 +54,12 @@ export class FirestoreRepository<T extends BaseEntity> {
       transaction.set(docRef, data);
       for (const link of metaLinks) {
         const metaDocRef = db.doc(link.documentPath);
-        transaction.update(metaDocRef, { [link.fieldPath]: metadata });
+        // #204: the meta fan-out is the one write in this class that needs the explicit strip.
+        // `metadata` comes straight off the registry and never passes through `toFirestore`, so it
+        // gets neither the converter-boundary strip nor the `JSON.parse(JSON.stringify(…))`
+        // round-trip that already scrubs `data` for the writes above and in `update()`. That gap is
+        // how kiosinc/businesses#397 (`productMeta`'s `dietaryPreferences`/`allergens`) shipped.
+        transaction.update(metaDocRef, stripUndefined({ [link.fieldPath]: metadata }));
       }
     });
   }
