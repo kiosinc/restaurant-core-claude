@@ -1,7 +1,7 @@
 import { BaseEntity, baseEntityDefaults } from '../BaseEntity';
 import { requireString, requireNonEmptyString } from '../validation';
 import { LinkedObjectMap } from '../LinkedObjectRef';
-import { Address } from '../misc/Address';
+import { Address, emptyAddress } from '../misc/Address';
 import { BusinessHours } from '../../utils/schedule';
 import { Coordinates } from '../../utils/geo';
 
@@ -57,12 +57,18 @@ export function createLocation(input: LocationInput & Partial<BaseEntity>): Loca
     ...baseEntityDefaults(input),
     businessId: input.businessId,
     name: input.name,
-    // #198: defaulted, not validated — locationMeta emits this into a parent document's map via a
-    // raw batch.update(), where an undefined would fail the whole write. Prod population needing
-    // the default is zero, so validating would change behaviour for nothing.
+    // #198: defaulted, not validated — locationMeta emits this into a parent document's map, merged
+    // by transaction.update here and by the businesses cascade's batch.update downstream; an
+    // undefined fails the whole write either way (#204: the batching is the consumer's, not this
+    // repo's). Prod population needing the default is zero, so validating would change behaviour
+    // for nothing.
     isActive: input.isActive ?? false,
-    linkedObjects: input.linkedObjects,
-    address: input.address,
+    // #204: both are typed non-optional, so these guard the untyped runtime read path — a legacy
+    // document with the key missing hydrates as undefined and fails the next write. Each default is
+    // a fresh object: emptyAddress is a shared module const, and aliasing it would let one caller's
+    // mutation reach every other defaulted Location.
+    linkedObjects: input.linkedObjects ?? {},
+    address: input.address ?? { ...emptyAddress },
     isPrimary: input.isPrimary ?? false,
     dailyOrderCounter: input.dailyOrderCounter ?? 0,
     formattedAddress: input.formattedAddress ?? null,
