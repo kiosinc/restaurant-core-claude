@@ -92,6 +92,25 @@ describe('FirestoreRepository', () => {
     });
   });
 
+  // #204: the metadata fan-out is the one write in this class that never passes through
+  // `toFirestore`, so it gets neither the converter-boundary strip nor the JSON round-trip that
+  // scrubs `data` — which is how kiosinc/businesses#397 shipped an undefined into a parent doc.
+  it('set() strips an undefined out of the metadata payload, leaving the doc write untouched', async () => {
+    registry.register('simple', {
+      getMetadata: (entity: SimpleEntity) => ({ name: entity.name, caption: undefined }),
+      getMetaLinks: simpleSpec.getMetaLinks,
+    } as MetadataSpec<SimpleEntity, { name: string; caption: string | undefined }>);
+
+    await repo.set(makeEntity(), 'biz-1');
+
+    const payload = mockTransaction.update.mock.calls[0][1];
+    // The dotted field path is the merge target and must survive the strip verbatim.
+    expect(Object.keys(payload)).toEqual(['items.e1']);
+    expect(payload['items.e1']).toEqual({ name: 'test' });
+    expect('caption' in payload['items.e1']).toBe(false);
+    expect(mockTransaction.set).toHaveBeenCalledWith(mockDocRef, { name: 'test' });
+  });
+
   it('set() works without metadata spec', async () => {
     const entity = makeEntity();
 

@@ -512,6 +512,24 @@ describe('AvailabilityService', () => {
       expect('count' in entry).toBe(false);
     });
 
+    // #204 ordering guard, and the reason the strip runs AFTER the prune rather than before:
+    // stripped first, `{ isAvailable: undefined }` would become `{}`, which isEmptyEntry no longer
+    // reads as empty, so the dead entity would survive and its empty leaf map would erase the
+    // stored entry on merge — the #157 failure. Prune drops prod-1 entirely; strip then cleans
+    // what is left of prod-2.
+    it('prunes the dead entity and strips the partial survivor in one write', async () => {
+      await setProductAvailabilityBatch('biz-1', 'loc-1', {
+        'prod-1': { isAvailable: undefined, state: undefined } as unknown as ProductAvailability,
+        'prod-2': { isAvailable: true, state: undefined } as unknown as ProductAvailability,
+      });
+
+      expect(mockDocSet).toHaveBeenCalledTimes(1);
+      const products = mockDocSet.mock.calls[0][0].products;
+      expect(Object.keys(products)).toEqual(['prod-2']);
+      expect(products['prod-2']).toEqual({ isAvailable: true });
+      expect('state' in products['prod-2']).toBe(false);
+    });
+
     it('never hands set() a payload containing an empty object node', async () => {
       await updateAvailability('biz-1', 'loc-1', {
         products: { 'prod-1': {} as unknown as ProductAvailability, 'prod-2': { isAvailable: true } },
