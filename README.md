@@ -211,7 +211,7 @@ Two reference implementations live in this library:
 
 The two differ in strength, and the difference must not be blurred: the lease TTL decides only *when a steal becomes permissible*; a **fencing token** decides *whose write is allowed to land*. `WebhookClaim` has a fence (`leaseGeneration`, asserted inside every terminal transaction); `SemaphoreV2` does not — only `syncTraceId` ownership checks on heartbeat and release, so nothing rejects a stale holder's writes to the resources the lock protects.
 
-Client-side, the counterpart is bounded kiosk/mobile waits (`withTimeout`/`watch`), being extracted into `@kiosinc/commons-rn` (kiosinc/kios-commons-rn#214).
+Client-side, the counterpart is bounded kiosk/mobile waits (`withTimeout`/`watch`, plus the transport breaker), extracted into `@kiosinc/commons-rn` in 0.19.0 (kiosinc/kios-commons-rn#214).
 
 ### Entity Relationships
 
