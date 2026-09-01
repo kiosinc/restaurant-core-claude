@@ -64,4 +64,59 @@ describe('stripUndefined (#200)', () => {
     stripUndefined(input);
     expect(Object.keys(input)).toEqual(['name', 'version']);
   });
+
+  // #204: an unguarded recursion answered a self-referential payload with
+  // `RangeError: Maximum call stack size exceeded`, which names neither the field nor the cause.
+  // The guard is path-scoped — containers are added on entry and removed on exit — so it reports
+  // a genuine cycle without misreporting a shared value.
+  describe('#204 — cycle guard', () => {
+    it('throws naming the field path of a self-referential object', () => {
+      const groups: Record<string, unknown> = { name: 'Drinks' };
+      groups.self = groups;
+
+      expect(() => stripUndefined({ groups })).toThrow('stripUndefined: circular reference at groups.self');
+    });
+
+    it('throws naming the index of a self-referential array', () => {
+      const order: unknown[] = ['a'];
+      order.unshift(order);
+
+      expect(() => stripUndefined({ order })).toThrow('stripUndefined: circular reference at order[0]');
+    });
+
+    // `<root>` is unreachable by construction and there is no test for it: `stripUndefined` seeds
+    // the ancestor set empty, so the root container can never be found already on the path. A
+    // cycle that closes back on the root is reported at the FIELD that closes it, as here.
+    it('reports a root-closing cycle at the field that closes it, never as <root>', () => {
+      const doc: Record<string, unknown> = { name: 'Menu' };
+      doc.self = doc;
+
+      expect(() => stripUndefined(doc)).toThrow('stripUndefined: circular reference at self');
+    });
+
+    // The regression this guard exists to avoid: one object referenced twice is a DAG, which
+    // serializes fine. A global visited-set — rather than add-on-entry/delete-on-exit — would
+    // throw here, on payloads Firestore accepts today.
+    it('does not mistake a value shared by two siblings for a cycle', () => {
+      const shared = { name: 'Drinks', managedBy: undefined };
+
+      const result = stripUndefined({ first: shared, second: shared, version: undefined });
+
+      expect(result).toEqual({ first: { name: 'Drinks' }, second: { name: 'Drinks' } });
+      expect('managedBy' in result.first).toBe(false);
+      expect('managedBy' in result.second).toBe(false);
+    });
+
+    it('does not throw on deep but acyclic nesting', () => {
+      const root: Record<string, unknown> = {};
+      let cursor = root;
+      for (let i = 0; i < 50; i++) {
+        const next: Record<string, unknown> = { depth: i, skipped: undefined };
+        cursor.child = next;
+        cursor = next;
+      }
+
+      expect(() => stripUndefined(root)).not.toThrow();
+    });
+  });
 });

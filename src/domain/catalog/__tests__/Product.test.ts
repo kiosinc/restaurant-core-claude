@@ -176,6 +176,63 @@ describe('Product (domain)', () => {
       expect(product.maxPrice).toBe(800);
       expect(product.variationCount).toBe(3);
     });
+
+    // #204: defaulting the ABSENT side of the pair to 0 let that 0 win the clamp below, so a
+    // one-sided document hydrated as 0/0 and any hydrate→mutate→save writer made the zero
+    // durable. Mirroring keeps min <= max without inventing a price the catalog never had.
+    it('mirrors a lone minPrice to maxPrice instead of zeroing both', () => {
+      const product = createProduct({ name: 'Legacy', minPrice: 5 } as unknown as Parameters<typeof createProduct>[0]);
+      expect(product.minPrice).toBe(5);
+      expect(product.maxPrice).toBe(5);
+    });
+
+    it('mirrors a lone maxPrice to minPrice instead of zeroing both', () => {
+      const product = createProduct({ name: 'Legacy', maxPrice: 5 } as unknown as Parameters<typeof createProduct>[0]);
+      expect(product.minPrice).toBe(5);
+      expect(product.maxPrice).toBe(5);
+    });
+
+    it('treats a negative side as absent and mirrors the present one', () => {
+      const product = createProduct(createTestProductInput({ minPrice: 5, maxPrice: -1 }));
+      expect(product.minPrice).toBe(5);
+      expect(product.maxPrice).toBe(5);
+    });
+
+    // Boundary: 0 is a real price. A truthiness test for "present" would mirror the 5 back over
+    // it and turn a free item into a $0.05 one.
+    it('keeps a lone minPrice of 0 at 0/0', () => {
+      const product = createProduct({ name: 'Legacy', minPrice: 0 } as unknown as Parameters<typeof createProduct>[0]);
+      expect(product.minPrice).toBe(0);
+      expect(product.maxPrice).toBe(0);
+    });
+
+    it('leaves a both-present pair exactly as supplied', () => {
+      const product = createProduct(createTestProductInput({ minPrice: 500, maxPrice: 800 }));
+      expect(product.minPrice).toBe(500);
+      expect(product.maxPrice).toBe(800);
+    });
+  });
+
+  // #204: `calorieCount` was emitted unconditionally, so a product without one carried an
+  // explicit undefined into every converter-based write. Absent means unknown — the key is
+  // omitted rather than defaulted, because 0 calories is a claim.
+  describe('#204 — calorieCount is omitted when unknown', () => {
+    it('omits the key entirely when no calorieCount is supplied', () => {
+      const product = createProduct(createTestProductInput());
+      // `in`, not toBeUndefined(): a present-but-undefined key satisfies toBeUndefined, so that
+      // assertion would pass under the pre-#204 behaviour this test exists to pin.
+      expect('calorieCount' in product).toBe(false);
+    });
+
+    it('preserves a supplied calorieCount', () => {
+      expect(createProduct(createTestProductInput({ calorieCount: 250 })).calorieCount).toBe(250);
+    });
+
+    it('preserves a calorieCount of 0', () => {
+      const product = createProduct(createTestProductInput({ calorieCount: 0 }));
+      expect('calorieCount' in product).toBe(true);
+      expect(product.calorieCount).toBe(0);
+    });
   });
 
   // #198: isActive was the one field createProduct neither defaulted nor validated, so an

@@ -493,9 +493,13 @@ describe('AvailabilityService', () => {
       );
     });
 
-    // The prune decides whether to keep a WHOLE entity; it never rewrites a
-    // surviving entity's contents, so default-config behaviour is unchanged.
-    it('keeps a surviving entity unmodified, undefined keys included', async () => {
+    // #204: the prune still decides only whether a WHOLE entity survives — the strip that runs
+    // after it is what removes a survivor's undefined keys, turning what used to be a
+    // `Cannot use "undefined" as a Firestore value` throw under the default SDK config into a
+    // correct partial merge that leaves any stored `state`/`count` alone.
+    // Absence is asserted with `in`: toEqual and toBeUndefined both pass on a present-but-undefined
+    // key, so neither would catch the payload reverting to the old shape.
+    it('strips the undefined keys off a surviving entity instead of writing them', async () => {
       await setOptionAvailability('biz-1', 'loc-1', 'opt-1', {
         isAvailable: true,
         state: undefined,
@@ -503,9 +507,27 @@ describe('AvailabilityService', () => {
       });
 
       const entry = mockDocSet.mock.calls[0][0].options['opt-1'];
-      expect(Object.keys(entry)).toEqual(['isAvailable', 'state', 'count']);
-      expect(entry.state).toBeUndefined();
-      expect(entry.count).toBeUndefined();
+      expect(entry).toEqual({ isAvailable: true });
+      expect('state' in entry).toBe(false);
+      expect('count' in entry).toBe(false);
+    });
+
+    // #204 ordering guard, and the reason the strip runs AFTER the prune rather than before:
+    // stripped first, `{ isAvailable: undefined }` would become `{}`, which isEmptyEntry no longer
+    // reads as empty, so the dead entity would survive and its empty leaf map would erase the
+    // stored entry on merge — the #157 failure. Prune drops prod-1 entirely; strip then cleans
+    // what is left of prod-2.
+    it('prunes the dead entity and strips the partial survivor in one write', async () => {
+      await setProductAvailabilityBatch('biz-1', 'loc-1', {
+        'prod-1': { isAvailable: undefined, state: undefined } as unknown as ProductAvailability,
+        'prod-2': { isAvailable: true, state: undefined } as unknown as ProductAvailability,
+      });
+
+      expect(mockDocSet).toHaveBeenCalledTimes(1);
+      const products = mockDocSet.mock.calls[0][0].products;
+      expect(Object.keys(products)).toEqual(['prod-2']);
+      expect(products['prod-2']).toEqual({ isAvailable: true });
+      expect('state' in products['prod-2']).toBe(false);
     });
 
     it('never hands set() a payload containing an empty object node', async () => {

@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { BaseEntity } from '../../../domain/BaseEntity';
 import { ParentUpdate } from '../../../domain/services/CatalogCascadeService';
 import { RelationshipHandler } from './RelationshipHandler';
+import { stripUndefined } from '../sanitize';
 
 export interface CascadeHandlerConfig<T extends BaseEntity> {
   parentCollection: (businessId: string) => FirebaseFirestore.CollectionReference;
@@ -40,7 +41,9 @@ export class CascadeRelationshipHandler<T extends BaseEntity> implements Relatio
         ...Object.fromEntries(update.fieldsToDelete.map((f) => [f, FieldValue.delete()])),
         ...Object.fromEntries(Object.entries(update.arrayFieldRemovals).map(([f, v]) => [f, FieldValue.arrayRemove(v)])),
       };
-      transaction.update(collectionRef.doc(parentId), data);
+      // #204: `fieldsToSet` is spread raw from the caller's projection — no converter runs on it.
+      // The `FieldValue` sentinels above survive: `stripUndefined` only traverses plain objects.
+      transaction.update(collectionRef.doc(parentId), stripUndefined(data));
     }
   }
 }

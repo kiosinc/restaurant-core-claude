@@ -1,5 +1,6 @@
 import { FieldValue, GrpcStatus } from 'firebase-admin/firestore';
 import { PathResolver } from '../../persistence/firestore/PathResolver';
+import { stripUndefined } from '../../persistence/firestore/sanitize';
 
 export interface ProductAvailability {
   isAvailable: boolean;
@@ -80,9 +81,27 @@ function isEmptyEntry(entry: unknown): boolean {
 }
 
 // Decides whether to keep a WHOLE entry; it never rewrites a surviving entry's
-// contents (stripping undefined keys inside a survivor would turn a
-// default-config throw into a silent partial write). Survivors are kept by
-// reference, so an unpruned payload stays deep-equal to the caller's input.
+// contents, and survivors are kept by reference, so the pruned map stays
+// deep-equal to the caller's input.
+//
+// #204 reverses the reason that used to matter, deliberately: `writeAvailability`
+// now runs `stripUndefined` on the assembled payload, so a partially-undefined
+// survivor like `{ isAvailable: true, state: undefined }` reaches Firestore as
+// `{ isAvailable: true }` rather than throwing `Cannot use "undefined" as a
+// Firestore value` under the default SDK config. That is a correct partial merge
+// — any stored `state` is left untouched — and it is already what square-gateway
+// sees, since it is the one consumer enabling `ignoreUndefinedProperties`.
+//
+// The ORDERING is load-bearing: the strip runs AFTER this prune, never before.
+// Strip first and `{ <id>: { isAvailable: undefined } }` becomes `{ <id>: {} }`,
+// which `isEmptyEntry` no longer sees as empty (`.some()` over zero values is
+// false), so it survives and a merge-set with an empty leaf map erases the whole
+// entry — the exact #157 failure the block above documents.
+//
+// The strip is safe only while `ProductAvailability`/`OptionAvailability` stay
+// all-scalar, as they are today. A nested object field whose every key was
+// `undefined` would strip to `{}` and erase that subtree on merge, so any future
+// nested field has to be pruned here, before the strip can see it.
 function pruneEmptyEntries<T>(entries: { [id: string]: T } | undefined): { [id: string]: T } | undefined {
   if (!entries) return undefined;
   const kept = Object.entries(entries).filter(([, entry]) => !isEmptyEntry(entry));
@@ -115,7 +134,7 @@ async function writeAvailability(
   // Nested-object merge-set (not a dotted key, not update()): nests under
   // products.<id> / options.<id> AND upserts, creating the doc when it does not
   // yet exist.
-  await docRef.set(payload, { merge: true });
+  await docRef.set(stripUndefined(payload), { merge: true });
 }
 
 // An empty `availability` is a no-op, not an erasure of products.<id> — see the

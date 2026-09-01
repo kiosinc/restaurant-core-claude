@@ -67,6 +67,17 @@ describe('BusinessFactory - createBusiness', () => {
     expect(featureListData.enabled).toEqual({ someFeature: true });
   });
 
+  it('strips undefined out of the feature list write (#204)', async () => {
+    // `enabled` spreads the featurelist document verbatim, so its contents are external input
+    // rather than anything this repo shapes — the one write here that cannot be reasoned about
+    // from the factory alone. `in` rather than toEqual, which ignores present-but-undefined keys.
+    mockTransaction.get.mockResolvedValue({ data: () => ({ someFeature: true, staleFlag: undefined }) });
+    await createBusiness(defaultInput);
+    const featureListData = mockTransaction.set.mock.calls[8][1];
+    expect(featureListData.enabled.someFeature).toBe(true);
+    expect('staleFlag' in featureListData.enabled).toBe(false);
+  });
+
   it('returns businessId string', async () => {
     mockTransaction.get.mockResolvedValue({ data: () => null });
     const result = await createBusiness(defaultInput);

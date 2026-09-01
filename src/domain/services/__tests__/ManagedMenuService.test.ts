@@ -31,6 +31,7 @@ import {
   world,
 } from './managedMenuFixture';
 import type { FixtureDoc, FixtureSet, MenuOverrides } from './managedMenuFixture';
+import { undefinedPaths } from '../../__tests__/helpers/undefinedPaths';
 import {
   mockDb,
   mockTransaction,
@@ -1243,6 +1244,56 @@ describe('ManagedMenuService', () => {
         groupsCreated: 3,
         groupsDeleted: [],
       });
+    });
+  });
+
+  // ─── #204: write payload shape ─────────────────────────────────────────
+
+  /**
+   * #204 wrapped the ONE hand-built payload in this service — the assembly `update()` — in
+   * `stripUndefined`, and deliberately left the `set()` calls bare, because those are
+   * `menuConverter` / `menuGroupConverter` output and the converter boundary already strips.
+   * These pin both halves of that decision.
+   */
+  describe('#204 — write payload shape', () => {
+    /** The mirrored world with R1's stored assembly staled, so the reuse path issues an update. */
+    function mirroredWithStaleAssembly(): FixtureSet {
+      const set = mirroredWorld();
+      const stale = set.menus.find((m) => m.id === MIRRORED_MENU_ID.r1) as FixtureDoc;
+      stale.data.menuAssetDisplayOrder = [];
+      return set;
+    }
+
+    it('hands the assembly update no undefined value', async () => {
+      registerFixture(mirroredWithStaleAssembly());
+
+      await syncManagedSquareMenu(BUSINESS_ID);
+
+      const updates = writesFor(MENUS_PATH, MIRRORED_MENU_ID.r1).filter((w) => w.op === 'update');
+      expect(updates).toHaveLength(1);
+      expect(undefinedPaths(updates[0].data)).toEqual([]);
+      expect(Object.keys(updates[0].data).sort()).toEqual(
+        ['groupDisplayOrder', 'menuAssetDisplayOrder', 'menuAssets', 'updated'],
+      );
+    });
+
+    // The do-not-double-wrap half: converter-derived payloads reach Firestore already clean, and
+    // nothing beyond `undefined` is removed from them — the explicit `null`s a Menu carries are
+    // meaningful stored values and must survive.
+    it('writes converter-derived docs clean, with their explicit nulls intact', async () => {
+      await syncManagedSquareMenu(BUSINESS_ID);
+
+      const writes = [...writesOn(MENUS_PATH), ...writesOn(MENU_GROUPS_PATH)]
+        .filter((w) => w.op === 'set');
+      expect(writes.length).toBeGreaterThan(0);
+      for (const write of writes) {
+        expect(undefinedPaths(write.data)).toEqual([]);
+      }
+
+      const menuWrite = writesOn(MENUS_PATH).find((w) => w.op === 'set') as { data: Record<string, unknown> };
+      expect('coverImageGsl' in menuWrite.data).toBe(true);
+      expect(menuWrite.data.coverImageGsl).toBeNull();
+      expect(menuWrite.data.version).toBeNull();
     });
   });
 });

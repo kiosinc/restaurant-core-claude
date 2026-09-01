@@ -6,6 +6,7 @@ import { createMenuGroup } from '../surfaces/MenuGroup';
 import type { MenuGroup } from '../surfaces/MenuGroup';
 import { menuConverter, menuGroupConverter } from '../../persistence/firestore/converters/simpleConverters';
 import { rebuildMenus } from './MenuRebuildService';
+import { stripUndefined } from '../../persistence/firestore/sanitize';
 
 /**
  * #174 / #85 Amendment 1: the Square menu MIRROR.
@@ -603,6 +604,8 @@ export async function syncManagedSquareMenu(
   // end-to-end atomicity is unreachable regardless of how these writes are grouped.
   const groupsRef = PathResolver.menuGroupsCollection(businessId);
   for (const group of plan.groupCreates) {
+    // Converter output, so already stripped at the converter boundary (#204). The assembly update
+    // in Phase D is hand-built and needs the explicit call; this asymmetry is deliberate.
     await groupsRef.doc(group.Id).set(menuGroupConverter.toFirestore(group));
   }
 
@@ -642,7 +645,7 @@ export async function syncManagedSquareMenu(
     } else {
       menuId = menuPlan.existingMenu.id;
       if (!assemblyEquals(menuPlan.existingMenu.data, assembly)) {
-        await menusRef.doc(menuId).update({ ...assembly, updated: nowIso });
+        await menusRef.doc(menuId).update(stripUndefined({ ...assembly, updated: nowIso }));
         changedMenuCount += 1;
       }
     }
