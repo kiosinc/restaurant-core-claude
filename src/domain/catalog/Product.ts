@@ -79,8 +79,15 @@ export function createProduct(input: ProductInput & Partial<BaseEntity>): Produc
   // the read happens inside upsertCatalogEntity *before* the recompute that would have fixed it,
   // so the poison pill took down the whole Items stage instead. Default on read: the doc hydrates
   // with zeroes, the processor overwrites them with the real values, and the next sync repairs it.
-  const minPrice = isNonNegativeNumber(input.minPrice) ? input.minPrice : 0;
-  const maxPrice = isNonNegativeNumber(input.maxPrice) ? input.maxPrice : 0;
+  // #204: a one-sided input is mirrored, not defaulted. Defaulting the absent side to 0 let that 0
+  // win the clamp below and destroy the value that was actually there ({ minPrice: 5 } hydrated as
+  // 0/0), and a hydrate→mutate→save writer then persists the zero. Mirroring keeps min <= max
+  // without inventing a price. Both sides absent — or negative, which fails the guard the same way
+  // — still lands on 0/0 per #93 above.
+  const presentMinPrice = isNonNegativeNumber(input.minPrice) ? input.minPrice : undefined;
+  const presentMaxPrice = isNonNegativeNumber(input.maxPrice) ? input.maxPrice : undefined;
+  const minPrice = presentMinPrice ?? presentMaxPrice ?? 0;
+  const maxPrice = presentMaxPrice ?? presentMinPrice ?? 0;
   const variationCount =
     isNonNegativeNumber(input.variationCount) && Number.isInteger(input.variationCount)
       ? input.variationCount
@@ -101,14 +108,18 @@ export function createProduct(input: ProductInput & Partial<BaseEntity>): Produc
     maxPrice,
     variationCount,
     locationInventory: input.locationInventory ?? {},
-    // #198: defaulted, not validated — productMeta emits this into a parent document's map via a
-    // raw batch.update(), where an undefined would fail the whole write. Prod population needing
-    // the default is zero, so validating would change behaviour for nothing.
+    // #198: defaulted, not validated — productMeta emits this into a parent document's map, merged
+    // by transaction.update here and by the businesses cascade's batch.update downstream; an
+    // undefined fails the whole write either way (#204: the batching is the consumer's, not this
+    // repo's). Prod population needing the default is zero, so validating would change behaviour
+    // for nothing.
     isActive: input.isActive ?? false,
     linkedObjects: input.linkedObjects ?? {},
     dietaryPreferences: input.dietaryPreferences ?? [],
     allergens: input.allergens ?? [],
-    calorieCount: input.calorieCount,
+    // #204: absent means unknown, so omit the key rather than emit an explicit undefined that
+    // Firestore rejects. Not defaulted to a number — 0 calories is a claim. Mirrors productMeta.
+    ...(input.calorieCount !== undefined && { calorieCount: input.calorieCount }),
   };
 }
 

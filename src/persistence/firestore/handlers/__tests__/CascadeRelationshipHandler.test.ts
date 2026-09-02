@@ -4,6 +4,8 @@ import { createOptionSet } from '../../../../domain/catalog/OptionSet';
 import { createOption } from '../../../../domain/catalog/Option';
 import { createTestProductInput, createTestOptionSetInput, createTestOptionInput } from '../../../../domain/__tests__/helpers/CatalogFixtures';
 import { ProductRelationshipHandler, ProductMenuGroupRelationshipHandler, OptionSetRelationshipHandler, OptionRelationshipHandler } from '../catalogHandlers';
+import { CascadeRelationshipHandler } from '../CascadeRelationshipHandler';
+import type { Product } from '../../../../domain/catalog/Product';
 
 const mockUpdate = vi.fn();
 const mockGet = vi.fn();
@@ -181,6 +183,63 @@ describe('ProductMenuGroupRelationshipHandler', () => {
     expect(updateArgs['products.prod-1']).toBe('$$FIELD_DELETE$$');
     expect(updateArgs['productOrdinals.prod-1']).toBe('$$FIELD_DELETE$$');
     expect(updateArgs.productDisplayOrder).toBe('$$ARRAY_REMOVE:prod-1$$');
+  });
+});
+
+/**
+ * #204: `fieldsToSet` is spread raw from the caller's projection, with no converter between it and
+ * `transaction.update`, so an undefined there fails the whole parent write.
+ *
+ * The four exported handlers all build `fieldsToSet` from `buildSavedUpdates` + a real `*Meta`
+ * function, none of which can emit an undefined — so this drives a bespoke handler whose
+ * `onSaved` returns the payload directly. That is the only seam through which the raw shape the
+ * strip exists for can be expressed.
+ */
+describe('CascadeRelationshipHandler payload strip (#204)', () => {
+  /** Stands in for a Firestore sentinel: a class instance whose entries are not its value. */
+  class Sentinel {
+    readonly kind = 'serverTimestamp';
+  }
+
+  const sentinel = new Sentinel();
+
+  function handlerReturning(fieldsToSet: Record<string, unknown>) {
+    return new CascadeRelationshipHandler<Product>({
+      parentCollection: () => mockCollectionRef as unknown as FirebaseFirestore.CollectionReference,
+      parentQuery: (p) => ['productDisplayOrder', 'array-contains', p.Id],
+      onSaved: (_entity, parentIds) => parentIds.map((parentId) => ({
+        parentId,
+        update: {
+          fieldsToSet,
+          fieldsToDelete: ['productOrdinals.prod-1'],
+          arrayFieldRemovals: { productDisplayOrder: 'prod-1' },
+        },
+      })),
+      onDeleted: () => [],
+    });
+  }
+
+  it('drops undefined values while dotted keys and sentinels survive', async () => {
+    const handler = handlerReturning({
+      'products.prod-1': { name: 'Burger', calorieCount: undefined },
+      'products.prod-1.stamped': sentinel,
+      version: undefined,
+    });
+    mockGet.mockResolvedValue({ docs: [{ id: 'cat-1' }] });
+
+    await handler.onSet(createProduct(createTestProductInput({ Id: 'prod-1' })), 'biz-1', mockTransaction);
+
+    const data = mockUpdate.mock.calls[0][1];
+    expect(Object.keys(data)).toEqual([
+      'products.prod-1', 'products.prod-1.stamped', 'productOrdinals.prod-1', 'productDisplayOrder',
+    ]);
+    expect(data['products.prod-1']).toEqual({ name: 'Burger' });
+    expect('calorieCount' in data['products.prod-1']).toBe(false);
+    // A rebuilt sentinel would reach Firestore as a plain object and lose its meaning, so identity
+    // — not equality — is the assertion that matters here.
+    expect(data['products.prod-1.stamped']).toBe(sentinel);
+    expect(data['productOrdinals.prod-1']).toBe('$$FIELD_DELETE$$');
+    expect(data.productDisplayOrder).toBe('$$ARRAY_REMOVE:prod-1$$');
   });
 });
 

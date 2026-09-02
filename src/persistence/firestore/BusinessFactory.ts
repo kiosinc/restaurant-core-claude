@@ -14,6 +14,7 @@ import {
   surfacesRootConverter, onboardingConverter, servicesConverter,
   locationsRootConverter, orderSettingsConverter,
 } from './converters';
+import { stripUndefined } from './sanitize';
 
 const FEATURELIST_PATH = '/_firebase_ext_/defaultFeatureList';
 
@@ -71,6 +72,9 @@ export async function createBusiness(input: CreateBusinessInput): Promise<string
     const featureListSnap = await t.get(featureListQuery);
     const featureList = featureListSnap.data();
 
+    // These eight are converter output, so they are already stripped at the converter boundary
+    // (#204); only the feature-list write below, whose payload is hand-built, needs the explicit
+    // call. The asymmetry is deliberate — don't "fix" it by wrapping these too.
     t.set(PathResolver.businessDoc(businessId), businessConverter.toFirestore(business));
     t.set(PathResolver.catalogDoc(businessId), catalogConverter.toFirestore(catalog));
     t.set(PathResolver.connectedAccountsDoc(businessId), connectedAccountsConverter.toFirestore(connectedAccounts));
@@ -89,7 +93,7 @@ export async function createBusiness(input: CreateBusinessInput): Promise<string
         enabled: { ...featureList },
       };
       const featureListPath = `/businesses/${businessId}/featurelist`;
-      t.set(getFirestore().collection(featureListPath).doc(), update);
+      t.set(getFirestore().collection(featureListPath).doc(), stripUndefined(update));
     }
   });
 
