@@ -113,7 +113,7 @@ describe('OrderSettings', () => {
       updated: pinned,
     });
 
-    expect(os).toEqual({
+    expect(os).toStrictEqual({
       Id: 'orders',
       created: pinned,
       updated: pinned,
