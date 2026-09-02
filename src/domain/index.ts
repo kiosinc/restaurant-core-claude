@@ -11,3 +11,4 @@ export * as Onboarding from './onboarding';
 export * as Misc from './misc';
 export * as Roots from './roots';
 export * as Services from './services';
+export * as Utils from './utils';
