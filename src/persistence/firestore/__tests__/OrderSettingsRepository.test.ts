@@ -80,6 +80,7 @@ describe('OrderSettingsRepository', () => {
     const result = await repo.get('biz-1', 'orders');
     expect(result!.isLoyaltyAccrue).toBe(true);
     expect(result!.isStateAutoNewToInProgress).toBe(false);
+    expect(result!.isFreeOrdersEnabled).toBe(false);
     expect(result!.ticketHeaderFormat).toBeNull();
   });
 
