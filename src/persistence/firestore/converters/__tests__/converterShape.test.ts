@@ -240,4 +240,22 @@ describe('converter output shape (#204 boundary guard)', () => {
     expect(written.fulfillment.scheduledTime).toBe(scheduledTime);
     expect(typeof written.timestamp).toBe('string');
   });
+
+  // #63 lives here as a standalone `it`, NOT a second `converterCases` entry: the meta-test above
+  // asserts the exported converter names equal `converterCases.map(c => c.name)`, so a duplicate
+  // 'orderConverter' entry would break that equality. The existing orderConverter case is already
+  // the tripwire for an unconditional `appFee: input.appFee` spread; this adds the positive half.
+  it('#63 — writes a supplied appFee and omits an absent one', () => {
+    const withFee = Converters.orderConverter.toFirestore(
+      createOrder({ ...legacyOrderInput, appFee: 34 } as unknown as MinimalInput<typeof createOrder>),
+    ) as { appFee?: number };
+    expect(withFee.appFee).toBe(34);
+    expect(undefinedPaths(withFee)).toEqual([]);
+
+    const withoutFee = Converters.orderConverter.toFirestore(
+      createOrder(legacyOrderInput as unknown as MinimalInput<typeof createOrder>),
+    ) as { appFee?: number };
+    expect('appFee' in withoutFee).toBe(false);
+    expect(undefinedPaths(withoutFee)).toEqual([]);
+  });
 });
