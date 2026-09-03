@@ -67,7 +67,6 @@ export {
   setEntryCountGuarded,
   getEntries,
   deleteEntries,
-  deleteAllEntries,
 } from './AvailabilityEntryService';
 
 // #207: the rebuild-relevant read-sets, exported so a cascade caller gates on this repo's

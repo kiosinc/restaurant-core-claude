@@ -26,7 +26,6 @@ import {
   setEntryCountGuarded,
   getEntries,
   deleteEntries,
-  deleteAllEntries,
   GET_ENTRIES_CHUNK,
   DELETE_ENTRIES_CHUNK,
   UNTRACKED_COUNT,
@@ -116,9 +115,6 @@ const fx = vi.hoisted(() => {
   const db = {
     runTransaction: vi.fn(async <T>(fn: (t: typeof tx) => Promise<T>): Promise<T> => fn(tx)),
     getAll: vi.fn(async (...targets: FakeRef[]): Promise<FakeSnapshot[]> => targets.map(snapshotOf)),
-    recursiveDelete: vi.fn(async (target: { path: string }): Promise<void> => {
-      [...store.keys()].filter((path) => path.startsWith(`${target.path}/`)).forEach((path) => store.delete(path));
-    }),
     batch: vi.fn((): FakeBatch => {
       const deleted: string[] = [];
       const batch: FakeBatch = {
@@ -598,28 +594,6 @@ describe('AvailabilityEntryService (#163)', () => {
         commit: vi.fn(async () => { throw failure; }),
       }));
       await expect(deleteEntries(B, L, ['a'])).rejects.toBe(failure);
-    });
-  });
-
-  describe('deleteAllEntries', () => {
-    it("recursively deletes the location's entries collection and nothing else", async () => {
-      fx.store.set(fx.pathOf(B, L, 'a'), { kind: 'option', state: 'soldOut' });
-      fx.store.set(fx.pathOf(B, L, 'b'), { kind: 'product', isPresent: false });
-      fx.store.set(fx.pathOf(B, 'loc-2', 'a'), { kind: 'option', state: 'soldOut' });
-      await deleteAllEntries(B, L);
-      expect(fx.db.recursiveDelete).toHaveBeenCalledTimes(1);
-      expect(fx.db.recursiveDelete.mock.calls[0][0].path).toBe(fx.collectionPathOf(B, L));
-      expect(fx.store.has(fx.pathOf(B, L, 'a'))).toBe(false);
-      expect(fx.store.has(fx.pathOf(B, L, 'b'))).toBe(false);
-      expect(fx.store.has(fx.pathOf(B, 'loc-2', 'a'))).toBe(true);
-      // Needs no id list, so no per-entry ref is ever minted.
-      expect(fx.refs.size).toBe(0);
-    });
-
-    it('propagates a recursiveDelete rejection', async () => {
-      const failure = new Error('PERMISSION_DENIED');
-      fx.db.recursiveDelete.mockRejectedValueOnce(failure);
-      await expect(deleteAllEntries(B, L)).rejects.toBe(failure);
     });
   });
 });

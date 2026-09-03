@@ -258,18 +258,6 @@ export async function deleteEntries(
   }
 }
 
-/**
- * Delete every entry at a location — the teardown pair of
- * `AvailabilityService.deleteAvailabilityDoc`. Firestore does not cascade: deleting the legacy
- * per-location doc (which the gateway does on every active→inactive location edge) leaves this
- * subcollection alive under a phantom parent, and a later re-activation would resurrect stale
- * `soldOut`/`count` from it. Streams the collection through the SDK's `recursiveDelete`
- * (BulkWriter-backed, so the write ramp is the SDK's), which needs no id list.
- */
-export async function deleteAllEntries(businessId: string, locationId: string): Promise<void> {
-  await getFirestore().recursiveDelete(PathResolver.inventoryEntriesCollection(businessId, locationId));
-}
-
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------

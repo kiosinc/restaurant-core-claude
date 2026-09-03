@@ -255,6 +255,6 @@ export async function deleteAvailabilityDoc(businessId: string, locationId: stri
   //
   // NOT recursive: the P41 `entries` subcollection under this doc survives it
   // (Firestore does not cascade). A location teardown that must also drop the
-  // entries calls `AvailabilityEntryService.deleteAllEntries` alongside this.
+  // entries deletes `PathResolver.inventoryEntriesCollection(...)` alongside this.
   await PathResolver.availabilityDoc(businessId, locationId).delete();
 }
