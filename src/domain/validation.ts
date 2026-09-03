@@ -39,6 +39,32 @@ export function requireNonNegativeIntegerOrNeg1(field: string, value: unknown): 
   }
 }
 
+export function requireBoolean(field: string, value: unknown): void {
+  if (typeof value !== 'boolean') {
+    throw new ValidationError(field, 'must be a boolean');
+  }
+}
+
+/** `value` must be one of `allowed` (strict equality; case-sensitive). */
+export function requireOneOf(field: string, allowed: readonly string[], value: unknown): void {
+  if (!allowed.includes(value as string)) {
+    throw new ValidationError(field, `must be one of: ${allowed.map((v) => `'${v}'`).join(', ')}`);
+  }
+}
+
+/**
+ * Returns the parsed epoch millis of an ISO-8601 string. Anything else — including a `Date`,
+ * a Firestore `Timestamp`, or a number — is a caller bug. Unlike the other validators this
+ * returns a value: callers that go on to compare instants would otherwise parse the string twice.
+ */
+export function requireIsoTimestamp(field: string, value: unknown): number {
+  const ms = typeof value === 'string' ? Date.parse(value) : NaN;
+  if (Number.isNaN(ms)) {
+    throw new ValidationError(field, 'must be an ISO-8601 string');
+  }
+  return ms;
+}
+
 export function requireMinLessOrEqual(
   minField: string,
   minValue: number,
