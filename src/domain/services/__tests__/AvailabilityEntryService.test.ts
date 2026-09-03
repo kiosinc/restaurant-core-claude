@@ -230,7 +230,9 @@ describe('AvailabilityEntryService (#163)', () => {
     it('strict comparisons — null count and 0 are not "absent"', () => {
       expect(isDefaultEntry({ kind: 'option', count: null as unknown as number })).toBe(false);
       expect(isDefaultEntry({ kind: 'option', count: 0 })).toBe(false);
-      // Likewise a null flag is a stored value, not the absent default.
+      // A null FLAG lands on the default side: the strict checks compare against the non-default
+      // literal (`false` / `true`), which null is not. That is the hazard `validateWrite` closes by
+      // rejecting null before it can be stored (see the gateway#375 note there).
       expect(isDefaultEntry({ kind: 'option', isPresent: null as unknown as boolean })).toBe(true);
       expect(isDefaultEntry({ kind: 'option', isInventoryTracked: null as unknown as boolean })).toBe(true);
     });
@@ -377,7 +379,8 @@ describe('AvailabilityEntryService (#163)', () => {
     });
 
     it('compares instants, not strings (+00:00 vs .000Z)', async () => {
-      // Same instant, two spellings: string order says "+00:00" > ".000Z"-less form; instants say equal → stale.
+      // Same instant, two spellings. As STRINGS the stored "+00:00" sorts BEFORE ".000Z" ("+" < "."), so a
+      // string compare would let the write through; as instants they are equal, so it must abort.
       fx.store.set(PATH, { kind: 'option', timestamp: '2026-09-01T11:00:00+00:00' });
       await expect(setEntryCountGuarded(B, L, E, countWrite({ timestamp: '2026-09-01T11:00:00.000Z' }))).resolves.toBe('skippedStale');
       expectNothingQueued();
@@ -425,7 +428,7 @@ describe('AvailabilityEntryService (#163)', () => {
       expect(fx.store.get(PATH)).toMatchObject({ kind: 'product', isPresent: true, count: 3 });
     });
 
-    it('stamps kind onto an existing document that has none (a Remy toggle creates entries without kind)', async () => {
+    it('stamps kind onto an existing document that has none (left kind-less by a writer outside the contract)', async () => {
       fx.store.set(PATH, { state: 'soldOut', timestamp: T_OLD, isHidden: false });
       await expect(setEntryCountGuarded(B, L, E, countWrite())).resolves.toBe('written');
       const { payload } = txSetPayload();

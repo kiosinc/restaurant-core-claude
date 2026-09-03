@@ -269,8 +269,10 @@ export async function deleteEntries(
 // Private helpers
 // ---------------------------------------------------------------------------
 
-// Typed against the interface's unions so a contract change that widens `kind` or `state`
-// fails to compile here instead of leaving the runtime list silently stale.
+// Typed against the interface's unions so a member renamed or removed from the contract fails to
+// compile here. A WIDENING does not: a plain array is never checked for exhaustiveness, so a new
+// literal in the union has to be added to these lists by hand (the parity test flags the interface
+// change, not this list).
 const ENTRY_KINDS: readonly AvailabilityEntryKind[] = ['product', 'option'];
 const ENTRY_STATES: readonly AvailabilityEntryState[] = ['inStock', 'soldOut'];
 
