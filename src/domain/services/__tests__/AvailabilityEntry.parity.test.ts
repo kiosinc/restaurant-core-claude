@@ -1,9 +1,11 @@
 /**
  * Parity guard for the P41 `AvailabilityEntry` declaration (rcc#163, contract rcc#162 §1).
  *
- * The same interface is declared in `@kiosinc/commons-types` (`types/availabilityTypes.ts`,
- * kiosinc/kios-commons-types#74) and here in `AvailabilityEntryService.ts`; the checked-in
- * snapshot `fixtures/availabilityEntry.contract.json` is the shared reference both sides pin to.
+ * The canonical interface lives in `@kiosinc/commons-types` (`types/availabilityTypes.ts`,
+ * kiosinc/kios-commons-types#74); `AvailabilityEntryService.ts` declares a structurally
+ * assignable copy (Admin `Timestamp` for `updatedAt` where commons-types has
+ * `FirestoreTimestampLike`). The checked-in snapshot `fixtures/availabilityEntry.contract.json`
+ * is this repo's pin of that shape — there is no snapshot on the commons-types side.
  *
  * Tests are excluded from `tsconfig.json`, so a type-level assertion here would be checked by
  * nothing. Instead the service module is read as TEXT, parsed with the TypeScript compiler API,

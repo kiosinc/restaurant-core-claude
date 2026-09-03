@@ -8,11 +8,14 @@ import { requireNonNegativeIntegerOrNeg1 } from '../validation';
  * `businesses/{businessId}/public/catalog/inventory/{locationId}/entries/{entityId}`
  * (doc id = KIOS entity `Id`: Product.Id or Option.Id).
  *
- * PARITY — this declaration is structurally identical to `AvailabilityEntry` in
- * `@kiosinc/commons-types` `types/availabilityTypes.ts` (kiosinc/kios-commons-types#74).
- * `__tests__/AvailabilityEntry.parity.test.ts` asserts it member-for-member against the
- * checked-in snapshot `__tests__/fixtures/availabilityEntry.contract.json`; a change to any of the
- * three must land in all three, and the same snapshot is mirrored on the commons-types side.
+ * PARITY — the canonical declaration is `AvailabilityEntry` in `@kiosinc/commons-types`
+ * `types/availabilityTypes.ts` (kiosinc/kios-commons-types#74). This one is structurally
+ * assignable to it: same member names, order and optionality; the one intended difference is
+ * `updatedAt`, typed as the Admin SDK `Timestamp` here and as `FirestoreTimestampLike` there
+ * (the client SDKs' timestamp shape). `__tests__/AvailabilityEntry.parity.test.ts` asserts this
+ * declaration member-for-member against the checked-in snapshot
+ * `__tests__/fixtures/availabilityEntry.contract.json`, which pins the commons-types shape on this
+ * side; a change to the contract must land in all three (commons-types, this file, the snapshot).
  * Contract: kiosinc/restaurant-core-claude#162 §1 as amended 2026-09-03.
  *
  * Every field except `kind`/`updatedAt` is optional and owned by exactly one writer (see the
@@ -32,7 +35,7 @@ export interface AvailabilityEntry {
   isInventoryTracked?: boolean;  // sync-owned, option entries. Absent = tracked; false persists and is never a default entry (gateway#375).
   isHidden?: boolean;            // remy-owned.
   timestamp?: string;            // webhook staleness guard (Square calculated_at, ISO-8601).
-  updatedAt: Timestamp;          // serverTimestamp() on EVERY server write. The client probe depends on it.
+  updatedAt: Timestamp;          // set on EVERY write. Admin SDK: FieldValue.serverTimestamp(); client writers (Remy): Timestamp.now(). Readers tolerate a missing/null value (the probe reads the server-side max).
 }
 
 export type AvailabilityEntryKind = AvailabilityEntry['kind'];
