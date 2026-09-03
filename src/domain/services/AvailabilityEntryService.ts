@@ -1,7 +1,11 @@
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { PathResolver } from '../../persistence/firestore/PathResolver';
-import { stripUndefined } from '../../persistence/firestore/sanitize';
-import { requireNonNegativeIntegerOrNeg1, ValidationError } from '../validation';
+import {
+  requireBoolean,
+  requireIsoTimestamp,
+  requireNonNegativeIntegerOrNeg1,
+  requireOneOf,
+} from '../validation';
 
 /**
  * P41 per-entity availability entry — one document per (location, catalog entity) at
@@ -187,10 +191,10 @@ export async function setEntryCountGuarded(
   entityId: string,
   count: AvailabilityCountWrite,
 ): Promise<GuardedWriteOutcome> {
-  const incomingMs = requireIsoTimestamp(count.timestamp);
-  requireState(count.state);
+  const incomingMs = requireIsoTimestamp('timestamp', count.timestamp);
+  requireOneOf('state', ENTRY_STATES, count.state);
   requireNonNegativeIntegerOrNeg1('count', count.count);
-  if (count.kind !== undefined) requireKind(count.kind);
+  if (count.kind !== undefined) requireOneOf('kind', ENTRY_KINDS, count.kind);
 
   const ref = entryRef(businessId, locationId, entityId);
   return getFirestore().runTransaction(async (tx): Promise<GuardedWriteOutcome> => {
@@ -201,13 +205,15 @@ export async function setEntryCountGuarded(
     const stored = data?.timestamp;
     if (typeof stored === 'string' && Date.parse(stored) >= incomingMs) return 'skippedStale';
 
-    const payload = stripUndefined({
-      kind: data?.kind === undefined ? count.kind ?? 'option' : undefined,
+    // No `stripUndefined` pass: every key below is validated non-undefined above, and `kind` is
+    // only ever assigned, never set to `undefined`.
+    const payload: Record<string, unknown> = {
       state: count.state,
       count: count.count,
       timestamp: count.timestamp,
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    };
+    if (data?.kind === undefined) payload.kind = count.kind ?? 'option';
     tx.set(ref, payload, { merge: true });
     return 'written';
   });
@@ -263,35 +269,10 @@ export async function deleteEntries(
 // Private helpers
 // ---------------------------------------------------------------------------
 
-const ENTRY_KINDS: readonly string[] = ['product', 'option'];
-const ENTRY_STATES: readonly string[] = ['inStock', 'soldOut'];
-
-function requireKind(value: unknown): void {
-  if (!ENTRY_KINDS.includes(value as string)) {
-    throw new ValidationError('kind', "must be 'product' or 'option'");
-  }
-}
-
-function requireState(value: unknown): void {
-  if (!ENTRY_STATES.includes(value as string)) {
-    throw new ValidationError('state', "must be 'inStock' or 'soldOut'");
-  }
-}
-
-function requireBoolean(field: string, value: unknown): void {
-  if (typeof value !== 'boolean') {
-    throw new ValidationError(field, 'must be a boolean');
-  }
-}
-
-/** Parsed millis of an ISO-8601 string; anything else (including a `Date` or a `Timestamp`) is a caller bug. */
-function requireIsoTimestamp(value: unknown): number {
-  const ms = typeof value === 'string' ? Date.parse(value) : NaN;
-  if (Number.isNaN(ms)) {
-    throw new ValidationError('timestamp', 'must be an ISO-8601 string');
-  }
-  return ms;
-}
+// Typed against the interface's unions so a contract change that widens `kind` or `state`
+// fails to compile here instead of leaving the runtime list silently stale.
+const ENTRY_KINDS: readonly AvailabilityEntryKind[] = ['product', 'option'];
+const ENTRY_STATES: readonly AvailabilityEntryState[] = ['inStock', 'soldOut'];
 
 /**
  * Domain checks for every field that is present (`undefined` = not written, so not checked).
@@ -300,13 +281,13 @@ function requireIsoTimestamp(value: unknown): number {
  * guard and as default by the sweep, the gateway#375 regression in a different coat.
  */
 function validateWrite(fields: Partial<AvailabilityEntryWrite>, options: { isKindRequired: boolean }): void {
-  if (options.isKindRequired || fields.kind !== undefined) requireKind(fields.kind);
-  if (fields.state !== undefined) requireState(fields.state);
+  if (options.isKindRequired || fields.kind !== undefined) requireOneOf('kind', ENTRY_KINDS, fields.kind);
+  if (fields.state !== undefined) requireOneOf('state', ENTRY_STATES, fields.state);
   if (fields.count !== undefined) requireNonNegativeIntegerOrNeg1('count', fields.count);
   if (fields.isPresent !== undefined) requireBoolean('isPresent', fields.isPresent);
   if (fields.isInventoryTracked !== undefined) requireBoolean('isInventoryTracked', fields.isInventoryTracked);
   if (fields.isHidden !== undefined) requireBoolean('isHidden', fields.isHidden);
-  if (fields.timestamp !== undefined) requireIsoTimestamp(fields.timestamp);
+  if (fields.timestamp !== undefined) requireIsoTimestamp('timestamp', fields.timestamp);
 }
 
 /** Copies only allow-listed keys with a defined value, so the payload needs no `undefined` scrub. */

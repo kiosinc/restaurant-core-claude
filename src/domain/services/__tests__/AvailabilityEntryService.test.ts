@@ -109,9 +109,6 @@ const fx = vi.hoisted(() => {
     delete: vi.fn(),
   };
 
-  const collectionPathOf = (businessId: string, locationId: string): string =>
-    `businesses/${businessId}/public/catalog/inventory/${locationId}/entries`;
-
   const db = {
     runTransaction: vi.fn(async <T>(fn: (t: typeof tx) => Promise<T>): Promise<T> => fn(tx)),
     getAll: vi.fn(async (...targets: FakeRef[]): Promise<FakeSnapshot[]> => targets.map(snapshotOf)),
@@ -127,7 +124,7 @@ const fx = vi.hoisted(() => {
   };
 
   return {
-    store, refs, batches, pathOf, collectionPathOf, ref, tx, db,
+    store, refs, batches, pathOf, ref, tx, db,
   };
 });
 
@@ -140,8 +137,6 @@ vi.mock('../../../persistence/firestore/PathResolver', () => ({
   PathResolver: {
     inventoryEntryDoc: vi.fn((businessId: string, locationId: string, entityId: string) =>
       fx.ref(businessId, locationId, entityId)),
-    inventoryEntriesCollection: vi.fn((businessId: string, locationId: string) =>
-      ({ path: fx.collectionPathOf(businessId, locationId) })),
   },
 }));
 
