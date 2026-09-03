@@ -35,7 +35,7 @@ export interface AvailabilityEntry {
   isInventoryTracked?: boolean;  // sync-owned, option entries. Absent = tracked; false persists and is never a default entry (gateway#375).
   isHidden?: boolean;            // remy-owned.
   timestamp?: string;            // webhook staleness guard (Square calculated_at, ISO-8601).
-  updatedAt: Timestamp;          // set on EVERY write. Admin SDK: FieldValue.serverTimestamp(); client writers (Remy): Timestamp.now(). Readers tolerate a missing/null value (the probe reads the server-side max).
+  updatedAt: Timestamp;          // set on EVERY write by EVERY writer as FieldValue.serverTimestamp() — never a device clock. Reads as null in the writer's own pending RN snapshot; readers tolerate a missing/null value (the probe reads the server-side max).
 }
 
 export type AvailabilityEntryKind = AvailabilityEntry['kind'];
@@ -54,8 +54,9 @@ export const UNTRACKED_COUNT = -1;
  *
  * `kind` is required here (and only optional-with-default on {@link AvailabilityCountWrite}) on
  * purpose: `setEntry` upserts, so any write may be the one that creates the document, and a
- * `kind`-less document is one the client fold cannot classify. The asymmetry with the count
- * write is deliberate — see the note there.
+ * `kind`-less document is one the client fold cannot classify. The contract (#162 §1) makes the
+ * same demand of the client: a Remy toggle writes `{kind, state?, isHidden?, timestamp, updatedAt}`
+ * with `kind` on every write. The asymmetry with the count write is deliberate — see the note there.
  */
 export type AvailabilityEntryWrite =
   Pick<AvailabilityEntry, 'kind'> & Partial<Omit<AvailabilityEntry, 'kind' | 'updatedAt'>>;
@@ -77,8 +78,8 @@ export interface AvailabilityCountWrite {
   /** Square `calculated_at`, ISO-8601. Required: an unguarded count write would defeat the monotonic guard. */
   timestamp: string;
   /**
-   * Written only when the stored document has no `kind` (missing document, or one created by a
-   * writer whose payload carries no `kind`). Square counts exist only for ITEM_VARIATIONs
+   * Written only when the stored document has no `kind` (a missing document, or one left
+   * `kind`-less by a writer outside the contract). Square counts exist only for ITEM_VARIATIONs
    * (= Options), hence the `'option'` default — the one place `kind` is optional. On
    * {@link AvailabilityEntryWrite} it is required because there is no such default to fall back on.
    */
@@ -176,7 +177,7 @@ export async function setEntry(
  *
  * `kind` is stamped only when the stored document has none (see {@link AvailabilityCountWrite}):
  * a stored `kind` is never overwritten, so a webhook cannot reclassify a product entry, while a
- * document created by a `kind`-less writer (a Remy toggle) is classified on its first count.
+ * document left `kind`-less by a writer outside the contract is classified on its first count.
  *
  * Nothing is logged on either skip path — see {@link GuardedWriteOutcome}.
  */
