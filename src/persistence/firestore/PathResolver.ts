@@ -130,6 +130,24 @@ export class PathResolver {
     return this.catalogDoc(businessId).collection(Paths.CollectionNames.inventory).doc(locationId);
   }
 
+  /**
+   * P41 per-entity availability entries (rcc#162 §1):
+   * `businesses/{businessId}/public/catalog/inventory/{locationId}/entries`.
+   * Parented on `availabilityDoc` — the legacy per-location megadoc — so the two stores coexist
+   * during dual-write, and because Firestore subcollections do not cascade the entries survive
+   * the legacy doc's deletion at retirement. Not `inventoryRootDoc` (`public/inventory`).
+   * Each location owns its own collection: sequential `updatedAt` indexing caps a collection at
+   * ~500 sustained writes/s (contract §1 "Indexes").
+   */
+  static inventoryEntriesCollection(businessId: string, locationId: string): FirebaseFirestore.CollectionReference {
+    return this.availabilityDoc(businessId, locationId).collection(Paths.CollectionNames.entries);
+  }
+
+  /** `…/entries/{entityId}` — doc id is the KIOS entity `Id` (Product.Id or Option.Id). */
+  static inventoryEntryDoc(businessId: string, locationId: string, entityId: string): FirebaseFirestore.DocumentReference {
+    return this.inventoryEntriesCollection(businessId, locationId).doc(entityId);
+  }
+
   static locationsCollection(businessId: string): FirebaseFirestore.CollectionReference {
     return this.locationsDoc(businessId).collection(Paths.CollectionNames.locations);
   }
