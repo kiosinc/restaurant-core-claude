@@ -30,3 +30,41 @@ describe('public API surface (#63)', () => {
     expect('appFee' in order).toBe(false);
   });
 });
+
+/**
+ * Outbound-boundary tests for rcc#163 (P41 availability entries, contract rcc#162 §1).
+ *
+ * square-gateway-claude and businesses reach the entries repository as
+ * `Domain.Services.*`, the path resolvers as `Persistence.PathResolver.*` and the
+ * collection name as `Paths.CollectionNames.entries` — all through the published
+ * root barrel. Same failure class as #63 above: a symbol that exists in its module
+ * but never made it into `services/index.ts` would pass every deep-import test.
+ */
+describe('public API surface (#163)', () => {
+  it('#163 exposes the entries repository through Domain.Services', () => {
+    const services = Lib.Domain.Services;
+    expect(typeof services.entryRef).toBe('function');
+    expect(typeof services.isDefaultEntry).toBe('function');
+    expect(typeof services.setEntry).toBe('function');
+    expect(typeof services.setEntryCountGuarded).toBe('function');
+    expect(typeof services.getEntries).toBe('function');
+    expect(typeof services.deleteEntries).toBe('function');
+    // Callable AND correct: the gateway#375 clause is the one a consumer is most likely to lean on.
+    expect(services.isDefaultEntry({ kind: 'option', isInventoryTracked: false })).toBe(false);
+    expect(services.isDefaultEntry({ kind: 'option' })).toBe(true);
+    expect(services.GET_ENTRIES_CHUNK).toBe(100);
+    expect(services.DELETE_ENTRIES_CHUNK).toBe(500);
+    expect(services.ENTRY_WRITABLE_FIELDS).toContain('isInventoryTracked');
+    expect(services.ENTRY_WRITABLE_FIELDS).not.toContain('isAvailable');
+  });
+
+  it('#163 exposes PathResolver.inventoryEntriesCollection/inventoryEntryDoc through Persistence', () => {
+    // Presence only: resolving a ref would call getFirestore(), which needs an initialised app.
+    expect(typeof Lib.Persistence.PathResolver.inventoryEntriesCollection).toBe('function');
+    expect(typeof Lib.Persistence.PathResolver.inventoryEntryDoc).toBe('function');
+  });
+
+  it("#163 exposes Paths.CollectionNames.entries === 'entries'", () => {
+    expect(Lib.Paths.CollectionNames.entries).toBe('entries');
+  });
+});

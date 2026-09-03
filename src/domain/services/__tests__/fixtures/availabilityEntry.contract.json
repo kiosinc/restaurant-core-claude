@@ -1,0 +1,14 @@
+{
+  "source": "@kiosinc/commons-types types/availabilityTypes.ts — interface AvailabilityEntry (kiosinc/kios-commons-types#74). Contract: kiosinc/restaurant-core-claude#162 §1 as amended 2026-09-03. Mirror of src/domain/services/AvailabilityEntryService.ts; change all three together.",
+  "interface": "AvailabilityEntry",
+  "members": [
+    { "name": "kind",               "optional": false, "type": "'product' | 'option'" },
+    { "name": "isPresent",          "optional": true,  "type": "boolean" },
+    { "name": "state",              "optional": true,  "type": "'inStock' | 'soldOut'" },
+    { "name": "count",              "optional": true,  "type": "number" },
+    { "name": "isInventoryTracked", "optional": true,  "type": "boolean" },
+    { "name": "isHidden",           "optional": true,  "type": "boolean" },
+    { "name": "timestamp",          "optional": true,  "type": "string" },
+    { "name": "updatedAt",          "optional": false, "type": "Timestamp" }
+  ]
+}
