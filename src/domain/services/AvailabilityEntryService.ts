@@ -22,8 +22,8 @@ import {
  * side; a change to the contract must land in all three (commons-types, this file, the snapshot).
  * Contract: kiosinc/restaurant-core-claude#162 §1 as amended 2026-09-03.
  *
- * Every field except `kind`/`updatedAt` is optional and owned by exactly one writer (see the
- * contract's ownership table); a missing document and a missing field both mean "default".
+ * Every field except `kind`/`updatedAt` is optional, with its writers fixed by the contract (see
+ * each field's comment); a missing document and a missing field both mean "default".
  * `isAvailable` is deliberately NOT stored — the client fold derives
  * `isAvailable = !(isPresent === false || state === 'soldOut')`.
  *
