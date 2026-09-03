@@ -26,8 +26,8 @@ interface ExtractedMember {
   type: string;
 }
 
+/** `source` in the JSON is documentation for the human editing it; only `interface` and `members` are asserted. */
 interface ContractSnapshot {
-  source: string;
   interface: string;
   members: ExtractedMember[];
 }
@@ -112,12 +112,5 @@ describe('AvailabilityEntry parity with @kiosinc/commons-types (#163)', () => {
 
   it('ENTRY_WRITABLE_FIELDS equals the snapshot member names minus updatedAt', () => {
     expect([...ENTRY_WRITABLE_FIELDS]).toEqual(snapshotNames.filter((name) => name !== 'updatedAt'));
-  });
-
-  it("the snapshot's source note names @kiosinc/commons-types availabilityTypes.ts", () => {
-    expect(snapshot.source).toContain('@kiosinc/commons-types');
-    expect(snapshot.source).toContain('availabilityTypes.ts');
-    expect(snapshot.source).toContain('kiosinc/kios-commons-types#74');
-    expect(snapshot.source).toContain('kiosinc/restaurant-core-claude#162');
   });
 });

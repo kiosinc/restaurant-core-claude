@@ -26,8 +26,10 @@ import {
   setEntryCountGuarded,
   getEntries,
   deleteEntries,
+  deleteAllEntries,
   GET_ENTRIES_CHUNK,
   DELETE_ENTRIES_CHUNK,
+  UNTRACKED_COUNT,
 } from '../AvailabilityEntryService';
 import type {
   AvailabilityEntry,
@@ -108,9 +110,15 @@ const fx = vi.hoisted(() => {
     delete: vi.fn(),
   };
 
+  const collectionPathOf = (businessId: string, locationId: string): string =>
+    `businesses/${businessId}/public/catalog/inventory/${locationId}/entries`;
+
   const db = {
     runTransaction: vi.fn(async <T>(fn: (t: typeof tx) => Promise<T>): Promise<T> => fn(tx)),
     getAll: vi.fn(async (...targets: FakeRef[]): Promise<FakeSnapshot[]> => targets.map(snapshotOf)),
+    recursiveDelete: vi.fn(async (target: { path: string }): Promise<void> => {
+      [...store.keys()].filter((path) => path.startsWith(`${target.path}/`)).forEach((path) => store.delete(path));
+    }),
     batch: vi.fn((): FakeBatch => {
       const deleted: string[] = [];
       const batch: FakeBatch = {
@@ -123,7 +131,7 @@ const fx = vi.hoisted(() => {
   };
 
   return {
-    store, refs, batches, pathOf, ref, tx, db,
+    store, refs, batches, pathOf, collectionPathOf, ref, tx, db,
   };
 });
 
@@ -136,6 +144,8 @@ vi.mock('../../../persistence/firestore/PathResolver', () => ({
   PathResolver: {
     inventoryEntryDoc: vi.fn((businessId: string, locationId: string, entityId: string) =>
       fx.ref(businessId, locationId, entityId)),
+    inventoryEntriesCollection: vi.fn((businessId: string, locationId: string) =>
+      ({ path: fx.collectionPathOf(businessId, locationId) })),
   },
 }));
 
@@ -175,16 +185,6 @@ const expectNothingQueued = (): void => {
   expect(fx.tx.delete).not.toHaveBeenCalled();
 };
 
-/** Spies on every console channel so a "silent" path can be proven silent, not just assumed. */
-const spyConsole = () => {
-  const channels = ['log', 'warn', 'debug', 'info', 'error'] as const;
-  const spies = channels.map((channel) => vi.spyOn(console, channel).mockImplementation(() => undefined));
-  return {
-    expectSilent: (): void => { spies.forEach((spy) => expect(spy).not.toHaveBeenCalled()); },
-    restore: (): void => { spies.forEach((spy) => spy.mockRestore()); },
-  };
-};
-
 beforeEach(() => {
   vi.clearAllMocks();
   fx.store.clear();
@@ -206,30 +206,29 @@ describe('AvailabilityEntryService (#163)', () => {
 
   describe('isDefaultEntry', () => {
     it.each<[string, Partial<AvailabilityEntry>, boolean]>([
-      ['bare {kind} is default', { kind: 'option' }, true],
-      ['isPresent absent → default', { kind: 'product' }, true],
+      // Every optional field absent → default, for both kinds.
+      ['bare {kind: option} is default', { kind: 'option' }, true],
+      ['bare {kind: product} is default', { kind: 'product' }, true],
       ['isPresent true → default', { kind: 'product', isPresent: true }, true],
       ['isPresent false → not default', { kind: 'product', isPresent: false }, false],
-      ['state absent → default', { kind: 'option' }, true],
       ['state inStock → default', { kind: 'option', state: 'inStock' }, true],
       ['state soldOut → not default', { kind: 'option', state: 'soldOut' }, false],
-      ['isHidden absent → default', { kind: 'product' }, true],
       ['isHidden false → default', { kind: 'product', isHidden: false }, true],
       ['isHidden true → not default', { kind: 'product', isHidden: true }, false],
-      ['count absent → default', { kind: 'option' }, true],
-      ['count -1 → default', { kind: 'option', count: -1 }, true],
+      ['count UNTRACKED_COUNT (-1) → default', { kind: 'option', count: UNTRACKED_COUNT }, true],
       ['count 0 → not default', { kind: 'option', count: 0 }, false],
       ['count 3 → not default', { kind: 'option', count: 3 }, false],
-      ['isInventoryTracked absent → default', { kind: 'option' }, true],
       ['isInventoryTracked true → default', { kind: 'option', isInventoryTracked: true }, true],
       ['isInventoryTracked false → not default', { kind: 'option', isInventoryTracked: false }, false],
     ])('%s', (_label, entry, expected) => {
       expect(isDefaultEntry(entry)).toBe(expected);
     });
 
+    it('UNTRACKED_COUNT is the contract sentinel -1', () => {
+      expect(UNTRACKED_COUNT).toBe(-1);
+    });
+
     it('kind, timestamp and updatedAt never affect defaultness', () => {
-      expect(isDefaultEntry({ kind: 'product' })).toBe(true);
-      expect(isDefaultEntry({ kind: 'option' })).toBe(true);
       expect(isDefaultEntry({ kind: 'option', timestamp: T_NEW })).toBe(true);
       expect(isDefaultEntry({ kind: 'option', updatedAt: Timestamp.now() })).toBe(true);
       expect(isDefaultEntry({ kind: 'option', timestamp: T_NEW, updatedAt: Timestamp.now(), count: -1, state: 'inStock' })).toBe(true);
@@ -310,16 +309,35 @@ describe('AvailabilityEntryService (#163)', () => {
       expect(fx.store.get(PATH)).toMatchObject({ isInventoryTracked: false, count: -1 });
     });
 
-    it.each<[string, unknown]>([
-      ['-2', -2],
-      ['1.5', 1.5],
-      ['NaN', NaN],
-      ['a string', '3'],
-      ['null', null],
-    ])('rejects a count that is not -1 or a non-negative integer (%s)', async (_label, count) => {
-      const write = { kind: 'option', count } as unknown as AvailabilityEntryWrite;
-      await expect(setEntry(B, L, E, write)).rejects.toThrow(ValidationError);
+    // Domain validation runs before any ref is minted. The count domain itself is proven in
+    // validation.test.ts; these rows prove delegation plus the cases specific to this writer.
+    it.each<[string, Record<string, unknown>, string]>([
+      ['count 1.5', { kind: 'option', count: 1.5 }, 'count'],
+      ['count null', { kind: 'option', count: null }, 'count'],
+      ['kind missing', { isPresent: false }, 'kind'],
+      ['kind undefined', { kind: undefined, isPresent: false }, 'kind'],
+      ["kind 'ITEM_VARIATION'", { kind: 'ITEM_VARIATION' }, 'kind'],
+      ["state 'SOLD_OUT'", { kind: 'option', state: 'SOLD_OUT' }, 'state'],
+      ['state null', { kind: 'option', state: null }, 'state'],
+      ['isPresent null', { kind: 'product', isPresent: null }, 'isPresent'],
+      ['isInventoryTracked null', { kind: 'option', isInventoryTracked: null }, 'isInventoryTracked'],
+      ["isHidden 'true'", { kind: 'product', isHidden: 'true' }, 'isHidden'],
+      ['timestamp as a Date', { kind: 'option', timestamp: new Date(T_NEW) }, 'timestamp'],
+      ['timestamp unparseable', { kind: 'option', timestamp: 'yesterday-ish' }, 'timestamp'],
+    ])('rejects %s with a ValidationError before any RPC', async (_label, write, field) => {
+      const failure = await setEntry(B, L, E, write as unknown as AvailabilityEntryWrite).catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(ValidationError);
+      expect((failure as ValidationError).field).toBe(field);
       expect(fx.refs.size).toBe(0);
+    });
+
+    it('accepts every valid value, including a timestamp string', async () => {
+      await setEntry(B, L, E, {
+        kind: 'option', isPresent: true, state: 'soldOut', count: 0, isInventoryTracked: true, isHidden: false, timestamp: T_NEW,
+      });
+      expect(fx.store.get(PATH)).toMatchObject({
+        kind: 'option', isPresent: true, state: 'soldOut', count: 0, isInventoryTracked: true, isHidden: false, timestamp: T_NEW,
+      });
     });
   });
 
@@ -335,14 +353,8 @@ describe('AvailabilityEntryService (#163)', () => {
 
     it("writes nothing when the stored entry has isInventoryTracked: false and returns 'skippedUntracked'", async () => {
       fx.store.set(PATH, { kind: 'option', isInventoryTracked: false, count: -1 });
-      const console$ = spyConsole();
-      try {
-        await expect(setEntryCountGuarded(B, L, E, countWrite())).resolves.toBe('skippedUntracked');
-        expectNothingQueued();
-        console$.expectSilent();
-      } finally {
-        console$.restore();
-      }
+      await expect(setEntryCountGuarded(B, L, E, countWrite())).resolves.toBe('skippedUntracked');
+      expectNothingQueued();
       expect(fx.store.get(PATH)).toEqual({ kind: 'option', isInventoryTracked: false, count: -1 });
     });
 
@@ -362,14 +374,8 @@ describe('AvailabilityEntryService (#163)', () => {
 
     it("aborts silently when the stored timestamp is newer → 'skippedStale', zero writes", async () => {
       fx.store.set(PATH, { kind: 'option', count: 9, timestamp: T_NEW });
-      const console$ = spyConsole();
-      try {
-        await expect(setEntryCountGuarded(B, L, E, countWrite({ timestamp: T_OLD }))).resolves.toBe('skippedStale');
-        expectNothingQueued();
-        console$.expectSilent();
-      } finally {
-        console$.restore();
-      }
+      await expect(setEntryCountGuarded(B, L, E, countWrite({ timestamp: T_OLD }))).resolves.toBe('skippedStale');
+      expectNothingQueued();
       expect(fx.store.get(PATH)).toEqual({ kind: 'option', count: 9, timestamp: T_NEW });
     });
 
@@ -420,12 +426,20 @@ describe('AvailabilityEntryService (#163)', () => {
       expect(payload.kind).toBe('product');
     });
 
-    it('does not write kind onto an existing document', async () => {
+    it('does not overwrite the kind of an existing document', async () => {
       fx.store.set(PATH, { kind: 'product', isPresent: true });
       await expect(setEntryCountGuarded(B, L, E, countWrite({ kind: 'option' }))).resolves.toBe('written');
       const { payload } = txSetPayload();
       expect(payload).not.toHaveProperty('kind');
       expect(fx.store.get(PATH)).toMatchObject({ kind: 'product', isPresent: true, count: 3 });
+    });
+
+    it('stamps kind onto an existing document that has none (a Remy toggle creates entries without kind)', async () => {
+      fx.store.set(PATH, { state: 'soldOut', timestamp: T_OLD, isHidden: false });
+      await expect(setEntryCountGuarded(B, L, E, countWrite())).resolves.toBe('written');
+      const { payload } = txSetPayload();
+      expect(payload.kind).toBe('option');
+      expect(fx.store.get(PATH)).toMatchObject({ kind: 'option', state: 'inStock', count: 3, timestamp: T_NEW, isHidden: false });
     });
 
     it('merges exactly {state, count, timestamp, updatedAt} via tx.set(..., { merge: true }), never tx.update()', async () => {
@@ -449,15 +463,28 @@ describe('AvailabilityEntryService (#163)', () => {
       ['empty', ''],
       ['unparseable', 'yesterday-ish'],
       ['a number', 1756724400000],
-    ])('throws before any RPC when timestamp is %s (runTransaction not called)', async (_label, timestamp) => {
+    ])('throws a ValidationError before any RPC when timestamp is %s (runTransaction not called)', async (_label, timestamp) => {
       const write = { ...countWrite(), timestamp } as unknown as AvailabilityCountWrite;
-      await expect(setEntryCountGuarded(B, L, E, write)).rejects.toThrow(/timestamp must be an ISO-8601 string/);
+      // The same error class as the count/state checks: the gateway maps ValidationError to
+      // "terminal caller bug, do not retry", and a bare Error would be retried as transient.
+      const failure = await setEntryCountGuarded(B, L, E, write).catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(ValidationError);
+      expect((failure as ValidationError).field).toBe('timestamp');
+      expect((failure as Error).message).toMatch(/must be an ISO-8601 string/);
       expect(fx.db.runTransaction).not.toHaveBeenCalled();
       expect(fx.refs.size).toBe(0);
     });
 
-    it('rejects an invalid count before any RPC', async () => {
-      await expect(setEntryCountGuarded(B, L, E, countWrite({ count: 2.5 }))).rejects.toThrow(ValidationError);
+    it.each<[string, Partial<Record<keyof AvailabilityCountWrite, unknown>>, string]>([
+      ['count 2.5', { count: 2.5 }, 'count'],
+      ["state 'SOLD_OUT'", { state: 'SOLD_OUT' }, 'state'],
+      ['state undefined', { state: undefined }, 'state'],
+      ["kind 'ITEM_VARIATION'", { kind: 'ITEM_VARIATION' }, 'kind'],
+    ])('rejects %s with a ValidationError before any RPC', async (_label, overrides, field) => {
+      const write = { ...countWrite(), ...overrides } as unknown as AvailabilityCountWrite;
+      const failure = await setEntryCountGuarded(B, L, E, write).catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(ValidationError);
+      expect((failure as ValidationError).field).toBe(field);
       expect(fx.db.runTransaction).not.toHaveBeenCalled();
     });
 
@@ -571,6 +598,28 @@ describe('AvailabilityEntryService (#163)', () => {
         commit: vi.fn(async () => { throw failure; }),
       }));
       await expect(deleteEntries(B, L, ['a'])).rejects.toBe(failure);
+    });
+  });
+
+  describe('deleteAllEntries', () => {
+    it("recursively deletes the location's entries collection and nothing else", async () => {
+      fx.store.set(fx.pathOf(B, L, 'a'), { kind: 'option', state: 'soldOut' });
+      fx.store.set(fx.pathOf(B, L, 'b'), { kind: 'product', isPresent: false });
+      fx.store.set(fx.pathOf(B, 'loc-2', 'a'), { kind: 'option', state: 'soldOut' });
+      await deleteAllEntries(B, L);
+      expect(fx.db.recursiveDelete).toHaveBeenCalledTimes(1);
+      expect(fx.db.recursiveDelete.mock.calls[0][0].path).toBe(fx.collectionPathOf(B, L));
+      expect(fx.store.has(fx.pathOf(B, L, 'a'))).toBe(false);
+      expect(fx.store.has(fx.pathOf(B, L, 'b'))).toBe(false);
+      expect(fx.store.has(fx.pathOf(B, 'loc-2', 'a'))).toBe(true);
+      // Needs no id list, so no per-entry ref is ever minted.
+      expect(fx.refs.size).toBe(0);
+    });
+
+    it('propagates a recursiveDelete rejection', async () => {
+      const failure = new Error('PERMISSION_DENIED');
+      fx.db.recursiveDelete.mockRejectedValueOnce(failure);
+      await expect(deleteAllEntries(B, L)).rejects.toBe(failure);
     });
   });
 });

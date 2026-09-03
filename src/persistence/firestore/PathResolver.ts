@@ -135,7 +135,9 @@ export class PathResolver {
    * `businesses/{businessId}/public/catalog/inventory/{locationId}/entries`.
    * Parented on `availabilityDoc` — the legacy per-location megadoc — so the two stores coexist
    * during dual-write, and because Firestore subcollections do not cascade the entries survive
-   * the legacy doc's deletion at retirement. Not `inventoryRootDoc` (`public/inventory`).
+   * the legacy doc's deletion at retirement. The same non-cascade means a location teardown
+   * that deletes the legacy doc must also call `AvailabilityEntryService.deleteAllEntries`, or
+   * the entries linger under a phantom parent. Not `inventoryRootDoc` (`public/inventory`).
    * Each location owns its own collection: sequential `updatedAt` indexing caps a collection at
    * ~500 sustained writes/s (contract §1 "Indexes").
    */

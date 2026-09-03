@@ -1,7 +1,7 @@
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { PathResolver } from '../../persistence/firestore/PathResolver';
 import { stripUndefined } from '../../persistence/firestore/sanitize';
-import { requireNonNegativeIntegerOrNeg1 } from '../validation';
+import { requireNonNegativeIntegerOrNeg1, ValidationError } from '../validation';
 
 /**
  * P41 per-entity availability entry — one document per (location, catalog entity) at
@@ -42,6 +42,14 @@ export type AvailabilityEntryKind = AvailabilityEntry['kind'];
 export type AvailabilityEntryState = NonNullable<AvailabilityEntry['state']>;
 
 /**
+ * The `count` the sync writes at an untracked location (contract §1); readers and
+ * {@link isDefaultEntry} treat it as "absent". Same value and meaning as the gateway's
+ * `UNTRACKED_COUNT` (`locationHelpers.ts`) — distinct from the `-1` "no constraint" sentinel of
+ * OptionSet min/maxSelection, which merely shares the validator.
+ */
+export const UNTRACKED_COUNT = -1;
+
+/**
  * Caller-writable fields: `kind` required, `updatedAt` service-owned.
  *
  * `kind` is required here (and only optional-with-default on {@link AvailabilityCountWrite}) on
@@ -55,7 +63,9 @@ export type AvailabilityEntryWrite =
 /**
  * Runtime allow-list backing `AvailabilityEntryWrite`; the parity test pins it to the snapshot
  * minus `updatedAt`. Types only bind TypeScript callers — this list is what stops an untyped JS
- * caller's `isAvailable` or `updatedAt` from ever reaching the SDK.
+ * caller's `isAvailable` or `updatedAt` from ever reaching the SDK, and `validateWrite` below is
+ * what stops a mistyped value (`kind: undefined`, `state: 'SOLD_OUT'`, `isHidden: null`) from
+ * landing as a document the fold cannot classify.
  */
 export const ENTRY_WRITABLE_FIELDS = [
   'kind', 'isPresent', 'state', 'count', 'isInventoryTracked', 'isHidden', 'timestamp',
@@ -67,7 +77,8 @@ export interface AvailabilityCountWrite {
   /** Square `calculated_at`, ISO-8601. Required: an unguarded count write would defeat the monotonic guard. */
   timestamp: string;
   /**
-   * Written only when the entry does not yet exist. Square counts exist only for ITEM_VARIATIONs
+   * Written only when the stored document has no `kind` (missing document, or one created by a
+   * writer whose payload carries no `kind`). Square counts exist only for ITEM_VARIATIONs
    * (= Options), hence the `'option'` default — the one place `kind` is optional. On
    * {@link AvailabilityEntryWrite} it is required because there is no such default to fall back on.
    */
@@ -106,7 +117,7 @@ export function isDefaultEntry(entry: Readonly<Partial<AvailabilityEntry>>): boo
   return entry.isPresent !== false
     && entry.state !== 'soldOut'
     && entry.isHidden !== true
-    && (entry.count === undefined || entry.count === -1)
+    && (entry.count === undefined || entry.count === UNTRACKED_COUNT)
     && entry.isInventoryTracked !== false;
 }
 
@@ -130,8 +141,9 @@ export function isDefaultEntry(entry: Readonly<Partial<AvailabilityEntry>>): boo
 /**
  * Upsert the caller's owned fields onto an entry and bump `updatedAt`.
  *
- * Payload keys are allow-listed at runtime (`ENTRY_WRITABLE_FIELDS`), `undefined` values are
- * stripped, and `updatedAt` is always the server-timestamp sentinel — a caller-supplied
+ * Payload keys are allow-listed at runtime (`ENTRY_WRITABLE_FIELDS`), every present value is
+ * validated against the contract's domain (`ValidationError`, before any RPC), `undefined` values
+ * are dropped, and `updatedAt` is always the server-timestamp sentinel — a caller-supplied
  * `updatedAt` is discarded, not merged.
  */
 export async function setEntry(
@@ -140,8 +152,9 @@ export async function setEntry(
   entityId: string,
   entry: AvailabilityEntryWrite,
 ): Promise<void> {
-  if (entry.count !== undefined) requireNonNegativeIntegerOrNeg1('count', entry.count);
-  const payload = stripUndefined({ ...pickWritable(entry), updatedAt: FieldValue.serverTimestamp() });
+  const fields = pickWritable(entry);
+  validateWrite(fields, { isKindRequired: true });
+  const payload = { ...fields, updatedAt: FieldValue.serverTimestamp() };
   await entryRef(businessId, locationId, entityId).set(payload, { merge: true });
 }
 
@@ -158,13 +171,12 @@ export async function setEntry(
  * string order mis-ranks mixed offsets (`+00:00` vs `Z`) and mixed precision. Equal instants abort
  * (`>=`), matching the gateway's guard. An unparseable STORED timestamp yields `NaN >= x`, which is
  * `false`, so a poisoned entry self-heals on the next good write instead of wedging forever. The
- * INCOMING timestamp is required and validated before the transaction opens: without it the
- * monotonic guard has nothing to compare, so it is a caller bug, not a skip.
+ * INCOMING payload is validated before the transaction opens: without a timestamp the monotonic
+ * guard has nothing to compare, so a bad value is a caller bug (`ValidationError`), not a skip.
  *
- * `kind` is written only when the document is being created here: an existing document already
- * has one, and Square inventory counts exist only for ITEM_VARIATIONs, so the create-on-missing
- * default is `'option'`. Overwriting an existing `kind` from a count write would let a webhook
- * reclassify a product entry.
+ * `kind` is stamped only when the stored document has none (see {@link AvailabilityCountWrite}):
+ * a stored `kind` is never overwritten, so a webhook cannot reclassify a product entry, while a
+ * document created by a `kind`-less writer (a Remy toggle) is classified on its first count.
  *
  * Nothing is logged on either skip path — see {@link GuardedWriteOutcome}.
  */
@@ -174,11 +186,10 @@ export async function setEntryCountGuarded(
   entityId: string,
   count: AvailabilityCountWrite,
 ): Promise<GuardedWriteOutcome> {
-  const incomingMs = typeof count.timestamp === 'string' ? Date.parse(count.timestamp) : NaN;
-  if (Number.isNaN(incomingMs)) {
-    throw new Error('setEntryCountGuarded: timestamp must be an ISO-8601 string');
-  }
+  const incomingMs = requireIsoTimestamp(count.timestamp);
+  requireState(count.state);
   requireNonNegativeIntegerOrNeg1('count', count.count);
+  if (count.kind !== undefined) requireKind(count.kind);
 
   const ref = entryRef(businessId, locationId, entityId);
   return getFirestore().runTransaction(async (tx): Promise<GuardedWriteOutcome> => {
@@ -190,7 +201,7 @@ export async function setEntryCountGuarded(
     if (typeof stored === 'string' && Date.parse(stored) >= incomingMs) return 'skippedStale';
 
     const payload = stripUndefined({
-      ...(snap.exists ? {} : { kind: count.kind ?? 'option' }),
+      kind: data?.kind === undefined ? count.kind ?? 'option' : undefined,
       state: count.state,
       count: count.count,
       timestamp: count.timestamp,
@@ -247,19 +258,75 @@ export async function deleteEntries(
   }
 }
 
+/**
+ * Delete every entry at a location — the teardown pair of
+ * `AvailabilityService.deleteAvailabilityDoc`. Firestore does not cascade: deleting the legacy
+ * per-location doc (which the gateway does on every active→inactive location edge) leaves this
+ * subcollection alive under a phantom parent, and a later re-activation would resurrect stale
+ * `soldOut`/`count` from it. Streams the collection through the SDK's `recursiveDelete`
+ * (BulkWriter-backed, so the write ramp is the SDK's), which needs no id list.
+ */
+export async function deleteAllEntries(businessId: string, locationId: string): Promise<void> {
+  await getFirestore().recursiveDelete(PathResolver.inventoryEntriesCollection(businessId, locationId));
+}
+
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
 
-type WritableEntryFields = Partial<Pick<AvailabilityEntry, (typeof ENTRY_WRITABLE_FIELDS)[number]>>;
+const ENTRY_KINDS: readonly string[] = ['product', 'option'];
+const ENTRY_STATES: readonly string[] = ['inStock', 'soldOut'];
 
-/** Copies only allow-listed keys that are present on the input; `undefined` values are left for `stripUndefined`. */
-function pickWritable(entry: AvailabilityEntryWrite): WritableEntryFields {
+function requireKind(value: unknown): void {
+  if (!ENTRY_KINDS.includes(value as string)) {
+    throw new ValidationError('kind', "must be 'product' or 'option'");
+  }
+}
+
+function requireState(value: unknown): void {
+  if (!ENTRY_STATES.includes(value as string)) {
+    throw new ValidationError('state', "must be 'inStock' or 'soldOut'");
+  }
+}
+
+function requireBoolean(field: string, value: unknown): void {
+  if (typeof value !== 'boolean') {
+    throw new ValidationError(field, 'must be a boolean');
+  }
+}
+
+/** Parsed millis of an ISO-8601 string; anything else (including a `Date` or a `Timestamp`) is a caller bug. */
+function requireIsoTimestamp(value: unknown): number {
+  const ms = typeof value === 'string' ? Date.parse(value) : NaN;
+  if (Number.isNaN(ms)) {
+    throw new ValidationError('timestamp', 'must be an ISO-8601 string');
+  }
+  return ms;
+}
+
+/**
+ * Domain checks for every field that is present (`undefined` = not written, so not checked).
+ * `null` is a stored value in Firestore, so it is rejected like any other wrong type rather than
+ * treated as "absent" — otherwise `isInventoryTracked: null` would read as tracked by the webhook
+ * guard and as default by the sweep, the gateway#375 regression in a different coat.
+ */
+function validateWrite(fields: Partial<AvailabilityEntryWrite>, options: { isKindRequired: boolean }): void {
+  if (options.isKindRequired || fields.kind !== undefined) requireKind(fields.kind);
+  if (fields.state !== undefined) requireState(fields.state);
+  if (fields.count !== undefined) requireNonNegativeIntegerOrNeg1('count', fields.count);
+  if (fields.isPresent !== undefined) requireBoolean('isPresent', fields.isPresent);
+  if (fields.isInventoryTracked !== undefined) requireBoolean('isInventoryTracked', fields.isInventoryTracked);
+  if (fields.isHidden !== undefined) requireBoolean('isHidden', fields.isHidden);
+  if (fields.timestamp !== undefined) requireIsoTimestamp(fields.timestamp);
+}
+
+/** Copies only allow-listed keys with a defined value, so the payload needs no `undefined` scrub. */
+function pickWritable(entry: AvailabilityEntryWrite): Partial<AvailabilityEntryWrite> {
   const picked: Record<string, unknown> = {};
   for (const field of ENTRY_WRITABLE_FIELDS) {
-    if (field in entry) picked[field] = entry[field];
+    if (entry[field] !== undefined) picked[field] = entry[field];
   }
-  return picked as WritableEntryFields;
+  return picked as Partial<AvailabilityEntryWrite>;
 }
 
 function normalizeIds(ids: readonly string[]): string[] {

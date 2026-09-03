@@ -49,11 +49,11 @@ describe('public API surface (#163)', () => {
     expect(typeof services.setEntryCountGuarded).toBe('function');
     expect(typeof services.getEntries).toBe('function');
     expect(typeof services.deleteEntries).toBe('function');
+    expect(typeof services.deleteAllEntries).toBe('function');
     // Callable AND correct: the gateway#375 clause is the one a consumer is most likely to lean on.
     expect(services.isDefaultEntry({ kind: 'option', isInventoryTracked: false })).toBe(false);
     expect(services.isDefaultEntry({ kind: 'option' })).toBe(true);
-    expect(services.GET_ENTRIES_CHUNK).toBe(100);
-    expect(services.DELETE_ENTRIES_CHUNK).toBe(500);
+    expect(services.isDefaultEntry({ kind: 'option', count: services.UNTRACKED_COUNT })).toBe(true);
     expect(services.ENTRY_WRITABLE_FIELDS).toContain('isInventoryTracked');
     expect(services.ENTRY_WRITABLE_FIELDS).not.toContain('isAvailable');
   });

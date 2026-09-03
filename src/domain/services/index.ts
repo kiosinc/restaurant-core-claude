@@ -60,14 +60,14 @@ export {
   AvailabilityCountWrite,
   GuardedWriteOutcome,
   ENTRY_WRITABLE_FIELDS,
-  GET_ENTRIES_CHUNK,
-  DELETE_ENTRIES_CHUNK,
+  UNTRACKED_COUNT,
   entryRef,
   isDefaultEntry,
   setEntry,
   setEntryCountGuarded,
   getEntries,
   deleteEntries,
+  deleteAllEntries,
 } from './AvailabilityEntryService';
 
 // #207: the rebuild-relevant read-sets, exported so a cascade caller gates on this repo's

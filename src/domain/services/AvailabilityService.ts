@@ -252,5 +252,9 @@ export async function removeProductAvailability(businessId: string, locationId: 
 export async function deleteAvailabilityDoc(businessId: string, locationId: string): Promise<void> {
   // delete() has no existence precondition — it is already idempotent on a
   // missing document, so an exists-check or try/catch here would be dead code.
+  //
+  // NOT recursive: the P41 `entries` subcollection under this doc survives it
+  // (Firestore does not cascade). A location teardown that must also drop the
+  // entries calls `AvailabilityEntryService.deleteAllEntries` alongside this.
   await PathResolver.availabilityDoc(businessId, locationId).delete();
 }
