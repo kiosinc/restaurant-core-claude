@@ -203,6 +203,43 @@ describe('OrderRepository', () => {
     expect(restored!.timestamp.getTime()).toBe(original.timestamp.getTime());
   });
 
+  // #63: `createOrder` runs on the READ path too (fromFirestore hydrates through it), so its
+  // returned literal is the real whitelist — a field on the type but missing from that literal is
+  // written and then silently dropped on every read. These two pin the whole chain, not the type.
+  it('round-trip: appFee survives toFirestore -> fromFirestore', async () => {
+    const original = createOrder(createTestOrderInput({ Id: 'order-fee', appFee: 34 }));
+
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect(serialized.appFee).toBe(34);
+
+    mockDocRef.get.mockResolvedValue({
+      exists: true,
+      data: () => serialized,
+      id: 'order-fee',
+    });
+    const restored = await repo.get('biz-1', 'order-fee');
+
+    expect(restored!.appFee).toBe(34);
+  });
+
+  it('round-trip: an omitted appFee is neither written nor hydrated', async () => {
+    const original = createOrder(createTestOrderInput({ Id: 'order-nofee' }));
+
+    await repo.set(original, 'biz-1');
+    const serialized = mockTransaction.set.mock.calls[0][1];
+    expect('appFee' in serialized).toBe(false);
+
+    mockDocRef.get.mockResolvedValue({
+      exists: true,
+      data: () => serialized,
+      id: 'order-nofee',
+    });
+    const restored = await repo.get('biz-1', 'order-nofee');
+
+    expect('appFee' in restored!).toBe(false);
+  });
+
   it('fromFirestore handles null referralCode', async () => {
     const serialized = createFullSerializedOrder();
     delete (serialized as any).referralCode;
