@@ -55,9 +55,19 @@ describe('OrderSettings', () => {
     expect(os.isKioskSessionIdleTimerOn).toBe(true);
   });
 
-  it('defaults isFreeOrdersEnabled to true', () => {
+  it('defaults isFreeOrdersEnabled to false (#216)', () => {
     const os = createOrderSettings(createFullInput({ isFreeOrdersEnabled: undefined as any }));
+    expect(os.isFreeOrdersEnabled).toBe(false);
+  });
+
+  it('keeps an explicit isFreeOrdersEnabled: true', () => {
+    const os = createOrderSettings(createFullInput({ isFreeOrdersEnabled: true }));
     expect(os.isFreeOrdersEnabled).toBe(true);
+  });
+
+  it('keeps an explicit isFreeOrdersEnabled: false', () => {
+    const os = createOrderSettings(createFullInput({ isFreeOrdersEnabled: false }));
+    expect(os.isFreeOrdersEnabled).toBe(false);
   });
 
   it('defaults other booleans to false', () => {
@@ -90,5 +100,38 @@ describe('OrderSettings', () => {
     expect(os.created).toBeInstanceOf(Date);
     expect(os.updated).toBeInstanceOf(Date);
     expect(os.isDeleted).toBe(false);
+  });
+
+  it('resolves every default from the minimal required input (#216)', () => {
+    const pinned = new Date('2024-01-15T10:00:00.000Z');
+    const os = createOrderSettings({
+      isSMSStateUpdate: true,
+      isLoyaltyAccrue: true,
+      isStateAutoNewToInProgress: false,
+      Id: 'orders',
+      created: pinned,
+      updated: pinned,
+    });
+
+    expect(os).toStrictEqual({
+      Id: 'orders',
+      created: pinned,
+      updated: pinned,
+      isDeleted: false,
+      isSMSStateUpdate: true,
+      isLoyaltyAccrue: true,
+      isStateAutoNewToInProgress: false,
+      gratuityRates: [10, 15, 20],
+      isSquareDiscountCodeAPI: false,
+      isSquareAutoApplyDiscounts: false,
+      isSquareAutoApplyTaxes: true,
+      isSquareDiscountCodeAutoEnabled: false,
+      isKioskSessionIdleTimerOn: true,
+      isFreeOrdersEnabled: false,
+      isSingleLineItemsOnly: false,
+      ticketHeaderFormat: null,
+      smsReadyTextFormat: null,
+      smsReceiptTextFormat: null,
+    });
   });
 });
