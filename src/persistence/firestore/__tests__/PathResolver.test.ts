@@ -131,4 +131,19 @@ describe('PathResolver', () => {
     PathResolver.webhookClaimsCollection();
     expect(lastPath).toBe('webhookClaims');
   });
+
+  it('availabilityDoc returns the legacy per-location inventory doc path', () => {
+    PathResolver.availabilityDoc('biz-1', 'loc-1');
+    expect(lastPath).toBe('businesses/biz-1/public/catalog/inventory/loc-1');
+  });
+
+  it('inventoryEntriesCollection nests entries under the per-location inventory doc', () => {
+    PathResolver.inventoryEntriesCollection('biz-1', 'loc-1');
+    expect(lastPath).toBe('businesses/biz-1/public/catalog/inventory/loc-1/entries');
+  });
+
+  it('inventoryEntryDoc keys the entry by the KIOS entity id', () => {
+    PathResolver.inventoryEntryDoc('biz-1', 'loc-1', 'ent-1');
+    expect(lastPath).toBe('businesses/biz-1/public/catalog/inventory/loc-1/entries/ent-1');
+  });
 });

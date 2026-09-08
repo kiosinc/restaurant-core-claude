@@ -59,6 +59,14 @@ describe('BusinessFactory - createBusiness', () => {
     expect(mockTransaction.set).toHaveBeenCalledTimes(8);
   });
 
+  it('a new business persists isFreeOrdersEnabled: false (#216)', async () => {
+    mockTransaction.get.mockResolvedValue({ data: () => null });
+    await createBusiness(defaultInput);
+    // Sixth of the eight root writes — see the t.set order in createBusiness.
+    const orderSettingsData = mockTransaction.set.mock.calls[5][1];
+    expect(orderSettingsData.isFreeOrdersEnabled).toBe(false);
+  });
+
   it('sets feature list when available (9th set call)', async () => {
     mockTransaction.get.mockResolvedValue({ data: () => ({ someFeature: true }) });
     await createBusiness(defaultInput);

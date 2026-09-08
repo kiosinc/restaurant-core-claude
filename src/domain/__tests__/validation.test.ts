@@ -7,6 +7,9 @@ import {
   requireNonNegativeInteger,
   requireNonNegativeIntegerOrNeg1,
   requireMinLessOrEqual,
+  requireBoolean,
+  requireOneOf,
+  requireIsoTimestamp,
 } from '../validation';
 
 describe('ValidationError', () => {
@@ -182,5 +185,52 @@ describe('requireMinLessOrEqual', () => {
 
   it('passes when both are -1 sentinel', () => {
     expect(() => requireMinLessOrEqual('min', -1, 'max', -1)).not.toThrow();
+  });
+});
+
+describe('requireBoolean', () => {
+  it('passes for true and false', () => {
+    expect(() => requireBoolean('isHidden', true)).not.toThrow();
+    expect(() => requireBoolean('isHidden', false)).not.toThrow();
+  });
+
+  it.each([null, undefined, 0, 1, 'true', ''])('rejects %p', (value) => {
+    expect(() => requireBoolean('isHidden', value)).toThrow(ValidationError);
+    expect(() => requireBoolean('isHidden', value)).toThrow(/must be a boolean/);
+  });
+
+  it('names the field', () => {
+    try {
+      requireBoolean('isPresent', null);
+    } catch (err) {
+      expect((err as ValidationError).field).toBe('isPresent');
+    }
+  });
+});
+
+describe('requireOneOf', () => {
+  const allowed = ['inStock', 'soldOut'] as const;
+
+  it('passes for a listed value', () => {
+    expect(() => requireOneOf('state', allowed, 'inStock')).not.toThrow();
+    expect(() => requireOneOf('state', allowed, 'soldOut')).not.toThrow();
+  });
+
+  it.each(['SOLD_OUT', 'instock', '', null, undefined, 0])('rejects %p', (value) => {
+    expect(() => requireOneOf('state', allowed, value)).toThrow(ValidationError);
+    expect(() => requireOneOf('state', allowed, value)).toThrow(/must be one of: 'inStock', 'soldOut'/);
+  });
+});
+
+describe('requireIsoTimestamp', () => {
+  it('returns the epoch millis of an ISO-8601 string', () => {
+    const iso = '2026-09-03T12:00:00.000Z';
+    expect(requireIsoTimestamp('timestamp', iso)).toBe(Date.parse(iso));
+    expect(requireIsoTimestamp('timestamp', '2026-09-03T12:00:00+00:00')).toBe(Date.parse(iso));
+  });
+
+  it.each(['', 'not-a-date', null, undefined, 1756900000000, new Date()])('rejects %p', (value) => {
+    expect(() => requireIsoTimestamp('timestamp', value)).toThrow(ValidationError);
+    expect(() => requireIsoTimestamp('timestamp', value)).toThrow(/must be an ISO-8601 string/);
   });
 });

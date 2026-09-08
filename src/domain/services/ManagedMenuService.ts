@@ -599,9 +599,9 @@ export async function syncManagedSquareMenu(
   // point re-runnable instead: an extra un-referenced managed group is re-used (or deleted) next
   // run, and a deleted-but-still-listed group is dropped from the assembly next run.
   //
-  // Sequential awaits, no `db.batch()` / `BulkWriter`: there is no precedent for either anywhere
-  // in `src/`, and `rebuildMenus` opens its own transactions immediately afterwards, so
-  // end-to-end atomicity is unreachable regardless of how these writes are grouped.
+  // Sequential awaits, no `db.batch()` / `BulkWriter`: `rebuildMenus` opens its own transactions
+  // immediately afterwards, so end-to-end atomicity is unreachable regardless of how these writes
+  // are grouped, and a batch would only add a 500-op ceiling to reason about.
   const groupsRef = PathResolver.menuGroupsCollection(businessId);
   for (const group of plan.groupCreates) {
     // Converter output, so already stripped at the converter boundary (#204). The assembly update

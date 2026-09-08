@@ -250,4 +250,36 @@ describe('Order (domain)', () => {
       }))).not.toThrow();
     });
   });
+
+  // #63: `appFee` is cents mirrored from Square's `appFeeMoney` by the payment webhook, so an
+  // order has no fee until that webhook lands. Absent means "not yet mirrored" — the key is
+  // omitted rather than defaulted, because 0 is a real fee and not the same claim.
+  describe('#63 — appFee is absent until the payment webhook mirrors it', () => {
+    it('omits the key entirely when no appFee is supplied', () => {
+      const order = createOrder(createTestOrderInput());
+      // `in`, not toBeUndefined(): a present-but-undefined key satisfies toBeUndefined, so that
+      // assertion would pass under the exact bug this test exists to pin.
+      expect('appFee' in order).toBe(false);
+    });
+
+    it('preserves a supplied appFee', () => {
+      expect(createOrder(createTestOrderInput({ appFee: 34 })).appFee).toBe(34);
+    });
+
+    it('preserves an appFee of 0', () => {
+      // Pins against a falsy `&&` guard, which would drop a legitimate zero fee.
+      const order = createOrder(createTestOrderInput({ appFee: 0 }));
+      expect('appFee' in order).toBe(true);
+      expect(order.appFee).toBe(0);
+    });
+
+    it('throws ValidationError for a negative appFee', () => {
+      expect(() => createOrder(createTestOrderInput({ appFee: -1 }))).toThrow(ValidationError);
+    });
+
+    it('throws ValidationError for a non-numeric appFee', () => {
+      expect(() => createOrder(createTestOrderInput({ appFee: '34' as unknown as number })))
+        .toThrow(ValidationError);
+    });
+  });
 });

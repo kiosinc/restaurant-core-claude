@@ -45,7 +45,8 @@ All business logic lives under `src/domain/` organized by subdomain:
 - **surfaces/** — Menu, MenuGroup, KioskConfiguration, CheckoutOptions, SurfaceConfiguration
 - **locations/** — Location model with location-specific settings
 - **connected-accounts/** — External integrations (Square POS), Event queue, Tokens
-- **services/** — CatalogCascadeService (denormalization cascade), MenuRebuildService (menu rebuild from catalog), RebuildRelevance (exported rebuild-relevant field sets + `affectsRebuild`), AvailabilityService (per-location product/option availability), FeatureFlagService (cached feature flags)
+- **services/** — CatalogCascadeService (denormalization cascade), MenuRebuildService (menu rebuild from catalog), RebuildRelevance (exported rebuild-relevant field sets + `affectsRebuild`), AvailabilityService (per-location product/option availability), AvailabilityEntryService (P41 per-entity availability entries; contract rcc#162), FeatureFlagService (cached feature flags)
+- **utils/** — `roundHalfEven` (banker's rounding to an integer), shared with square-gateway-claude's platform-fee math; published as `Domain.Utils.roundHalfEven`
 
 Supporting modules:
 - **src/firestore-core/** — Base persistence classes and Firestore path constants

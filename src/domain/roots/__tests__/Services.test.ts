@@ -34,4 +34,20 @@ describe('Services', () => {
       expect(() => createServices({})).not.toThrow();
     });
   });
+
+  // #63 (P6 Stage 0-1) deliberately adds NOTHING here: no `devFeeRate`, `devFeeAmount`,
+  // `devFeeOrderMax`, `devFeeMonthMax` or `isUsePlanAppFee`. Only `Order.appFee` and the
+  // `roundHalfEven` helper land in this stage, and the billing-profile fields come later. This
+  // test pins the shape so a later stage cannot quietly widen it here, and pins the 1.5
+  // `kioskFeeRate` seed that abbevillian-era businesses rely on.
+  //
+  // Key set = `baseEntityDefaults` (Id/created/updated/isDeleted always; syncTraceId only when
+  // supplied, and it is not here) plus the two fields createServices adds.
+  it('#63 — createServices({}) shape and defaults are unchanged (no devFee* fields)', () => {
+    const svc = createServices({});
+    expect(Object.keys(svc).sort())
+      .toEqual(['Id', 'created', 'experiments', 'isDeleted', 'kioskFeeRate', 'updated']);
+    expect(svc.kioskFeeRate).toBe(1.5);
+    expect(svc.experiments).toEqual({});
+  });
 });

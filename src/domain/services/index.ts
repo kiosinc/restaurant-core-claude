@@ -50,6 +50,25 @@ export {
   syncManagedSquareMenu,
 } from './ManagedMenuService';
 
+// P41 per-entity availability entries (rcc#163, contract rcc#162 §1). Sibling of the legacy
+// AvailabilityService above, not a replacement of it: the two coexist through dual-write.
+export {
+  AvailabilityEntry,
+  AvailabilityEntryKind,
+  AvailabilityEntryState,
+  AvailabilityEntryWrite,
+  AvailabilityCountWrite,
+  GuardedWriteOutcome,
+  ENTRY_WRITABLE_FIELDS,
+  UNTRACKED_COUNT,
+  entryRef,
+  isDefaultEntry,
+  setEntry,
+  setEntryCountGuarded,
+  getEntries,
+  deleteEntries,
+} from './AvailabilityEntryService';
+
 // #207: the rebuild-relevant read-sets, exported so a cascade caller gates on this repo's
 // contract instead of re-deriving it from ProductMeta/MenuProductMeta/MenuGroupMeta by hand.
 export {

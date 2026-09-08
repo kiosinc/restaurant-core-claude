@@ -240,4 +240,28 @@ describe('converter output shape (#204 boundary guard)', () => {
     expect(written.fulfillment.scheduledTime).toBe(scheduledTime);
     expect(typeof written.timestamp).toBe('string');
   });
+
+  // #63 lives here as a standalone `it`, NOT a second `converterCases` entry: the meta-test above
+  // asserts the exported converter names equal `converterCases.map(c => c.name)`, so a duplicate
+  // 'orderConverter' entry would break that equality.
+  //
+  // Note what this test can and cannot see: `toFirestore` runs `stripUndefined`, so an
+  // unconditional `appFee: input.appFee` in `createOrder` is scrubbed before the assertions
+  // below ever look — mutation-checked, the whole file stays green under that bug. The tripwires
+  // for it are the ENTITY-level assertions (`Order.test.ts` "omits the key entirely" and
+  // `OrderRepository.test.ts` "an omitted appFee is neither written nor hydrated"), which is why
+  // the absent case is asserted on the entity here too, before serialization.
+  it('#63 — writes a supplied appFee and omits an absent one', () => {
+    const withFee = Converters.orderConverter.toFirestore(
+      createOrder({ ...legacyOrderInput, appFee: 34 } as unknown as MinimalInput<typeof createOrder>),
+    ) as { appFee?: number };
+    expect(withFee.appFee).toBe(34);
+    expect(undefinedPaths(withFee)).toEqual([]);
+
+    const orderWithoutFee = createOrder(legacyOrderInput as unknown as MinimalInput<typeof createOrder>);
+    expect('appFee' in orderWithoutFee).toBe(false);
+    const withoutFee = Converters.orderConverter.toFirestore(orderWithoutFee) as { appFee?: number };
+    expect('appFee' in withoutFee).toBe(false);
+    expect(undefinedPaths(withoutFee)).toEqual([]);
+  });
 });

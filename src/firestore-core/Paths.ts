@@ -33,6 +33,8 @@ export enum CollectionNames {
   collections = 'collections',
   services = 'services',
   inventory = 'inventory',
+  // P41: per-entity availability entries under `catalog/inventory/{locationId}` (rcc#162 §1).
+  entries = 'entries',
 
   orders = 'orders',
   locations = 'locations',

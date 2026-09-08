@@ -107,6 +107,7 @@ export interface OrderInput {
   redeemedLoyaltyRewardIds?: string[];
   redeemedCodeRedemptions?: RedeemedCodeRedemption[];
   composableTenders?: ComposableTender[];
+  appFee?: number;
 }
 
 export interface Order extends BaseEntity {
@@ -142,6 +143,8 @@ export interface Order extends BaseEntity {
   redeemedLoyaltyRewardIds: string[];
   redeemedCodeRedemptions: RedeemedCodeRedemption[];
   composableTenders: ComposableTender[];
+  // Cents — mirrored from Square's `appFeeMoney` by the payment webhook; absent until then.
+  appFee?: number;
 }
 
 export function createOrder(input: OrderInput & Partial<BaseEntity>): Order {
@@ -156,6 +159,7 @@ export function createOrder(input: OrderInput & Partial<BaseEntity>): Order {
   requireNonNegativeNumber('totalTaxAmount', input.totalTaxAmount);
   requireNonNegativeNumber('totalSurchargeAmount', input.totalSurchargeAmount);
   requireNonNegativeNumber('totalTipAmount', input.totalTipAmount);
+  if (input.appFee !== undefined) requireNonNegativeNumber('appFee', input.appFee);
   return {
     ...baseEntityDefaults(input),
     version: input.version ?? '3',
@@ -190,5 +194,8 @@ export function createOrder(input: OrderInput & Partial<BaseEntity>): Order {
     redeemedLoyaltyRewardIds: input.redeemedLoyaltyRewardIds ?? [],
     redeemedCodeRedemptions: input.redeemedCodeRedemptions ?? [],
     composableTenders: input.composableTenders ?? [],
+    // #63: absent means "not yet mirrored" and 0 is a real fee, so the key is omitted rather than
+    // defaulted — mirrors `calorieCount` (#204).
+    ...(input.appFee !== undefined && { appFee: input.appFee }),
   };
 }
