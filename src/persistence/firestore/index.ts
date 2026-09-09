@@ -7,4 +7,8 @@ export { menuGroupMetadataSpec } from './MenuGroupMetadataSpec';
 export * from './handlers';
 export { PathResolver } from './PathResolver';
 export { createBusiness, CreateBusinessInput } from './BusinessFactory';
+export {
+  invitationRef, setInvitation, getInvitation, listInvitations,
+  findInvitationByToken, updateInvitationStatus,
+} from './InvitationStore';
 export * from './converters';

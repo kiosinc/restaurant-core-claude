@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Business, createBusinessRoot, BusinessType, Role } from '../../../domain/roots/Business';
+import {
+  Business, createBusinessRoot, createBusinessMember, BusinessType, Role,
+} from '../../../domain/roots/Business';
 import { MetadataRegistry } from '../../MetadataRegistry';
 import { FirestoreRepository } from '../FirestoreRepository';
 import { businessConverter } from '../converters/businessConverter';
@@ -15,6 +17,18 @@ function createSerializedBusiness() {
     type: 'restaurant',
     businessProfile: { name: 'Test Restaurant', address: null, shippingAddress: null },
     roles: { 'uid-123': 'owner' },
+    members: {
+      'uid-123': {
+        role: 'admin',
+        permissions: {
+          kiosk: true, menu: true, profile: true, account: true,
+        },
+        locationScope: 'all',
+        status: 'active',
+        addedAt: 1705312800000,
+        addedBy: 'uid-123',
+      },
+    },
     created: ts, updated: ts, isDeleted: false,
   };
 }
@@ -37,11 +51,24 @@ describe('BusinessRepository', () => {
     expect(result!.agent).toBe('ios-device');
     expect(result!.businessProfile.name).toBe('Test Restaurant');
     expect(result!.roles['uid-123']).toBe('owner');
+    expect(result!.members['uid-123'].role).toBe('admin');
+    expect(result!.members['uid-123'].status).toBe('active');
   });
 
   it('get() returns null when missing', async () => {
     mockDocRef.get.mockResolvedValue({ exists: false });
     expect(await repo.get('biz-1', 'missing')).toBeNull();
+  });
+
+  // Back-compat: every business written before #131 has no `members` key. `createBusinessRoot`
+  // defaults it, so a legacy document hydrates cleanly and no data migration is needed to READ.
+  it('hydrates a legacy document with no members field to {} (#131)', async () => {
+    const legacy = createSerializedBusiness() as Record<string, unknown>;
+    delete legacy.members;
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => legacy, id: 'biz-1' });
+    const result = await repo.get('biz-1', 'biz-1');
+    expect(result!.members).toEqual({});
+    expect(result!.roles['uid-123']).toBe('owner');
   });
 
   it('set() serializes BusinessProfile', async () => {
@@ -64,6 +91,11 @@ describe('BusinessRepository', () => {
       type: BusinessType.restaurant,
       businessProfile: { name: 'Round Trip' },
       roles: { 'uid-2': Role.sysadmin },
+      members: {
+        'uid-2': createBusinessMember({
+          role: 'regular', locationScope: ['loc-1'], addedAt: ts.getTime(), addedBy: 'uid-2',
+        }),
+      },
       created: ts, updated: ts,
     });
     await repo.set(original, 'biz-rt');
@@ -73,5 +105,6 @@ describe('BusinessRepository', () => {
     expect(restored!.agent).toBe(original.agent);
     expect(restored!.businessProfile.name).toBe(original.businessProfile.name);
     expect(restored!.roles).toEqual(original.roles);
+    expect(restored!.members).toEqual(original.members);
   });
 });

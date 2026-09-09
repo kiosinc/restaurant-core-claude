@@ -67,3 +67,139 @@ describe('public API surface (#163)', () => {
     expect(Lib.Paths.CollectionNames.entries).toBe('entries');
   });
 });
+
+/**
+ * Outbound-boundary tests for rcc#131 (P34 team invites, contract rcc#130 §1.1).
+ *
+ * businesses#325 and remy#402 reach the member helpers as `Domain.Roots.*`, the E.164
+ * normalizer as `Domain.Utils.toE164`, the invitation store and converter as `Persistence.*`,
+ * the corrected invitation paths as `Persistence.PathResolver.*`, the collection name as
+ * `Paths.CollectionNames.invitations` and the middleware as `Authorization.*` — every one of them
+ * through the published root barrel. Same failure class as the two blocks above: a helper that
+ * exists in `roots/Business.ts` but never made it onto `roots/index.ts` would pass every
+ * deep-import test in `roots/__tests__/` and still be unreachable for the consumer.
+ *
+ * Callable-and-correct for the pure functions; presence-only for anything that would call
+ * `getFirestore()`, which needs an initialised app.
+ */
+describe('public API surface (#131)', () => {
+  const Roots = Lib.Domain.Roots;
+  const ADDED_AT = 1_700_000_000_000;
+
+  const activeAdmin = Roots.createBusinessMember({
+    role: 'admin', addedAt: ADDED_AT, addedBy: 'uid-owner',
+  });
+  const unusableAdmin = { ...activeAdmin, status: 'unusable' as const };
+
+  it('#131 exposes roleForPermission through Domain.Roots', () => {
+    expect(typeof Roots.roleForPermission).toBe('function');
+    // Callable AND correct: these two maps are what a consumer seeds `permissions` from.
+    expect(Roots.roleForPermission('admin')).toEqual({
+      kiosk: true, menu: true, profile: true, account: true,
+    });
+    expect(Roots.roleForPermission('regular')).toEqual({
+      kiosk: true, menu: true, profile: true, account: false,
+    });
+  });
+
+  it('#131 exposes isActiveMember/hasPermission/isLocationInScope through Domain.Roots', () => {
+    expect(Roots.isActiveMember(activeAdmin)).toBe(true);
+    expect(Roots.isActiveMember(undefined)).toBe(false);
+    expect(Roots.hasPermission(activeAdmin, 'account')).toBe(true);
+    expect(Roots.hasPermission(undefined, 'kiosk')).toBe(false);
+    // Status beats role (O4 / AC 8) — the deny a consumer is most likely to lean on.
+    expect(Roots.isActiveMember(unusableAdmin)).toBe(false);
+    expect(Roots.hasPermission(unusableAdmin, 'kiosk')).toBe(false);
+    expect(Roots.isLocationInScope(activeAdmin, 'loc-1')).toBe(true);
+    expect(Roots.isLocationInScope({ ...activeAdmin, locationScope: ['loc-2'] }, 'loc-1')).toBe(false);
+    expect(Roots.isLocationInScope(unusableAdmin, 'loc-1')).toBe(false);
+  });
+
+  it('#131 exposes createBusinessMember through Domain.Roots', () => {
+    expect(Roots.createBusinessMember({ role: 'regular', addedAt: ADDED_AT, addedBy: 'uid-owner' })).toEqual({
+      role: 'regular',
+      permissions: { kiosk: true, menu: true, profile: true, account: false },
+      locationScope: 'all',
+      status: 'active',
+      addedAt: ADDED_AT,
+      addedBy: 'uid-owner',
+    });
+  });
+
+  it('#131 exposes migrateRolesToMembers through Domain.Roots', () => {
+    const business = Roots.createBusinessRoot({
+      agent: 'ios-device',
+      createdBy: 'uid-owner',
+      type: Roots.BusinessType.restaurant,
+      businessProfile: { name: 'Test Restaurant' },
+      roles: { 'uid-owner': Roots.Role.owner, 'uid-sys': Roots.Role.sysadmin },
+    });
+    const members = Roots.migrateRolesToMembers(business);
+    // owner → active admin; sysadmin excluded.
+    expect(Object.keys(members)).toEqual(['uid-owner']);
+    expect(members['uid-owner'].role).toBe('admin');
+    expect(members['uid-owner'].status).toBe('active');
+    expect(members['uid-owner'].addedBy).toBe('uid-owner');
+  });
+
+  it('#131 exposes createBusinessInvitation and INVITE_TTL_MS through Domain.Roots', () => {
+    expect(Roots.INVITE_TTL_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    const invite = Roots.createBusinessInvitation({
+      channel: 'sms', phoneNumber: '+14155550132', role: 'regular', invitedBy: 'uid-owner',
+    });
+    // The TTL constant and the factory must agree through the barrel — a consumer computing an
+    // expiry from the published constant has to land on the same value the factory stamped.
+    expect(invite.expiresAt - invite.createdAt).toBe(Roots.INVITE_TTL_MS);
+    expect(invite.status).toBe('pending');
+    expect(typeof invite.token).toBe('string');
+  });
+
+  it('#131 exposes Domain.Utils.toE164 through the package root barrel', () => {
+    expect(typeof Lib.Domain.Utils.toE164).toBe('function');
+    expect(Lib.Domain.Utils.toE164('4155550132', 'US')).toBe('+14155550132');
+  });
+
+  it('#131 exposes the invitation store and converter through Persistence', () => {
+    // Presence only: every store function resolves a ref, which calls getFirestore().
+    expect(typeof Lib.Persistence.invitationRef).toBe('function');
+    expect(typeof Lib.Persistence.setInvitation).toBe('function');
+    expect(typeof Lib.Persistence.getInvitation).toBe('function');
+    expect(typeof Lib.Persistence.listInvitations).toBe('function');
+    expect(typeof Lib.Persistence.findInvitationByToken).toBe('function');
+    expect(typeof Lib.Persistence.updateInvitationStatus).toBe('function');
+    expect(Lib.Persistence.invitationConverter.modelKey).toBe('businessInvitation');
+  });
+
+  it('#131 exposes PathResolver.invitationsDoc/invitationsCollection/invitationDoc through Persistence', () => {
+    // Presence only: resolving a ref would call getFirestore(), which needs an initialised app.
+    expect(typeof Lib.Persistence.PathResolver.invitationsDoc).toBe('function');
+    expect(typeof Lib.Persistence.PathResolver.invitationsCollection).toBe('function');
+    expect(typeof Lib.Persistence.PathResolver.invitationDoc).toBe('function');
+  });
+
+  it("#131 exposes Paths.CollectionNames.invitations === 'invitations'", () => {
+    expect(Lib.Paths.CollectionNames.invitations).toBe('invitations');
+  });
+
+  it('#131 exposes the permission middleware through Authorization', () => {
+    expect(typeof Lib.Authorization.requirePermission).toBe('function');
+    expect(typeof Lib.Authorization.requireLocationScope).toBe('function');
+    expect(typeof Lib.Authorization.resolveMember).toBe('function');
+    // The factory itself is pure — it hands back the handler without touching Firestore, so this
+    // much is callable-and-correct even here. Invoking the handler is Authorization.test.ts's job.
+    expect(typeof Lib.Authorization.requirePermission('kiosk')).toBe('function');
+    // The error codes are the contract §1.5 wire values a consumer branches on.
+    expect(Lib.Authorization.PERMISSION_DENIED).toBe('PERMISSION_DENIED');
+    expect(Lib.Authorization.LOCATION_OUT_OF_SCOPE).toBe('LOCATION_OUT_OF_SCOPE');
+  });
+
+  it('#131 defaults Business.members to {} through the root barrel', () => {
+    const business = Roots.createBusinessRoot({
+      agent: 'ios-device',
+      createdBy: 'uid-owner',
+      type: Roots.BusinessType.restaurant,
+      businessProfile: { name: 'Test Restaurant' },
+    });
+    expect(business.members).toEqual({});
+  });
+});

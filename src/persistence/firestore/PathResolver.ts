@@ -69,6 +69,25 @@ export class PathResolver {
     return this.privateCollection(businessId).doc(Paths.CollectionNames.vars);
   }
 
+  /**
+   * P34 invitations root — `businesses/{businessId}/private/invitations`.
+   *
+   * The contract (rcc#130 §1.1) writes an invitation at
+   * `businesses/{businessId}/private/invitations/{inviteId}`. That is five segments, so
+   * `{inviteId}` lands on a COLLECTION, not a document, and no such document can be written.
+   * rcc#131 D1 pins the corrected shape below, mirroring `private/orders/orders/{orderId}` —
+   * every private subcollection in this repo interposes a singleton root doc.
+   *
+   * This root document is NEVER written. A subcollection under a non-existent parent document is
+   * legal and fully queryable, so a placeholder write would be a guard against Firestore's own
+   * documented behaviour; the only observable consequence is that the console renders the parent
+   * id in italics. The resolver still exposes the doc because that is how the child collection is
+   * built, and because callers occasionally need the parent path for a recursive delete.
+   */
+  static invitationsDoc(businessId: string): FirebaseFirestore.DocumentReference {
+    return this.privateCollection(businessId).doc(Paths.CollectionNames.invitations);
+  }
+
   // Child collection helpers
   static productsCollection(businessId: string): FirebaseFirestore.CollectionReference {
     return this.catalogDoc(businessId).collection(Paths.CollectionNames.products);
@@ -169,6 +188,19 @@ export class PathResolver {
 
   static onboardingOrdersCollection(businessId: string): FirebaseFirestore.CollectionReference {
     return this.onboardingDoc(businessId).collection(Paths.CollectionNames.onboardingOrders);
+  }
+
+  /**
+   * `businesses/{businessId}/private/invitations/invitations` — the corrected P34 invitation
+   * collection (see {@link invitationsDoc} for why the contract's path could not be used).
+   */
+  static invitationsCollection(businessId: string): FirebaseFirestore.CollectionReference {
+    return this.invitationsDoc(businessId).collection(Paths.CollectionNames.invitations);
+  }
+
+  /** `…/private/invitations/invitations/{inviteId}` — doc id is the invitation's `id`. */
+  static invitationDoc(businessId: string, inviteId: string): FirebaseFirestore.DocumentReference {
+    return this.invitationsCollection(businessId).doc(inviteId);
   }
 
   static semaphoresCollection(): FirebaseFirestore.CollectionReference {

@@ -1,5 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
-import { createBusinessRoot, BusinessType, Role } from '../../domain/roots/Business';
+import {
+  createBusinessRoot, createBusinessMember, BusinessType, Role,
+} from '../../domain/roots/Business';
 import { createCatalog } from '../../domain/roots/Catalog';
 import { createOnboarding } from '../../domain/roots/Onboarding';
 import { createOrderSettings } from '../../domain/roots/Orders';
@@ -39,6 +41,10 @@ export async function createBusiness(input: CreateBusinessInput): Promise<string
     type,
     businessProfile: { name: name ?? '' },
     roles: { [uid]: Role.owner },
+    // P34 dual-write (contract rcc#130 §3.2): `members[uid]` is written always, `roles[uid]` only
+    // for admins. The creator is an admin, so both land here. `roles` stays because every legacy
+    // reader still enumerates it; its retirement is contract §3.4, not this issue.
+    members: { [uid]: createBusinessMember({ role: 'admin', addedAt: now.getTime(), addedBy: uid }) },
   });
 
   const businessId = business.Id;
