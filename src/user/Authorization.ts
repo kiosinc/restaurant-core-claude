@@ -40,6 +40,9 @@ export interface AuthorizationOptions {
   resolveBusinessId?: (req: Request) => string | undefined;
 }
 
+/** The default of `AuthorizationOptions.resolveBusinessId`, hoisted so it is not rebuilt per request. */
+const businessIdFromParams = (req: Request): string | undefined => req.params.businessId;
+
 /**
  * Reads one member entry from the business document.
  *
@@ -101,7 +104,7 @@ async function resolveActiveMember(
 
   // 2. No business id. A route misconfiguration is not an authorization decision, so it answers
   //    400 rather than 403 — diagnostic, and impossible to mistake for a real denial. Still closed.
-  const businessId = (options.resolveBusinessId ?? ((r: Request) => r.params.businessId))(req);
+  const businessId = (options.resolveBusinessId ?? businessIdFromParams)(req);
   if (!businessId) return { error: new HttpErrors.BadRequest('businessId is required') };
 
   const member = await resolveMember(businessId, uid, req.business);

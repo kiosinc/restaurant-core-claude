@@ -212,6 +212,8 @@ describe('converter output shape (#204 boundary guard)', () => {
     // tokenConverter is deliberately excluded, not overlooked: it is hand-written
     // (converters/tokenConverter.ts) rather than produced by createConverter, so the boundary
     // strip does not cover it and asserting the strip's property of it would be a false pass.
+    // Being hand-written is not on its own grounds for exclusion — invitationConverter is too, but
+    // it calls `stripUndefined` itself, so the property below genuinely holds of it.
     const exported = Object.entries(Converters)
       .filter(([name, value]) => name !== 'tokenConverter'
         && typeof value === 'object' && value !== null && 'toFirestore' in value)

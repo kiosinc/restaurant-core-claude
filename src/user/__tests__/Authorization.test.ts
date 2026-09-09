@@ -78,6 +78,19 @@ function kioskPrincipal(uid: string) {
   };
 }
 
+/**
+ * The request every case starts from: an authenticated business user, the `businessId` param both
+ * middlewares resolve, and the `locationId` param `requireLocationScope` reads. Each case overrides
+ * only the part it is about, so the thing under test is the only thing that varies.
+ */
+function request(overrides: Record<string, unknown> = {}) {
+  return {
+    user: businessPrincipal('uid-1'),
+    params: { businessId: 'biz-1', locationId: 'loc-1' },
+    ...overrides,
+  };
+}
+
 /** `next()` resolves `undefined` (allow); `next(err)` resolves the error (deny). */
 function run(handler: RequestHandler, request: unknown): Promise<unknown> {
   return new Promise((resolve) => {
@@ -105,75 +118,56 @@ describe('Authorization', () => {
 
   describe('requirePermission', () => {
     it('allows an active admin', async () => {
-      const result = await run(requirePermission('account'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-      });
-      expect(result).toBeUndefined();
+      expect(await run(requirePermission('account'), request())).toBeUndefined();
     });
 
     it('allows an active regular for menu', async () => {
       mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': ACTIVE_REGULAR } }));
-      const result = await run(requirePermission('menu'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-      });
-      expect(result).toBeUndefined();
+      expect(await run(requirePermission('menu'), request())).toBeUndefined();
     });
 
     it('denies a permission the member does not hold', async () => {
       mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': ACTIVE_REGULAR } }));
-      const error = asHttpError(await run(requirePermission('account'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-      }));
+      const error = asHttpError(await run(requirePermission('account'), request()));
       expect(error.status).toBe(403);
       expect(error.code).toBe(PERMISSION_DENIED);
     });
 
     it('denies absent membership', async () => {
       mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-other': ACTIVE_ADMIN } }));
-      const error = asHttpError(await run(requirePermission('menu'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-      }));
+      const error = asHttpError(await run(requirePermission('menu'), request()));
       expect(error.status).toBe(403);
       expect(error.code).toBe(PERMISSION_DENIED);
     });
 
     it('denies an unusable admin — status beats role (AC 8 / O4)', async () => {
       mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': UNUSABLE_ADMIN } }));
-      const error = asHttpError(await run(requirePermission('menu'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-      }));
+      const error = asHttpError(await run(requirePermission('menu'), request()));
       expect(error.status).toBe(403);
       expect(error.code).toBe(PERMISSION_DENIED);
     });
 
     it('denies a kiosk principal through the members lookup, with no kiosk branch in the code', async () => {
-      mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': ACTIVE_ADMIN } }));
-      const error = asHttpError(await run(requirePermission('kiosk'), {
-        user: kioskPrincipal('kiosk-uid'),
-        params: { businessId: 'biz-1' },
-      }));
+      // The business has an active admin (`uid-1`, from the default) — just not this principal.
+      const error = asHttpError(await run(
+        requirePermission('kiosk'),
+        request({ user: kioskPrincipal('kiosk-uid') }),
+      ));
       expect(error.status).toBe(403);
       expect(error.code).toBe(PERMISSION_DENIED);
     });
 
     it('answers 401 when there is no principal', async () => {
-      const error = asHttpError(await run(requirePermission('menu'), {
-        params: { businessId: 'biz-1' },
-      }));
+      const error = asHttpError(await run(
+        requirePermission('menu'),
+        request({ user: undefined }),
+      ));
       expect(error.status).toBe(401);
       expect(mockDocRef.get).not.toHaveBeenCalled();
     });
 
     it('answers 400 when the business id cannot be resolved', async () => {
-      const error = asHttpError(await run(requirePermission('menu'), {
-        user: businessPrincipal('uid-1'),
-        params: {},
-      }));
+      const error = asHttpError(await run(requirePermission('menu'), request({ params: {} })));
       expect(error.status).toBe(400);
       expect(mockDocRef.get).not.toHaveBeenCalled();
     });
@@ -181,7 +175,7 @@ describe('Authorization', () => {
     it('honours options.resolveBusinessId', async () => {
       const result = await run(
         requirePermission('menu', { resolveBusinessId: () => 'biz-override' }),
-        { user: businessPrincipal('uid-1'), params: {} },
+        request({ params: {} }),
       );
       expect(result).toBeUndefined();
       expect(mockCollectionRef.doc).toHaveBeenCalledWith('biz-override');
@@ -189,30 +183,23 @@ describe('Authorization', () => {
 
     it('denies when the business document does not exist', async () => {
       mockDocRef.get.mockResolvedValue(snapshotOf(undefined));
-      const error = asHttpError(await run(requirePermission('menu'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-      }));
+      const error = asHttpError(await run(requirePermission('menu'), request()));
       expect(error.status).toBe(403);
       expect(error.code).toBe(PERMISSION_DENIED);
     });
 
     it('denies when the business document has no members field', async () => {
       mockDocRef.get.mockResolvedValue(snapshotOf({ agent: 'ios-device' }));
-      const error = asHttpError(await run(requirePermission('menu'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-      }));
+      const error = asHttpError(await run(requirePermission('menu'), request()));
       expect(error.status).toBe(403);
       expect(error.code).toBe(PERMISSION_DENIED);
     });
 
     it('reuses req.business and issues no Firestore read', async () => {
-      const result = await run(requirePermission('account'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-        business: businessWith({ 'uid-1': ACTIVE_ADMIN }),
-      });
+      const result = await run(
+        requirePermission('account'),
+        request({ business: businessWith({ 'uid-1': ACTIVE_ADMIN }) }),
+      );
       expect(result).toBeUndefined();
       expect(mockDocRef.get).not.toHaveBeenCalled();
     });
@@ -223,28 +210,24 @@ describe('Authorization', () => {
       // `biz-other` and absent from `biz-1`, so trusting the prefetch would ALLOW; reading the
       // real document denies.
       mockDocRef.get.mockResolvedValue(snapshotOf({ members: {} }));
-      const error = asHttpError(await run(requirePermission('account'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-        business: businessWith({ 'uid-1': ACTIVE_ADMIN }, 'biz-other'),
-      }));
+      const error = asHttpError(await run(
+        requirePermission('account'),
+        request({ business: businessWith({ 'uid-1': ACTIVE_ADMIN }, 'biz-other') }),
+      ));
       expect(error.status).toBe(403);
       expect(error.code).toBe(PERMISSION_DENIED);
       expect(mockDocRef.get).toHaveBeenCalledTimes(1);
     });
 
     it('reads exactly once when req.business is absent', async () => {
-      await run(requirePermission('account'), {
-        user: businessPrincipal('uid-1'),
-        params: { businessId: 'biz-1' },
-      });
+      await run(requirePermission('account'), request());
       expect(mockDocRef.get).toHaveBeenCalledTimes(1);
     });
 
     it('calls next exactly once on the allow path', async () => {
       const next = vi.fn();
       requirePermission('account')(
-        { user: businessPrincipal('uid-1'), params: { businessId: 'biz-1' } } as unknown as Request,
+        request() as unknown as Request,
         {} as Response,
         next as unknown as NextFunction,
       );
@@ -257,7 +240,7 @@ describe('Authorization', () => {
       mockDocRef.get.mockResolvedValue(snapshotOf({ members: {} }));
       const next = vi.fn();
       requirePermission('account')(
-        { user: businessPrincipal('uid-1'), params: { businessId: 'biz-1' } } as unknown as Request,
+        request() as unknown as Request,
         {} as Response,
         next as unknown as NextFunction,
       );
@@ -268,12 +251,6 @@ describe('Authorization', () => {
   });
 
   describe('requireLocationScope', () => {
-    const request = (overrides: Record<string, unknown> = {}) => ({
-      user: businessPrincipal('uid-1'),
-      params: { businessId: 'biz-1', locationId: 'loc-1' },
-      ...overrides,
-    });
-
     it("allows the 'all' sentinel", async () => {
       mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': memberWithScope('all') } }));
       expect(await run(requireLocationScope('locationId'), request())).toBeUndefined();

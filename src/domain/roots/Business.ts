@@ -234,8 +234,9 @@ export function migrateRolesToMembers(business: Business): { [uid: string]: Busi
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Builds an invitation document. Mints an `id` and, when none is supplied, a bearer `token`:
- * 32 CSPRNG bytes, base64url so it survives a deep link unescaped.
+ * Builds an invitation document. `id` and the bearer `token` are each minted when the caller does
+ * not supply one — a uuid for the id, 32 CSPRNG bytes rendered base64url for the token, so it
+ * survives a deep link unescaped. A supplied value must be a non-empty string.
  *
  * **Never call this from a converter's `fromFirestore`.** A stored invitation that reached us
  * without a `token` would be handed a brand-new one on read, silently rotating the credential the
