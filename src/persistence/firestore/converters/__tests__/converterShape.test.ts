@@ -8,7 +8,7 @@ import { createLocationsRoot } from '../../../../domain/roots/Locations';
 import { createSurfaces } from '../../../../domain/roots/Surfaces';
 import { createOnboarding } from '../../../../domain/roots/Onboarding';
 import { createOrderSettings } from '../../../../domain/roots/Orders';
-import { createBusinessRoot } from '../../../../domain/roots/Business';
+import { createBusinessRoot, createBusinessInvitation } from '../../../../domain/roots/Business';
 import { createCategory } from '../../../../domain/catalog/Category';
 import { createDiscount } from '../../../../domain/catalog/Discount';
 import { createTaxRate } from '../../../../domain/catalog/TaxRate';
@@ -181,6 +181,15 @@ const converterCases: Array<{ name: string; write: () => unknown }> = [
     write: () => Converters.eventConverter.toFirestore(
       createEvent({ provider: 'square', type: 'catalog.version.updated' } as unknown as MinimalInput<typeof createEvent>),
     ),
+  },
+  {
+    name: 'invitationConverter',
+    // The barest invitation the factory accepts: an sms channel, so `email` is never assigned and
+    // the write must simply not carry the key. This converter strips on its own (it is
+    // hand-written, outside `createConverter`'s boundary), which is exactly what this asserts.
+    write: () => Converters.invitationConverter.toFirestore(createBusinessInvitation({
+      channel: 'sms', phoneNumber: '+14155550132', role: 'regular', invitedBy: 'user-1',
+    })),
   },
   {
     name: 'orderConverter',

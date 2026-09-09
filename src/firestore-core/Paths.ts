@@ -42,6 +42,12 @@ export enum CollectionNames {
   onboarding = 'onboarding',
   onboardingOrders = 'onboardingOrders',
 
+  // P34 team invitations (contract rcc#130 §1.1, as corrected by rcc#131 D1). One member covers
+  // both the interposed `private/invitations` root doc and the `{inviteId}` collection beneath it,
+  // exactly as `orders` does: the contract's five-segment path puts `{inviteId}` on a collection,
+  // which is not a legal Firestore document path.
+  invitations = 'invitations',
+
   semaphores = 'semaphores',
   webhookClaims = 'webhookClaims',
 }

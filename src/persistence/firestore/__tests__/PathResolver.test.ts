@@ -117,6 +117,23 @@ describe('PathResolver', () => {
     expect(lastPath).toBe('businesses/biz-1/private/onboarding/onboardingOrders');
   });
 
+  it('invitationsDoc returns the interposed P34 root doc path', () => {
+    PathResolver.invitationsDoc('biz-1');
+    expect(lastPath).toBe('businesses/biz-1/private/invitations');
+  });
+
+  it('invitationsCollection nests invitations under the interposed root doc', () => {
+    // rcc#131 D1: the contract's five-segment path would land `{inviteId}` on a collection, so the
+    // repo's `private/orders/orders/{id}` shape is used instead. The doubled segment is the point.
+    PathResolver.invitationsCollection('biz-1');
+    expect(lastPath).toBe('businesses/biz-1/private/invitations/invitations');
+  });
+
+  it('invitationDoc keys the invitation by its id', () => {
+    PathResolver.invitationDoc('biz-1', 'inv-1');
+    expect(lastPath).toBe('businesses/biz-1/private/invitations/invitations/inv-1');
+  });
+
   it('varsDoc returns correct path', () => {
     PathResolver.varsDoc('biz-1');
     expect(lastPath).toBe('businesses/biz-1/private/vars');

@@ -21,6 +21,7 @@ export {
 } from './simpleConverters';
 export { businessConverter } from './businessConverter';
 export { eventConverter } from './eventConverter';
+export { invitationConverter } from './invitationConverter';
 export { locationConverter } from './locationConverter';
 export { orderConverter } from './orderConverter';
 export { orderSettingsConverter } from './orderSettingsConverter';
