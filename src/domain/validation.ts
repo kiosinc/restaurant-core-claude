@@ -53,6 +53,20 @@ export function requireOneOf(field: string, allowed: readonly string[], value: u
 }
 
 /**
+ * E.164 *shape* only: a leading `+`, a non-zero leading digit, then up to 14 more digits.
+ *
+ * This is deliberately not a phone-number validity check — `Domain.Utils.toE164` is what parses a
+ * raw number against real numbering plans and canonicalizes it, and write-path callers are
+ * expected to have run it first. Keeping this one a regex is what lets the domain layer reject a
+ * hand-built value without pulling the metadata tables into every module that stores a number.
+ */
+export function requireE164(field: string, value: unknown): void {
+  if (typeof value !== 'string' || !/^\+[1-9]\d{1,14}$/.test(value)) {
+    throw new ValidationError(field, 'must be an E.164 phone number');
+  }
+}
+
+/**
  * Returns the parsed epoch millis of an ISO-8601 string. Anything else — including a `Date`,
  * a Firestore `Timestamp`, or a number — is a caller bug. Unlike the other validators this
  * returns a value: callers that go on to compare instants would otherwise parse the string twice.

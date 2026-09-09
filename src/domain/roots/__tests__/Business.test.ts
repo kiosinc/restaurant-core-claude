@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { Business, createBusinessRoot, BusinessType, Role } from '../Business';
+import {
+  Business, BusinessMember, createBusinessMember, createBusinessRoot, BusinessType, Role,
+} from '../Business';
 import { ValidationError } from '../../validation';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -43,6 +45,31 @@ describe('Business', () => {
   it('defaults roles to {} when nullish', () => {
     const biz = createBusinessRoot(createProps({ roles: undefined as any }));
     expect(biz.roles).toEqual({});
+  });
+
+  it('defaults members to {} when nullish', () => {
+    const biz = createBusinessRoot(createProps({ members: undefined }));
+    expect(biz.members).toEqual({});
+  });
+
+  it('preserves a supplied members map', () => {
+    const members: { [uid: string]: BusinessMember } = {
+      'uid-123': createBusinessMember({ role: 'admin', addedAt: 1_700_000_000_000, addedBy: 'uid-123' }),
+    };
+    const biz = createBusinessRoot(createProps({ members }));
+    expect(biz.members['uid-123'].role).toBe('admin');
+    expect(biz.members['uid-123'].status).toBe('active');
+  });
+
+  it('members and roles coexist — the legacy map is not replaced (contract §3.2 dual-write)', () => {
+    const biz = createBusinessRoot(createProps({
+      roles: { 'uid-123': Role.owner },
+      members: {
+        'uid-123': createBusinessMember({ role: 'admin', addedAt: 1_700_000_000_000, addedBy: 'uid-123' }),
+      },
+    }));
+    expect(biz.roles['uid-123']).toBe(Role.owner);
+    expect(biz.members['uid-123'].role).toBe('admin');
   });
 
   it('stores BusinessProfile with nested structure', () => {

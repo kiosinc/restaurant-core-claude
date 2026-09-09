@@ -24,6 +24,7 @@ const EXPECTED_DEFAULTS = {
   syncSquareMenuCategories: false,
   useClaimLease: false,
   writeLegacyEventNotification: true,
+  teamRolesV2: false,
 };
 
 beforeEach(() => {
@@ -176,6 +177,26 @@ describe('FeatureFlagService', () => {
     const flags = await getFlags();
     // The rcc#167 retirement step — one boolean per GCP project, no library publish.
     expect(flags.writeLegacyEventNotification).toBe(false);
+  });
+
+  it('defaults teamRolesV2 to false when the config doc has no such field', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ enableMenuRebuild: true }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.teamRolesV2).toBe(false);
+  });
+
+  it('reads teamRolesV2: true from config/writeModelFlags', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ teamRolesV2: true }),
+    });
+
+    const flags = await getFlags();
+    expect(flags.teamRolesV2).toBe(true);
   });
 
   it('caches result within TTL', async () => {

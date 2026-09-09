@@ -77,6 +77,19 @@ export interface WriteModelFlags {
    * project rather than a library publish, a version repin and three redeploys.
    */
   writeLegacyEventNotification: boolean;
+  /**
+   * #131 / P34 gate, consumed by businesses#325 and remy#402. When true, a
+   * consumer enforces authorization from the `members` map — the team-management
+   * endpoints and Remy's Team tab — rather than the legacy `roles` map. Defaults
+   * off, so declaring it changes no behavior. Rollback is a pure flag flip:
+   * contract §3.2 dual-write keeps `roles[uid]='owner'` populated for every
+   * admin, so flipping back needs no data restoration. **This library never reads
+   * the flag** — `Authorization.requirePermission` / `requireLocationScope` are
+   * unconditional and each consumer decides where to mount them. A library-side
+   * read would turn one boolean into an authorization kill switch, which is not
+   * what the contract asks for.
+   */
+  teamRolesV2: boolean;
 }
 
 const DEFAULT_FLAGS: WriteModelFlags = {
@@ -93,6 +106,7 @@ const DEFAULT_FLAGS: WriteModelFlags = {
   syncSquareMenuCategories: false,
   useClaimLease: false,
   writeLegacyEventNotification: true,
+  teamRolesV2: false,
 };
 
 const CACHE_TTL_MS = 60_000;
