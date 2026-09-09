@@ -50,14 +50,22 @@ export interface AuthorizationOptions {
  * and on nothing else.
  *
  * `prefetched` short-circuits with **zero** Firestore reads — pass an already-loaded `Business`
- * (typically stamped once onto `req.business` upstream) and no read is issued.
+ * (typically stamped once onto `req.business` upstream) and no read is issued. It is honoured only
+ * when it IS the business being authorized. `Business.Id` is always the document id (the converter
+ * stamps it from the snapshot), so a prefetch whose id does not match `businessId` was loaded for
+ * some other business and is ignored in favour of the live read. Without that check a route whose
+ * business id comes from somewhere other than the value the prefetch was loaded from — an
+ * `options.resolveBusinessId` reading a body field while an upstream loader used `req.params` —
+ * would have its authorization decision made against the wrong tenant's members map. Falling
+ * through to the read is the fail-safe answer rather than a denial: it resolves the member of the
+ * business actually being guarded.
  */
 export async function resolveMember(
   businessId: string,
   uid: string,
   prefetched?: Business,
 ): Promise<BusinessMember | undefined> {
-  if (prefetched) return prefetched.members?.[uid];
+  if (prefetched && prefetched.Id === businessId) return prefetched.members?.[uid];
 
   const snapshot = await PathResolver.businessDoc(businessId).get();
   if (!snapshot.exists) return undefined;

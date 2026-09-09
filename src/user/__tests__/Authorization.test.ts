@@ -44,8 +44,17 @@ function memberWithScope(locationScope: BusinessMember['locationScope']): Busine
   return { ...ACTIVE_ADMIN, locationScope };
 }
 
-function businessWith(members: { [uid: string]: BusinessMember }): Business {
+/**
+ * `Id` is stamped explicitly because the prefetch is honoured only when it is the business being
+ * authorized — `resolveMember` compares `prefetched.Id` against the resolved `businessId`, and a
+ * real prefetch always carries the document id (the converter stamps it from the snapshot).
+ */
+function businessWith(
+  members: { [uid: string]: BusinessMember },
+  Id = 'biz-1',
+): Business {
   return createBusinessRoot({
+    Id,
     agent: 'ios-device',
     createdBy: 'uid-owner',
     type: BusinessType.restaurant,
@@ -208,6 +217,22 @@ describe('Authorization', () => {
       expect(mockDocRef.get).not.toHaveBeenCalled();
     });
 
+    it('ignores a req.business loaded for a different business and reads the live one', async () => {
+      // The prefetch is a hot-path optimisation, not a decision input: honouring one belonging to
+      // another business would answer for the wrong tenant's members map. `uid-1` is an admin of
+      // `biz-other` and absent from `biz-1`, so trusting the prefetch would ALLOW; reading the
+      // real document denies.
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: {} }));
+      const error = asHttpError(await run(requirePermission('account'), {
+        user: businessPrincipal('uid-1'),
+        params: { businessId: 'biz-1' },
+        business: businessWith({ 'uid-1': ACTIVE_ADMIN }, 'biz-other'),
+      }));
+      expect(error.status).toBe(403);
+      expect(error.code).toBe(PERMISSION_DENIED);
+      expect(mockDocRef.get).toHaveBeenCalledTimes(1);
+    });
+
     it('reads exactly once when req.business is absent', async () => {
       await run(requirePermission('account'), {
         user: businessPrincipal('uid-1'),
@@ -318,6 +343,17 @@ describe('Authorization', () => {
       );
       expect(member).toEqual(ACTIVE_ADMIN);
       expect(mockDocRef.get).not.toHaveBeenCalled();
+    });
+
+    it('ignores a prefetch whose Id is not the business being resolved', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: {} }));
+      const member = await resolveMember(
+        'biz-1',
+        'uid-1',
+        businessWith({ 'uid-1': ACTIVE_ADMIN }, 'biz-other'),
+      );
+      expect(member).toBeUndefined();
+      expect(mockDocRef.get).toHaveBeenCalledTimes(1);
     });
 
     it('reads the business document when there is no prefetch', async () => {

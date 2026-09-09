@@ -266,6 +266,12 @@ export function createBusinessInvitation(input: {
   if (input.status !== undefined) requireOneOf('status', INVITE_STATUSES, input.status);
   requireNonEmptyString('invitedBy', input.invitedBy);
   if (input.createdAt !== undefined) requireNonNegativeInteger('createdAt', input.createdAt);
+  // `??` only defaults a NULLISH value, so an empty supplied `id` or `token` would survive both
+  // mints below. Neither is a harmless placeholder: an empty `id` is not a legal Firestore
+  // document id, and an empty `token` is a bearer credential that `findInvitationByToken` would
+  // then hand out to anyone presenting an empty token.
+  if (input.id !== undefined) requireNonEmptyString('id', input.id);
+  if (input.token !== undefined) requireNonEmptyString('token', input.token);
 
   let contact: { phoneNumber: string } | { email: string };
   if (input.channel === 'sms') {

@@ -130,5 +130,19 @@ describe('createBusinessInvitation', () => {
       expect(() => createBusinessInvitation({ ...SMS_INPUT, invitedBy: '   ' }))
         .toThrow(ValidationError);
     });
+
+    it('throws for an empty supplied id rather than accepting it as the document id', () => {
+      // `??` defaults only a nullish value, so an empty string would sail past the mint and
+      // become an illegal Firestore document id at write time.
+      expect(() => createBusinessInvitation({ ...SMS_INPUT, id: '' }))
+        .toThrow(ValidationError);
+    });
+
+    it('throws for an empty supplied token rather than storing a blank credential', () => {
+      // A stored empty token is matched by `findInvitationByToken(businessId, '')`, which would
+      // hand the membership to anyone presenting an empty token.
+      expect(() => createBusinessInvitation({ ...SMS_INPUT, token: '   ' }))
+        .toThrow(ValidationError);
+    });
   });
 });
