@@ -24,8 +24,10 @@ import {
   isDefaultEntry,
   setEntry,
   setEntryCountGuarded,
+  setOptionSetEntryPresence,
   getEntries,
   deleteEntries,
+  ENTRY_WRITABLE_FIELDS,
   GET_ENTRIES_CHUNK,
   DELETE_ENTRIES_CHUNK,
   UNTRACKED_COUNT,
@@ -33,6 +35,7 @@ import {
 import type {
   AvailabilityEntry,
   AvailabilityEntryWrite,
+  AvailabilityOptionSetEntryWrite,
   AvailabilityCountWrite,
 } from '../AvailabilityEntryService';
 import { PathResolver } from '../../../persistence/firestore/PathResolver';
@@ -146,6 +149,9 @@ const B = 'biz-1';
 const L = 'loc-1';
 const E = 'ent-1';
 const PATH = fx.pathOf(B, L, E);
+/** An OptionSet.Id (#221). Its entry lives in the SAME `entries` collection as `E`'s. */
+const S = 'set-1';
+const SET_PATH = fx.pathOf(B, L, S);
 
 /** Two instants an hour apart; `T_OLD` < `T_NEW`. */
 const T_OLD = '2026-09-01T10:00:00.000Z';
@@ -197,11 +203,16 @@ describe('AvailabilityEntryService (#163)', () => {
 
   describe('isDefaultEntry', () => {
     it.each<[string, Partial<AvailabilityEntry>, boolean]>([
-      // Every optional field absent → default, for both kinds.
+      // Every optional field absent → default, for all three kinds.
       ['bare {kind: option} is default', { kind: 'option' }, true],
       ['bare {kind: product} is default', { kind: 'product' }, true],
       ['isPresent true → default', { kind: 'product', isPresent: true }, true],
       ['isPresent false → not default', { kind: 'product', isPresent: false }, false],
+      // #221: a set entry carries presence and nothing else, so these three rows are its WHOLE
+      // classification space. `isDefaultEntry` is unchanged — it needs no `kind` branch.
+      ['bare {kind: optionSet} is default', { kind: 'optionSet' }, true],
+      ['optionSet isPresent true → default', { kind: 'optionSet', isPresent: true }, true],
+      ['optionSet isPresent false → not default', { kind: 'optionSet', isPresent: false }, false],
       ['state inStock → default', { kind: 'option', state: 'inStock' }, true],
       ['state soldOut → not default', { kind: 'option', state: 'soldOut' }, false],
       ['isHidden false → default', { kind: 'product', isHidden: false }, true],
@@ -592,6 +603,300 @@ describe('AvailabilityEntryService (#163)', () => {
         commit: vi.fn(async () => { throw failure; }),
       }));
       await expect(deleteEntries(B, L, ['a'])).rejects.toBe(failure);
+    });
+  });
+});
+
+/**
+ * Set-level entries (#221) — the third `kind`.
+ *
+ * A `kind: 'optionSet'` entry carries location presence and NOTHING else, and that is enforced at
+ * the write boundary rather than left to convention. Two claims carry the weight here:
+ *
+ * - the boundary is an ALLOW-list, so each of the five other writable fields is rejected on a set
+ *   with its own `ValidationError` even when the value is perfectly valid for a product or option;
+ * - a set write is a write to its OWN document — a seeded per-option sibling in the same `entries`
+ *   collection comes out byte-identical, with its `set`/`update`/`delete` never called.
+ *
+ * `isDefaultEntry` is deliberately unchanged; the fold identity below is what proves it did not
+ * need a `kind` branch.
+ */
+describe('AvailabilityEntryService — set-level entries (#221)', () => {
+  describe('isDefaultEntry', () => {
+    it('the set fold collapses to isPresent !== false for every set shape', () => {
+      // A set never carries `state`, so the contract fold
+      // `isAvailable = !(isPresent === false || state === 'soldOut')` loses its second term. These
+      // three shapes are a set entry's WHOLE classification space, so the identity is exhaustive.
+      const shapes: Partial<AvailabilityEntry>[] = [
+        { kind: 'optionSet' },
+        { kind: 'optionSet', isPresent: true },
+        { kind: 'optionSet', isPresent: false },
+      ];
+      shapes.forEach((entry) => {
+        expect(isDefaultEntry(entry)).toBe(entry.isPresent !== false);
+      });
+      // Spelled out too: an `isDefaultEntry` that returned a constant would satisfy the identity
+      // above for two of the three rows, so the expected values are pinned literally.
+      expect(shapes.map((entry) => isDefaultEntry(entry))).toEqual([true, true, false]);
+    });
+  });
+
+  describe('setEntry', () => {
+    it('accepts kind: optionSet and issues one merge-set of exactly {kind, isPresent, updatedAt}', async () => {
+      const write: AvailabilityOptionSetEntryWrite = { kind: 'optionSet', isPresent: false };
+      await setEntry(B, L, S, write);
+      const ref = fx.ref(B, L, S);
+      const { payload, options } = setPayload(ref);
+      expect(Object.keys(payload).sort()).toEqual(['isPresent', 'kind', 'updatedAt']);
+      expect(payload).toMatchObject({ kind: 'optionSet', isPresent: false });
+      expect(isServerTimestamp(payload.updatedAt)).toBe(true);
+      expect(undefinedPaths(payload)).toEqual([]);
+      expect(options).toEqual({ merge: true });
+      expect(ref.update).not.toHaveBeenCalled();
+      expect(ref.delete).not.toHaveBeenCalled();
+      expect(fx.store.get(SET_PATH)).toMatchObject({ kind: 'optionSet', isPresent: false });
+    });
+
+    it('resolves the set entry by OptionSet.Id through PathResolver.inventoryEntryDoc', async () => {
+      // Acceptance criterion 2: no new resolver, no new collection — the same `entries` collection,
+      // keyed by the option set's id.
+      //
+      // `PathResolver` is mocked wholesale in this file, so all this can prove is WHICH resolver the
+      // service asks and with which ids, and that the write landed on the one ref it returned.
+      // The literal path TEXT is pinned against the real resolver in `PathResolver.test.ts`
+      // ('inventoryEntryDoc resolves an option-set id in the same entries collection') — asserting
+      // it here would only re-assert the double's own `fx.pathOf`.
+      await setEntry(B, L, S, { kind: 'optionSet', isPresent: true });
+      expect(vi.mocked(PathResolver.inventoryEntryDoc)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(PathResolver.inventoryEntryDoc)).toHaveBeenCalledWith(B, L, S);
+      // Exactly one document was addressed, and it is the one the resolver returned.
+      expect(fx.refs.size).toBe(1);
+      expect(setPayload(fx.ref(B, L, S)).payload).toMatchObject({ kind: 'optionSet', isPresent: true });
+    });
+
+    it('accepts a bare {kind: optionSet} — an absent isPresent means present', async () => {
+      await setEntry(B, L, S, { kind: 'optionSet' });
+      const { payload, options } = setPayload(fx.ref(B, L, S));
+      expect(Object.keys(payload).sort()).toEqual(['kind', 'updatedAt']);
+      expect(options).toEqual({ merge: true });
+      expect(fx.store.get(SET_PATH)).toMatchObject({ kind: 'optionSet' });
+      expect(fx.store.get(SET_PATH)).not.toHaveProperty('isPresent');
+      expect(isDefaultEntry({ kind: 'optionSet' })).toBe(true);
+    });
+
+    it('a set write never produces an isAvailable key, even from an untyped JS caller', async () => {
+      // `isAvailable` is derived by the client fold, never stored. A TypeScript caller cannot even
+      // name it; this is the JS caller that can, cast through `unknown` exactly as one would arrive.
+      const untyped = { kind: 'optionSet', isPresent: false, isAvailable: false } as unknown as AvailabilityEntryWrite;
+      await setEntry(B, L, S, untyped);
+      const { payload } = setPayload(fx.ref(B, L, S));
+      expect(Object.keys(payload).sort()).toEqual(['isPresent', 'kind', 'updatedAt']);
+      expect(payload).not.toHaveProperty('isAvailable');
+      expect(fx.store.get(SET_PATH)).not.toHaveProperty('isAvailable');
+      // It is dropped by the allow-list rather than rejected by the set sweep, which is why it is
+      // silent: `isAvailable` is not a writable field for ANY kind.
+      expect(ENTRY_WRITABLE_FIELDS).not.toContain('isAvailable');
+    });
+
+    it('ignores a caller-supplied updatedAt on a set write', async () => {
+      const stale = Timestamp.fromMillis(0);
+      const untyped = { kind: 'optionSet', isPresent: true, updatedAt: stale } as unknown as AvailabilityEntryWrite;
+      await setEntry(B, L, S, untyped);
+      const { payload } = setPayload(fx.ref(B, L, S));
+      expect(payload.updatedAt).not.toBe(stale);
+      expect(isServerTimestamp(payload.updatedAt)).toBe(true);
+      // `updatedAt` is service-owned, so it is dropped by the allow-list, NOT rejected by the set
+      // sweep — and it is not the Square `calculated_at` `timestamp` a set entry does forbid.
+      expect(Object.keys(payload).sort()).toEqual(['isPresent', 'kind', 'updatedAt']);
+    });
+
+    // Every value below is DOMAIN-VALID for a product or option entry. Each is rejected here purely
+    // because it is not writable on a set — the allow-list, not the value checks.
+    it.each<[string, Record<string, unknown>, string]>([
+      ["state 'soldOut'", { kind: 'optionSet', state: 'soldOut' }, 'state'],
+      ['count 3', { kind: 'optionSet', count: 3 }, 'count'],
+      ['isInventoryTracked false', { kind: 'optionSet', isInventoryTracked: false }, 'isInventoryTracked'],
+      ['isHidden true', { kind: 'optionSet', isHidden: true }, 'isHidden'],
+      ['timestamp (the webhook field)', { kind: 'optionSet', timestamp: T_NEW }, 'timestamp'],
+    ])('rejects a valid %s on a set entry with a ValidationError before any RPC', async (_label, write, field) => {
+      const failure = await setEntry(B, L, S, write as unknown as AvailabilityEntryWrite).catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(ValidationError);
+      expect((failure as ValidationError).field).toBe(field);
+      expect((failure as Error).message).toMatch(/must not be written on a kind:'optionSet' entry/);
+      // Rejected at the boundary: no ref was even minted, so nothing reached the SDK.
+      expect(fx.refs.size).toBe(0);
+      expect(fx.store.size).toBe(0);
+    });
+
+    it('names a deterministic first offender when several forbidden fields are present', async () => {
+      // `state` precedes `isHidden` precedes `timestamp` in the allow-list, so `state` is named for
+      // both literals below even though their own key orders disagree.
+      //
+      // This pins the OUTCOME, not the sweep's own loop. `pickWritable` has already copied the
+      // caller's keys in ENTRY_WRITABLE_FIELDS order by the time the sweep sees them, so a sweep
+      // that iterated `Object.keys(fields)` instead would still name `state` here. Isolating the
+      // sweep's iteration order would need a caller whose keys survive `pickWritable` out of order,
+      // which the allow-list makes impossible — hence no test for it.
+      const forbidden: readonly string[] = ['timestamp', 'isHidden', 'state'];
+      expect(ENTRY_WRITABLE_FIELDS.find((field) => forbidden.includes(field))).toBe('state');
+
+      const writes: Record<string, unknown>[] = [
+        { kind: 'optionSet', timestamp: T_NEW, isHidden: true, state: 'soldOut' },
+        { kind: 'optionSet', state: 'soldOut', isHidden: true, timestamp: T_NEW },
+      ];
+      for (const write of writes) {
+        const failure = await setEntry(B, L, S, write as unknown as AvailabilityEntryWrite).catch((e: unknown) => e);
+        expect(failure).toBeInstanceOf(ValidationError);
+        expect((failure as ValidationError).field).toBe('state');
+      }
+      expect(fx.refs.size).toBe(0);
+    });
+
+    it('reports a forbidden field before its own domain check', async () => {
+      // {kind:'optionSet', count: 1.5} is BOTH not writable here and a malformed integer. The
+      // set sweep runs first, so the message is the one that tells the caller what is actually
+      // wrong — no valid count would have made this write legal.
+      const failure = await setEntry(B, L, S, { kind: 'optionSet', count: 1.5 } as unknown as AvailabilityEntryWrite)
+        .catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(ValidationError);
+      expect((failure as ValidationError).field).toBe('count');
+      expect((failure as Error).message).toMatch(/must not be written on a kind:'optionSet' entry/);
+      expect((failure as Error).message).not.toMatch(/non-negative integer/);
+
+      // Same for a malformed state: 'not writable here', not 'must be one of'.
+      const stateFailure = await setEntry(B, L, S, { kind: 'optionSet', state: 'SOLD_OUT' } as unknown as AvailabilityEntryWrite)
+        .catch((e: unknown) => e);
+      expect((stateFailure as ValidationError).field).toBe('state');
+      expect((stateFailure as Error).message).toMatch(/must not be written on a kind:'optionSet' entry/);
+      expect(fx.refs.size).toBe(0);
+    });
+
+    it('reports an unrecognised kind as kind, not as a set-field violation', async () => {
+      // The sweep runs AFTER the `kind` check, so a near-miss kind is still reported as the kind
+      // it is — the caller is not told about set field ownership for a kind that does not exist.
+      const failure = await setEntry(B, L, S, { kind: 'OPTION_SET', state: 'soldOut' } as unknown as AvailabilityEntryWrite)
+        .catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(ValidationError);
+      expect((failure as ValidationError).field).toBe('kind');
+      expect((failure as Error).message).toMatch(/must be one of: 'product', 'option', 'optionSet'/);
+      expect(fx.refs.size).toBe(0);
+    });
+  });
+
+  describe('setOptionSetEntryPresence', () => {
+    it.each<[boolean]>([[true], [false]])('(%s) writes isPresent and nothing else, through setEntry', async (isPresent) => {
+      await setOptionSetEntryPresence(B, L, S, isPresent);
+      const ref = fx.ref(B, L, S);
+      const { payload, options } = setPayload(ref);
+      expect(Object.keys(payload).sort()).toEqual(['isPresent', 'kind', 'updatedAt']);
+      expect(payload.kind).toBe('optionSet');
+      expect(payload.isPresent).toBe(isPresent);
+      expect(isServerTimestamp(payload.updatedAt)).toBe(true);
+      // The delegation is the point: same merge-set, same `updatedAt` stamp, never update().
+      expect(options).toEqual({ merge: true });
+      expect(ref.update).not.toHaveBeenCalled();
+      expect(ref.delete).not.toHaveBeenCalled();
+      expect(fx.store.get(SET_PATH)).toMatchObject({ kind: 'optionSet', isPresent });
+      expect(vi.mocked(PathResolver.inventoryEntryDoc)).toHaveBeenCalledWith(B, L, S);
+    });
+
+    it('leaves a seeded per-option sibling entry byte-identical and never touches its ref', async () => {
+      // Acceptance criterion 4. The sibling is a fully populated OPTION entry in the same `entries`
+      // collection — every field a set entry forbids. A set write must be a write to its own
+      // document and nothing else.
+      const seeded = {
+        kind: 'option', isPresent: true, state: 'soldOut', count: 0, isInventoryTracked: true, isHidden: false, timestamp: T_OLD,
+      };
+      fx.store.set(PATH, { ...seeded });
+      const before = JSON.stringify(fx.store.get(PATH));
+      // Mint the sibling's ref BEFORE the call so its spies exist to be checked afterwards. The
+      // double memoises one ref per path, so this is the very ref the service would have resolved.
+      const sibling = fx.ref(B, L, E);
+
+      await setOptionSetEntryPresence(B, L, S, false);
+
+      expect(JSON.stringify(fx.store.get(PATH))).toBe(before);
+      expect(fx.store.get(PATH)).toEqual(seeded);
+      expect(sibling.set).not.toHaveBeenCalled();
+      expect(sibling.update).not.toHaveBeenCalled();
+      expect(sibling.delete).not.toHaveBeenCalled();
+      // The set landed in its own document, and the resolver was asked for that one only.
+      expect(fx.store.get(SET_PATH)).toMatchObject({ kind: 'optionSet', isPresent: false });
+      expect(vi.mocked(PathResolver.inventoryEntryDoc)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(PathResolver.inventoryEntryDoc)).toHaveBeenCalledWith(B, L, S);
+    });
+  });
+
+  describe('setEntryCountGuarded', () => {
+    it("rejects kind: 'optionSet' on the argument side before any RPC", async () => {
+      const write = { ...countWrite(), kind: 'optionSet' } as unknown as AvailabilityCountWrite;
+      const failure = await setEntryCountGuarded(B, L, S, write).catch((e: unknown) => e);
+      expect(failure).toBeInstanceOf(ValidationError);
+      expect((failure as ValidationError).field).toBe('kind');
+      // COUNT_WRITE_KINDS, not ENTRY_KINDS — the message must not offer 'optionSet' as a choice.
+      expect((failure as Error).message).toMatch(/must be one of: 'product', 'option'/);
+      expect((failure as Error).message).not.toContain('optionSet');
+      expect(fx.db.runTransaction).not.toHaveBeenCalled();
+      expect(fx.refs.size).toBe(0);
+    });
+
+    it("skips a STORED optionSet entry with 'skippedUntracked' and leaves it byte-identical", async () => {
+      // The stored side of the same rule. A set entry carries no `isInventoryTracked: false` to
+      // say it is untracked — that field is forbidden on it — so without the explicit set check
+      // the trackedness guard below would let this webhook count land on a set.
+      const stored = { kind: 'optionSet', isPresent: false };
+      fx.store.set(SET_PATH, { ...stored });
+      const before = JSON.stringify(fx.store.get(SET_PATH));
+
+      await expect(setEntryCountGuarded(B, L, S, countWrite())).resolves.toBe('skippedUntracked');
+
+      expectNothingQueued();
+      expect(JSON.stringify(fx.store.get(SET_PATH))).toBe(before);
+      expect(fx.store.get(SET_PATH)).toEqual(stored);
+      // Read, then skipped — the transaction ran, it just queued nothing.
+      expect(fx.db.runTransaction).toHaveBeenCalledTimes(1);
+      expect(fx.tx.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips a stored optionSet entry even when it looks tracked and fresh', async () => {
+      // Proves the set check runs BEFORE the trackedness check: this document would otherwise be
+      // classified tracked, and its stored timestamp is older than the incoming one, so both later
+      // guards would have waved the write through.
+      fx.store.set(SET_PATH, { kind: 'optionSet', isInventoryTracked: true, timestamp: T_OLD });
+      await expect(setEntryCountGuarded(B, L, S, countWrite({ timestamp: T_NEW }))).resolves.toBe('skippedUntracked');
+      expectNothingQueued();
+      expect(fx.store.get(SET_PATH)).toEqual({ kind: 'optionSet', isInventoryTracked: true, timestamp: T_OLD });
+    });
+  });
+
+  describe('getEntries', () => {
+    it('round-trips an optionSet entry alongside an option entry from the same collection', async () => {
+      fx.store.set(PATH, { kind: 'option', count: 2, timestamp: T_OLD });
+      fx.store.set(SET_PATH, { kind: 'optionSet', isPresent: false });
+      const result = await getEntries(B, L, [E, S]);
+      expect([...result.keys()].sort()).toEqual([E, S].sort());
+      expect(result.get(E)).toEqual({ kind: 'option', count: 2, timestamp: T_OLD });
+      expect(result.get(S)).toEqual({ kind: 'optionSet', isPresent: false });
+      // One `getAll`, both ids — a set entry needs no separate read path.
+      expect(fx.db.getAll).toHaveBeenCalledTimes(1);
+      expect(fx.db.getAll.mock.calls[0].map((ref) => ref.path)).toEqual([PATH, SET_PATH]);
+    });
+  });
+
+  describe('deleteEntries', () => {
+    it('deletes the optionSet entry and leaves the sibling option entry', async () => {
+      fx.store.set(PATH, { kind: 'option', count: 2, timestamp: T_OLD });
+      fx.store.set(SET_PATH, { kind: 'optionSet', isPresent: false });
+      const sibling = fx.ref(B, L, E);
+
+      await deleteEntries(B, L, [S]);
+
+      const [batch] = fx.batches;
+      expect(batch.delete).toHaveBeenCalledTimes(1);
+      expect(batch.delete.mock.calls.map(([ref]) => ref.path)).toEqual([SET_PATH]);
+      expect(fx.store.has(SET_PATH)).toBe(false);
+      expect(fx.store.get(PATH)).toEqual({ kind: 'option', count: 2, timestamp: T_OLD });
+      expect(sibling.delete).not.toHaveBeenCalled();
     });
   });
 });

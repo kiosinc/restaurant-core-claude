@@ -165,7 +165,7 @@ export class PathResolver {
     return this.availabilityDoc(businessId, locationId).collection(Paths.CollectionNames.entries);
   }
 
-  /** `…/entries/{entityId}` — doc id is the KIOS entity `Id` (Product.Id or Option.Id). */
+  /** `…/entries/{entityId}` — doc id is the KIOS entity `Id` (Product.Id, Option.Id or OptionSet.Id). */
   static inventoryEntryDoc(businessId: string, locationId: string, entityId: string): FirebaseFirestore.DocumentReference {
     return this.inventoryEntriesCollection(businessId, locationId).doc(entityId);
   }

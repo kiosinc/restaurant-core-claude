@@ -1,6 +1,7 @@
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { PathResolver } from '../../persistence/firestore/PathResolver';
 import {
+  ValidationError,
   requireBoolean,
   requireIsoTimestamp,
   requireNonNegativeIntegerOrNeg1,
@@ -10,7 +11,7 @@ import {
 /**
  * P41 per-entity availability entry — one document per (location, catalog entity) at
  * `businesses/{businessId}/public/catalog/inventory/{locationId}/entries/{entityId}`
- * (doc id = KIOS entity `Id`: Product.Id or Option.Id).
+ * (doc id = KIOS entity `Id`: Product.Id, Option.Id or OptionSet.Id).
  *
  * PARITY — the canonical declaration is `AvailabilityEntry` in `@kiosinc/commons-types`
  * `types/availabilityTypes.ts` (kiosinc/kios-commons-types#74). This one is structurally
@@ -25,14 +26,18 @@ import {
  * Every field except `kind`/`updatedAt` is optional, with its writers fixed by the contract (see
  * each field's comment); a missing document and a missing field both mean "default".
  * `isAvailable` is deliberately NOT stored — the client fold derives
- * `isAvailable = !(isPresent === false || state === 'soldOut')`.
+ * `isAvailable = !(isPresent === false || state === 'soldOut')`. A `kind: 'optionSet'` entry never
+ * carries `state` — it is rejected at the write boundary, not merely unused by convention (see
+ * `OPTION_SET_WRITABLE_FIELDS`) — so for a set that fold collapses to
+ * `isAvailable = isPresent !== false`. That identity is what #221 means by a set "carrying
+ * `isAvailable` per location"; it is still not a stored field.
  *
  * The union types are written inline rather than through the aliases below on purpose: the
  * parity test compares the literal type text of each member against the snapshot, so an alias
  * here would hide a retype from it.
  */
 export interface AvailabilityEntry {
-  kind: 'product' | 'option';
+  kind: 'product' | 'option' | 'optionSet';  // required on every document. 'optionSet' (#221) is set-level: presence only, every other writable field rejected at the boundary.
   isPresent?: boolean;           // sync-owned. false = not sold at this location. Absent = present.
   state?: 'inStock' | 'soldOut'; // webhook-owned (tracked); sync-owned (untracked); remy manual override.
   count?: number;                // webhook-owned (tracked); sync writes -1 (untracked). Absent or -1 = untracked, 0 = sold out, >0 = max orderable.
@@ -66,6 +71,21 @@ export type AvailabilityEntryWrite =
   Pick<AvailabilityEntry, 'kind'> & Partial<Omit<AvailabilityEntry, 'kind' | 'updatedAt'>>;
 
 /**
+ * The whole field set a `kind: 'optionSet'` entry owns (#221): location presence, nothing else.
+ *
+ * `isPresent` is taken through `Pick` rather than restated, so this alias cannot fork from the
+ * interface: an upstream rename fails to compile here, and an upstream retype follows through
+ * rather than being silently contradicted. The type is structurally assignable to
+ * {@link AvailabilityEntryWrite}, so {@link setEntry} accepts it with no overload — and the fields
+ * it omits are not merely unused by convention: `validateWrite` rejects `state`, `count`,
+ * `isInventoryTracked`, `isHidden` and the webhook's `timestamp` on a set entry.
+ *
+ * `updatedAt` is still stamped by {@link setEntry} on every write, as on any other entry; it is the
+ * server-timestamp sentinel, not the Square `calculated_at` `timestamp` a set entry forbids.
+ */
+export type AvailabilityOptionSetEntryWrite = { kind: 'optionSet' } & Pick<AvailabilityEntryWrite, 'isPresent'>;
+
+/**
  * Runtime allow-list backing `AvailabilityEntryWrite`; the parity test pins it to the snapshot
  * minus `updatedAt`. Types only bind TypeScript callers — this list is what stops an untyped JS
  * caller's `isAvailable` or `updatedAt` from ever reaching the SDK, and `validateWrite` below is
@@ -86,8 +106,14 @@ export interface AvailabilityCountWrite {
    * `kind`-less by a writer outside the contract). Square counts exist only for ITEM_VARIATIONs
    * (= Options), hence the `'option'` default — the one place `kind` is optional. On
    * {@link AvailabilityEntryWrite} it is required because there is no such default to fall back on.
+   *
+   * `'optionSet'` is excluded (#221): Square never reports a count for a set, and a set entry is
+   * by construction not inventory-tracked, so a count that classified one would be storing a
+   * field the set contract forbids. This is a compile-time NARROWING for TypeScript callers — a
+   * caller passing a computed {@link AvailabilityEntryKind} now fails to compile, which is the
+   * intent; untyped callers are stopped at runtime by `COUNT_WRITE_KINDS`.
    */
-  kind?: AvailabilityEntryKind;
+  kind?: Exclude<AvailabilityEntryKind, 'optionSet'>;
 }
 
 /**
@@ -164,6 +190,26 @@ export async function setEntry(
 }
 
 /**
+ * Upsert a set entry's location presence — the only field a `kind: 'optionSet'` entry owns (#221).
+ *
+ * Delegates to {@link setEntry} rather than repeating the merge-set, allow-list, validation and
+ * `updatedAt` machinery, so a set write travels the one write path every other entry travels.
+ *
+ * The intended caller is square-gateway-claude's catalog sync: one call per location, driven by
+ * the same `{ [locationId]: boolean }` scope map it already computes for the legacy
+ * `OptionSet.locationInventory` write. **That caller is a separate follow-up** — no production
+ * code in this repo calls this, only its tests.
+ */
+export async function setOptionSetEntryPresence(
+  businessId: string,
+  locationId: string,
+  optionSetId: string,
+  isPresent: boolean,
+): Promise<void> {
+  return setEntry(businessId, locationId, optionSetId, { kind: 'optionSet', isPresent });
+}
+
+/**
  * Inventory-webhook count write, protected against out-of-order delivery and against untracked
  * entries, inside one transaction.
  *
@@ -183,6 +229,9 @@ export async function setEntry(
  * a stored `kind` is never overwritten, so a webhook cannot reclassify a product entry, while a
  * document left `kind`-less by a writer outside the contract is classified on its first count.
  *
+ * A `kind: 'optionSet'` entry is out of scope on both sides (#221): the argument is rejected
+ * (`COUNT_WRITE_KINDS`) and a stored set entry is skipped, since a set is never inventory-tracked.
+ *
  * Nothing is logged on either skip path — see {@link GuardedWriteOutcome}.
  */
 export async function setEntryCountGuarded(
@@ -194,12 +243,19 @@ export async function setEntryCountGuarded(
   const incomingMs = requireIsoTimestamp('timestamp', count.timestamp);
   requireOneOf('state', ENTRY_STATES, count.state);
   requireNonNegativeIntegerOrNeg1('count', count.count);
-  if (count.kind !== undefined) requireOneOf('kind', ENTRY_KINDS, count.kind);
+  if (count.kind !== undefined) requireOneOf('kind', COUNT_WRITE_KINDS, count.kind);
 
   const ref = entryRef(businessId, locationId, entityId);
   return getFirestore().runTransaction(async (tx): Promise<GuardedWriteOutcome> => {
     const snap = await tx.get(ref);
     const data = snap.data();
+    // A stored set entry is skipped before the trackedness check: it is by construction not
+    // inventory-tracked, yet it carries no `isInventoryTracked: false` to say so (that field is
+    // forbidden on it), so the check below would let a webhook count land on a set. Reported as
+    // 'skippedUntracked' rather than through a new outcome — {@link GuardedWriteOutcome} is a
+    // published union, and a new member is a breaking change for every consumer that switches on
+    // it. The reason is the same one the name states: not tracked, so no count.
+    if (data?.kind === 'optionSet') return 'skippedUntracked';
     // Trackedness first: an untracked entry is skipped regardless of how its timestamp compares.
     if (data?.isInventoryTracked === false) return 'skippedUntracked';
     const stored = data?.timestamp;
@@ -272,9 +328,21 @@ export async function deleteEntries(
 // Typed against the interface's unions so a member renamed or removed from the contract fails to
 // compile here. A WIDENING does not: a plain array is never checked for exhaustiveness, so a new
 // literal in the union has to be added to these lists by hand (the parity test flags the interface
-// change, not this list).
-const ENTRY_KINDS: readonly AvailabilityEntryKind[] = ['product', 'option'];
+// change, not this list). Leave a kind out of ENTRY_KINDS and every write of it is rejected at
+// runtime while the compiler and the parity test both stay green.
+//
+// There are two lists, and a new kind is a separate decision on each: ENTRY_KINDS is every kind a
+// document may carry, COUNT_WRITE_KINDS the subset an inventory count may classify. #221 added
+// 'optionSet' to the first and deliberately withheld it from the second — see
+// `AvailabilityCountWrite`.
+const ENTRY_KINDS: readonly AvailabilityEntryKind[] = ['product', 'option', 'optionSet'];
+const COUNT_WRITE_KINDS: readonly NonNullable<AvailabilityCountWrite['kind']>[] = ['product', 'option'];
 const ENTRY_STATES: readonly AvailabilityEntryState[] = ['inStock', 'soldOut'];
+
+// Fields a `kind: 'optionSet'` entry may carry (#221) — an ALLOW-list, so every other writable
+// field is forbidden by default and a field added to the contract later is rejected on a set until
+// someone decides it belongs there. A set entry carries location presence and nothing else.
+const OPTION_SET_WRITABLE_FIELDS: readonly (typeof ENTRY_WRITABLE_FIELDS)[number][] = ['kind', 'isPresent'];
 
 /**
  * Domain checks for every field that is present (`undefined` = not written, so not checked).
@@ -284,6 +352,19 @@ const ENTRY_STATES: readonly AvailabilityEntryState[] = ['inStock', 'soldOut'];
  */
 function validateWrite(fields: Partial<AvailabilityEntryWrite>, options: { isKindRequired: boolean }): void {
   if (options.isKindRequired || fields.kind !== undefined) requireOneOf('kind', ENTRY_KINDS, fields.kind);
+  // Set entries own presence alone (#221). This runs after the `kind` check — an unrecognised kind
+  // is reported as such — and BEFORE the domain checks below, so `{kind:'optionSet', count: 1.5}`
+  // is reported as `count` not being writable here rather than as a malformed integer. It walks
+  // ENTRY_WRITABLE_FIELDS so the field named first is deterministic when several are present. It
+  // runs at runtime over the post-`pickWritable` fields, so it binds an untyped JS caller too, on
+  // exactly the fields that would otherwise have reached the SDK.
+  if (fields.kind === 'optionSet') {
+    for (const field of ENTRY_WRITABLE_FIELDS) {
+      if (fields[field] !== undefined && !(OPTION_SET_WRITABLE_FIELDS as readonly string[]).includes(field)) {
+        throw new ValidationError(field, "must not be written on a kind:'optionSet' entry");
+      }
+    }
+  }
   if (fields.state !== undefined) requireOneOf('state', ENTRY_STATES, fields.state);
   if (fields.count !== undefined) requireNonNegativeIntegerOrNeg1('count', fields.count);
   if (fields.isPresent !== undefined) requireBoolean('isPresent', fields.isPresent);

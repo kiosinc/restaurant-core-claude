@@ -163,4 +163,12 @@ describe('PathResolver', () => {
     PathResolver.inventoryEntryDoc('biz-1', 'loc-1', 'ent-1');
     expect(lastPath).toBe('businesses/biz-1/public/catalog/inventory/loc-1/entries/ent-1');
   });
+
+  it('inventoryEntryDoc resolves an option-set id in the same entries collection', () => {
+    // #221 acceptance criterion 2: a set-level entry needs no new resolver, no new collection and
+    // no new index — the existing resolver addresses it, keyed by OptionSet.Id like any other
+    // entity id.
+    PathResolver.inventoryEntryDoc('biz-1', 'loc-1', 'set-1');
+    expect(lastPath).toBe('businesses/biz-1/public/catalog/inventory/loc-1/entries/set-1');
+  });
 });
