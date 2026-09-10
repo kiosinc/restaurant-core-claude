@@ -37,7 +37,7 @@ import {
  * here would hide a retype from it.
  */
 export interface AvailabilityEntry {
-  kind: 'product' | 'option' | 'optionSet';  // written by EVERY writer on EVERY write. 'optionSet' (#221) is a set-level entry: presence only, one writer (catalog sync), and the webhook's fields are rejected on it rather than merely unwritten.
+  kind: 'product' | 'option' | 'optionSet';  // required on every document. 'optionSet' (#221) is set-level: presence only, every other writable field rejected at the boundary.
   isPresent?: boolean;           // sync-owned. false = not sold at this location. Absent = present.
   state?: 'inStock' | 'soldOut'; // webhook-owned (tracked); sync-owned (untracked); remy manual override.
   count?: number;                // webhook-owned (tracked); sync writes -1 (untracked). Absent or -1 = untracked, 0 = sold out, >0 = max orderable.
@@ -73,8 +73,9 @@ export type AvailabilityEntryWrite =
 /**
  * The whole field set a `kind: 'optionSet'` entry owns (#221): location presence, nothing else.
  *
- * `isPresent` is taken through `Pick` rather than restated, so an upstream rename or retype of it
- * fails to compile here instead of quietly forking. The type is structurally assignable to
+ * `isPresent` is taken through `Pick` rather than restated, so this alias cannot fork from the
+ * interface: an upstream rename fails to compile here, and an upstream retype follows through
+ * rather than being silently contradicted. The type is structurally assignable to
  * {@link AvailabilityEntryWrite}, so {@link setEntry} accepts it with no overload — and the fields
  * it omits are not merely unused by convention: `validateWrite` rejects `state`, `count`,
  * `isInventoryTracked`, `isHidden` and the webhook's `timestamp` on a set entry.
@@ -196,8 +197,8 @@ export async function setEntry(
  *
  * The intended caller is square-gateway-claude's catalog sync: one call per location, driven by
  * the same `{ [locationId]: boolean }` scope map it already computes for the legacy
- * `OptionSet.locationInventory` write. **That caller is a separate follow-up** — nothing in this
- * repo calls this yet.
+ * `OptionSet.locationInventory` write. **That caller is a separate follow-up** — no production
+ * code in this repo calls this, only its tests.
  */
 export async function setOptionSetEntryPresence(
   businessId: string,
@@ -252,8 +253,8 @@ export async function setEntryCountGuarded(
     // inventory-tracked, yet it carries no `isInventoryTracked: false` to say so (that field is
     // forbidden on it), so the check below would let a webhook count land on a set. Reported as
     // 'skippedUntracked' rather than through a new outcome — {@link GuardedWriteOutcome} is a
-    // cross-repo API the gateway switches on, and a new member would silently fall through its
-    // existing branches. The reason is the same one the name states: not tracked, so no count.
+    // published union, and a new member is a breaking change for every consumer that switches on
+    // it. The reason is the same one the name states: not tracked, so no count.
     if (data?.kind === 'optionSet') return 'skippedUntracked';
     // Trackedness first: an untracked entry is skipped regardless of how its timestamp compares.
     if (data?.isInventoryTracked === false) return 'skippedUntracked';
@@ -327,10 +328,13 @@ export async function deleteEntries(
 // Typed against the interface's unions so a member renamed or removed from the contract fails to
 // compile here. A WIDENING does not: a plain array is never checked for exhaustiveness, so a new
 // literal in the union has to be added to these lists by hand (the parity test flags the interface
-// change, not this list). There are now two kind lists and a new one must be added to BOTH by
-// hand: ENTRY_KINDS is every kind a document may carry, COUNT_WRITE_KINDS the subset an inventory
-// count may classify. Omitting a kind from ENTRY_KINDS rejects every write of it at runtime while
-// the compiler and the parity test both stay green — #221 widened both.
+// change, not this list). Leave a kind out of ENTRY_KINDS and every write of it is rejected at
+// runtime while the compiler and the parity test both stay green.
+//
+// There are two lists, and a new kind is a separate decision on each: ENTRY_KINDS is every kind a
+// document may carry, COUNT_WRITE_KINDS the subset an inventory count may classify. #221 added
+// 'optionSet' to the first and deliberately withheld it from the second — see
+// `AvailabilityCountWrite`.
 const ENTRY_KINDS: readonly AvailabilityEntryKind[] = ['product', 'option', 'optionSet'];
 const COUNT_WRITE_KINDS: readonly NonNullable<AvailabilityCountWrite['kind']>[] = ['product', 'option'];
 const ENTRY_STATES: readonly AvailabilityEntryState[] = ['inStock', 'soldOut'];
@@ -351,8 +355,9 @@ function validateWrite(fields: Partial<AvailabilityEntryWrite>, options: { isKin
   // Set entries own presence alone (#221). This runs after the `kind` check — an unrecognised kind
   // is reported as such — and BEFORE the domain checks below, so `{kind:'optionSet', count: 1.5}`
   // is reported as `count` not being writable here rather than as a malformed integer. It walks
-  // ENTRY_WRITABLE_FIELDS so the field named first is deterministic when several are present, and
-  // it sees whatever `pickWritable` copied, which is what makes it bind an untyped JS caller too.
+  // ENTRY_WRITABLE_FIELDS so the field named first is deterministic when several are present. It
+  // runs at runtime over the post-`pickWritable` fields, so it binds an untyped JS caller too, on
+  // exactly the fields that would otherwise have reached the SDK.
   if (fields.kind === 'optionSet') {
     for (const field of ENTRY_WRITABLE_FIELDS) {
       if (fields[field] !== undefined && !(OPTION_SET_WRITABLE_FIELDS as readonly string[]).includes(field)) {

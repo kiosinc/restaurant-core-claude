@@ -728,9 +728,15 @@ describe('AvailabilityEntryService — set-level entries (#221)', () => {
       expect(fx.store.size).toBe(0);
     });
 
-    it('names the first offender in ENTRY_WRITABLE_FIELDS order, not in caller key order', async () => {
+    it('names a deterministic first offender when several forbidden fields are present', async () => {
       // `state` precedes `isHidden` precedes `timestamp` in the allow-list, so `state` is named for
       // both literals below even though their own key orders disagree.
+      //
+      // This pins the OUTCOME, not the sweep's own loop. `pickWritable` has already copied the
+      // caller's keys in ENTRY_WRITABLE_FIELDS order by the time the sweep sees them, so a sweep
+      // that iterated `Object.keys(fields)` instead would still name `state` here. Isolating the
+      // sweep's iteration order would need a caller whose keys survive `pickWritable` out of order,
+      // which the allow-list makes impossible — hence no test for it.
       const forbidden: readonly string[] = ['timestamp', 'isHidden', 'state'];
       expect(ENTRY_WRITABLE_FIELDS.find((field) => forbidden.includes(field))).toBe('state');
 
