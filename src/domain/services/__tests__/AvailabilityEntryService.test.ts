@@ -660,11 +660,18 @@ describe('AvailabilityEntryService — set-level entries (#221)', () => {
     it('resolves the set entry by OptionSet.Id through PathResolver.inventoryEntryDoc', async () => {
       // Acceptance criterion 2: no new resolver, no new collection — the same `entries` collection,
       // keyed by the option set's id.
+      //
+      // `PathResolver` is mocked wholesale in this file, so all this can prove is WHICH resolver the
+      // service asks and with which ids, and that the write landed on the one ref it returned.
+      // The literal path TEXT is pinned against the real resolver in `PathResolver.test.ts`
+      // ('inventoryEntryDoc resolves an option-set id in the same entries collection') — asserting
+      // it here would only re-assert the double's own `fx.pathOf`.
       await setEntry(B, L, S, { kind: 'optionSet', isPresent: true });
       expect(vi.mocked(PathResolver.inventoryEntryDoc)).toHaveBeenCalledTimes(1);
       expect(vi.mocked(PathResolver.inventoryEntryDoc)).toHaveBeenCalledWith(B, L, S);
-      expect(fx.ref(B, L, S).path).toBe(SET_PATH);
-      expect(SET_PATH).toBe('businesses/biz-1/public/catalog/inventory/loc-1/entries/set-1');
+      // Exactly one document was addressed, and it is the one the resolver returned.
+      expect(fx.refs.size).toBe(1);
+      expect(setPayload(fx.ref(B, L, S)).payload).toMatchObject({ kind: 'optionSet', isPresent: true });
     });
 
     it('accepts a bare {kind: optionSet} — an absent isPresent means present', async () => {
