@@ -69,6 +69,43 @@ describe('public API surface (#163)', () => {
 });
 
 /**
+ * Outbound-boundary tests for rcc#221 (P41 set-level entries, contract rcc#162 §1 as amended).
+ *
+ * The set-level writer is the whole point of #221 for its consumer: square-gateway-claude's
+ * catalog sync will call `Domain.Services.setOptionSetEntryPresence` through the published root
+ * barrel. Same failure class as the blocks above — the function exists in
+ * `AvailabilityEntryService.ts` and would pass every deep-import test even if it never made it
+ * onto `services/index.ts`.
+ *
+ * `AvailabilityOptionSetEntryWrite` is a TYPE, so it cannot be asserted here at all; `npm run tsc`
+ * is what proves it is reachable through the barrel, since tests are excluded from `tsconfig.json`.
+ */
+describe('public API surface (#221)', () => {
+  it('#221 exposes setOptionSetEntryPresence through Domain.Services', () => {
+    // Presence only: calling it would resolve a ref, which calls getFirestore().
+    expect(typeof Lib.Domain.Services.setOptionSetEntryPresence).toBe('function');
+  });
+
+  it('#221 classifies all three optionSet shapes through the barrel isDefaultEntry', () => {
+    const services = Lib.Domain.Services;
+    // The set fold: `isAvailable = isPresent !== false`. A consumer reads defaultness through this
+    // one function for every kind — there is no set-specific classifier to reach for.
+    expect(services.isDefaultEntry({ kind: 'optionSet' })).toBe(true);
+    expect(services.isDefaultEntry({ kind: 'optionSet', isPresent: true })).toBe(true);
+    expect(services.isDefaultEntry({ kind: 'optionSet', isPresent: false })).toBe(false);
+  });
+
+  it('#221 leaves ENTRY_WRITABLE_FIELDS unchanged — no isAvailable, no set-specific field', () => {
+    // Widening the union must not have widened the writable-field list: a set entry owns a SUBSET
+    // of these, enforced inside `setEntry`, and `isAvailable` is still stored for no kind at all.
+    expect([...Lib.Domain.Services.ENTRY_WRITABLE_FIELDS]).toEqual([
+      'kind', 'isPresent', 'state', 'count', 'isInventoryTracked', 'isHidden', 'timestamp',
+    ]);
+    expect(Lib.Domain.Services.ENTRY_WRITABLE_FIELDS).not.toContain('isAvailable');
+  });
+});
+
+/**
  * Outbound-boundary tests for rcc#131 (P34 team invites, contract rcc#130 §1.1).
  *
  * businesses#325 and remy#402 reach the member helpers as `Domain.Roots.*`, the E.164
