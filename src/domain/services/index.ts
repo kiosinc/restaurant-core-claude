@@ -67,6 +67,10 @@ export {
   setEntryCountGuarded,
   getEntries,
   deleteEntries,
+  // #221: set-level entries — `kind: 'optionSet'` widens the union above. The presence-only write
+  // type and its writer; the gateway's catalog-sync caller is a separate follow-up.
+  AvailabilityOptionSetEntryWrite,
+  setOptionSetEntryPresence,
 } from './AvailabilityEntryService';
 
 // #207: the rebuild-relevant read-sets, exported so a cascade caller gates on this repo's
