@@ -53,10 +53,42 @@ describe('BusinessFactory - createBusiness', () => {
     expect(businessData.roles['user-1']).toBe('owner');
   });
 
+  it('writes members[creatorUid] as an active admin (#131)', async () => {
+    mockTransaction.get.mockResolvedValue({ data: () => null });
+    await createBusiness(defaultInput);
+    const businessData = mockTransaction.set.mock.calls[0][1];
+    const member = businessData.members['user-1'];
+    expect(member.role).toBe('admin');
+    expect(member.permissions).toEqual({
+      kiosk: true, menu: true, profile: true, account: true,
+    });
+    expect(member.locationScope).toBe('all');
+    expect(member.status).toBe('active');
+    expect(member.addedBy).toBe('user-1');
+    expect(typeof member.addedAt).toBe('number');
+  });
+
+  it('still writes roles[uid] = owner alongside members — contract §3.2 dual-write (#131)', async () => {
+    mockTransaction.get.mockResolvedValue({ data: () => null });
+    await createBusiness(defaultInput);
+    const businessData = mockTransaction.set.mock.calls[0][1];
+    expect(businessData.roles['user-1']).toBe('owner');
+    expect(businessData.members['user-1'].role).toBe('admin');
+  });
+
   it('creates all 8 root documents when no feature list', async () => {
     mockTransaction.get.mockResolvedValue({ data: () => undefined });
     await createBusiness(defaultInput);
     expect(mockTransaction.set).toHaveBeenCalledTimes(8);
+  });
+
+  // The `[5]` and `[8]` assertions below index `set.mock.calls` by position, so a stray or
+  // reordered `t.set` would surface as a confusing wrong-payload failure rather than a count
+  // mismatch. Pin both counts explicitly so the real cause is named first (#131).
+  it('creates exactly 9 documents when a feature list is present (#131 index guard)', async () => {
+    mockTransaction.get.mockResolvedValue({ data: () => ({ features: ['a'] }) });
+    await createBusiness(defaultInput);
+    expect(mockTransaction.set).toHaveBeenCalledTimes(9);
   });
 
   it('a new business persists isFreeOrdersEnabled: false (#216)', async () => {

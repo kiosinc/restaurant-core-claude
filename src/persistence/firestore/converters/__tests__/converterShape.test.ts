@@ -8,7 +8,7 @@ import { createLocationsRoot } from '../../../../domain/roots/Locations';
 import { createSurfaces } from '../../../../domain/roots/Surfaces';
 import { createOnboarding } from '../../../../domain/roots/Onboarding';
 import { createOrderSettings } from '../../../../domain/roots/Orders';
-import { createBusinessRoot } from '../../../../domain/roots/Business';
+import { createBusinessRoot, createBusinessInvitation } from '../../../../domain/roots/Business';
 import { createCategory } from '../../../../domain/catalog/Category';
 import { createDiscount } from '../../../../domain/catalog/Discount';
 import { createTaxRate } from '../../../../domain/catalog/TaxRate';
@@ -183,6 +183,15 @@ const converterCases: Array<{ name: string; write: () => unknown }> = [
     ),
   },
   {
+    name: 'invitationConverter',
+    // The barest invitation the factory accepts: an sms channel, so `email` is never assigned and
+    // the write must simply not carry the key. This converter strips on its own (it is
+    // hand-written, outside `createConverter`'s boundary), which is exactly what this asserts.
+    write: () => Converters.invitationConverter.toFirestore(createBusinessInvitation({
+      channel: 'sms', phoneNumber: '+14155550132', role: 'regular', invitedBy: 'user-1',
+    })),
+  },
+  {
     name: 'orderConverter',
     write: () => Converters.orderConverter.toFirestore(
       createOrder(legacyOrderInput as unknown as MinimalInput<typeof createOrder>),
@@ -203,6 +212,8 @@ describe('converter output shape (#204 boundary guard)', () => {
     // tokenConverter is deliberately excluded, not overlooked: it is hand-written
     // (converters/tokenConverter.ts) rather than produced by createConverter, so the boundary
     // strip does not cover it and asserting the strip's property of it would be a false pass.
+    // Being hand-written is not on its own grounds for exclusion — invitationConverter is too, but
+    // it calls `stripUndefined` itself, so the property below genuinely holds of it.
     const exported = Object.entries(Converters)
       .filter(([name, value]) => name !== 'tokenConverter'
         && typeof value === 'object' && value !== null && 'toFirestore' in value)

@@ -159,6 +159,8 @@ Each business has 8 singleton root documents that hold denormalized maps of thei
 │   └── /tokens/{id}
 ├── /private/orders
 │   └── /orders/{id}
+├── /private/invitations
+│   └── /invitations/{inviteId}
 ├── /private/services
 ├── /private/onboarding
 │   └── /onboardingOrders/{id}

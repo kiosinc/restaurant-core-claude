@@ -11,6 +11,7 @@ export { default as DistributedCounter } from './firestore-core/core/Distributed
 
 // Auth & User — unchanged
 export * as Authentication from './user/Authentication';
+export * as Authorization from './user/Authorization';
 export * as Claims from './user/Claims';
 export * as User from './user/User';
 
