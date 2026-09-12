@@ -79,6 +79,21 @@ function kioskPrincipal(uid: string) {
 }
 
 /**
+ * A platform sysadmin: the `role: 'sysadmin'` custom claim sits TOP-LEVEL on the verified decoded
+ * token, the same position `role: 'kiosk'` occupies. `UserRequest.ts` does not narrow on it, so the
+ * principal is a `BusinessUser` carrying the claim — which is exactly the shape prod produced for
+ * `jjc@kios.cloud` when the first `teamRolesV2` flip 403'd them.
+ */
+function sysadminPrincipal(uid = 'uid-sys') {
+  return { claims: { businessRole: {} }, token: { uid, role: 'sysadmin' } };
+}
+
+/** The same uid WITHOUT the claim — the negative control's other half. */
+function unclaimedPrincipal(uid = 'uid-sys') {
+  return { claims: { businessRole: {} }, token: { uid } };
+}
+
+/**
  * The request every case starts from: an authenticated business user, the `businessId` param both
  * middlewares resolve, and the `locationId` param `requireLocationScope` reads. Each case overrides
  * only the part it is about, so the thing under test is the only thing that varies.
@@ -247,6 +262,179 @@ describe('Authorization', () => {
       await flush();
       expect(next).toHaveBeenCalledTimes(1);
       expect(asHttpError(next.mock.calls[0][0]).code).toBe(PERMISSION_DENIED);
+    });
+  });
+
+  /**
+   * The platform sysadmin bypass.
+   *
+   * The defect these pin is a production lockout, not a hypothetical: `teamRolesV2` was flipped on
+   * in `kios-master` and rolled back at 23:30 UTC because `GET /business/team-members` answered 403
+   * to a sysadmin. `migrateRolesToMembers` excludes `sysadmin` by design, so no backfill can ever
+   * put one in a `members` map — a members-only guard denies every sysadmin on every business,
+   * permanently. The bypass has to live here.
+   */
+  describe('platform sysadmin bypass', () => {
+    /**
+     * The headline case, and the shape of the prod failure: the business exists, its members map
+     * holds two OTHER uids, and the caller is in neither.
+     */
+    it('allows a sysadmin who has no members entry', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({
+        members: { 'uid-1': ACTIVE_ADMIN, 'uid-2': ACTIVE_REGULAR },
+      }));
+      const result = await run(
+        requirePermission('account'),
+        request({ user: sysadminPrincipal() }),
+      );
+      expect(result).toBeUndefined();
+    });
+
+    /**
+     * NEGATIVE CONTROL. Identical in every respect to the case above except the one claim, so it
+     * fails if — and only if — the bypass is the thing doing the allowing. Delete the
+     * `isSysadminPrincipal` branch from `resolveActiveMember` and the case above turns into this
+     * one; weaken the check to "any `role` claim" or to an email domain and this one turns into
+     * the case above.
+     */
+    it('NEGATIVE CONTROL — the same uid without the claim is denied', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({
+        members: { 'uid-1': ACTIVE_ADMIN, 'uid-2': ACTIVE_REGULAR },
+      }));
+      const error = asHttpError(await run(
+        requirePermission('account'),
+        request({ user: unclaimedPrincipal() }),
+      ));
+      expect(error.status).toBe(403);
+      expect(error.code).toBe(PERMISSION_DENIED);
+    });
+
+    /**
+     * Step 5, not just step 3. Clearing membership and then denying on `permissions` would move the
+     * denial one step later and leave the operator with the identical 403 — a sysadmin has no
+     * permission map to be checked against.
+     */
+    it('clears the permission check too, for every permission key', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: {} }));
+      const results = await Promise.all(
+        (['kiosk', 'menu', 'profile', 'account'] as const).map(
+          (permission) => run(requirePermission(permission), request({ user: sysadminPrincipal() })),
+        ),
+      );
+      expect(results).toEqual([undefined, undefined, undefined, undefined]);
+    });
+
+    /** Ahead of the lookup, not after it: nothing in the document can change the answer. */
+    it('issues no Firestore read', async () => {
+      await run(requirePermission('account'), request({ user: sysadminPrincipal() }));
+      expect(mockDocRef.get).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The claim is the whole grant, so it beats a narrower membership the same uid happens to hold.
+     * Revoking platform access means revoking the claim with the Admin SDK — never editing one
+     * tenant's members map, which could not reach the other tenants anyway.
+     */
+    it('beats a restrictive members entry for the same uid', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({
+        members: { 'uid-sys': { ...ACTIVE_REGULAR, status: 'unusable' } },
+      }));
+      expect(await run(
+        requirePermission('account'),
+        request({ user: sysadminPrincipal() }),
+      )).toBeUndefined();
+    });
+
+    /**
+     * The claim must be the VERIFIED top-level token field and nothing else. A `role` under the
+     * nested `.claims` body is the legacy `Claims.Body` position — writable through a different
+     * path and not what `set:sysadmin-claim` writes.
+     */
+    it('denies a role nested under .claims rather than on the token', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: {} }));
+      const error = asHttpError(await run(
+        requirePermission('account'),
+        request({
+          user: { claims: { businessRole: {}, role: 'sysadmin' }, token: { uid: 'uid-sys' } },
+        }),
+      ));
+      expect(error.status).toBe(403);
+      expect(error.code).toBe(PERMISSION_DENIED);
+    });
+
+    /**
+     * Never a Firestore field. A business document that names a uid `sysadmin` in its legacy
+     * `roles` map grants nothing — otherwise anyone who can write their own tenant document could
+     * promote themselves across every tenant.
+     */
+    it('denies a sysadmin role read from the business document', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({
+        roles: { 'uid-sys': 'sysadmin' },
+        members: {},
+      }));
+      const error = asHttpError(await run(
+        requirePermission('account'),
+        request({ user: unclaimedPrincipal() }),
+      ));
+      expect(error.status).toBe(403);
+      expect(error.code).toBe(PERMISSION_DENIED);
+    });
+
+    /**
+     * The kiosk denial is deliberate and load-bearing — businesses' `/events` exemption relies on
+     * it. A kiosk carries `role: 'kiosk'` at the very position this bypass reads, so the strict
+     * equality is what keeps the two apart.
+     */
+    it('still denies a kiosk principal, whose token carries role at the same position', async () => {
+      const error = asHttpError(await run(
+        requirePermission('kiosk'),
+        request({ user: kioskPrincipal('kiosk-uid') }),
+      ));
+      expect(error.status).toBe(403);
+      expect(error.code).toBe(PERMISSION_DENIED);
+    });
+
+    /** An unusable member with no claim is still denied — status still beats role (AC 8 / O4). */
+    it('still denies an unusable member', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': UNUSABLE_ADMIN } }));
+      const error = asHttpError(await run(requirePermission('menu'), request()));
+      expect(error.status).toBe(403);
+      expect(error.code).toBe(PERMISSION_DENIED);
+    });
+
+    /** Steps 1 and 2 still run first: the claim is not a licence to skip a malformed request. */
+    it('answers 401 to a sysadmin claim with no principal attached', async () => {
+      const error = asHttpError(await run(
+        requirePermission('menu'),
+        request({ user: undefined }),
+      ));
+      expect(error.status).toBe(401);
+      expect(mockDocRef.get).not.toHaveBeenCalled();
+    });
+
+    it('answers 400 to a sysadmin when the business id cannot be resolved', async () => {
+      const error = asHttpError(await run(
+        requirePermission('menu'),
+        request({ user: sysadminPrincipal(), params: {} }),
+      ));
+      expect(error.status).toBe(400);
+      expect(mockDocRef.get).not.toHaveBeenCalled();
+    });
+
+    it('clears requireLocationScope for a location no member could reach', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': memberWithScope([]) } }));
+      expect(await run(
+        requireLocationScope('locationId'),
+        request({ user: sysadminPrincipal() }),
+      )).toBeUndefined();
+    });
+
+    it('still answers 400 to a sysadmin when the location param is absent', async () => {
+      const error = asHttpError(await run(
+        requireLocationScope('locationId'),
+        request({ user: sysadminPrincipal(), params: { businessId: 'biz-1' } }),
+      ));
+      expect(error.status).toBe(400);
     });
   });
 
