@@ -413,7 +413,12 @@ describe('rollout allowlists (#240)', () => {
     mockDocGet.mockResolvedValue({ exists: true, data: () => ({ teamRolesV2: { a: 1 } }) });
     expect(await getRolloutAllowlists()).toEqual({ teamRolesV2: [] });
 
-    expect(warnSpy).toHaveBeenCalledTimes(2);
+    // `null` is a value Firestore can hold; it is not-an-array, not absent.
+    clearRolloutAllowlistCache();
+    mockDocGet.mockResolvedValue({ exists: true, data: () => ({ teamRolesV2: null }) });
+    expect(await getRolloutAllowlists()).toEqual({ teamRolesV2: [] });
+
+    expect(warnSpy).toHaveBeenCalledTimes(3);
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('config/rolloutAllowlists.teamRolesV2 is not an array'),
     );
@@ -477,6 +482,24 @@ describe('rollout allowlists (#240)', () => {
     await getRolloutAllowlists();
 
     expect(mockDocGet).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-fetches once the 60 s TTL has elapsed', async () => {
+    mockDocGet.mockResolvedValue({ exists: false });
+    const nowSpy = vi.spyOn(Date, 'now');
+    try {
+      nowSpy.mockReturnValue(1_000_000);
+      await getRolloutAllowlists();
+      nowSpy.mockReturnValue(1_000_000 + 59_999);
+      await getRolloutAllowlists();
+      expect(mockDocGet).toHaveBeenCalledTimes(1);
+
+      nowSpy.mockReturnValue(1_000_000 + 60_000);
+      await getRolloutAllowlists();
+      expect(mockDocGet).toHaveBeenCalledTimes(2);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it('createRolloutAllowlistService instances have independent caches', async () => {
