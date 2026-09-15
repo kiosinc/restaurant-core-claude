@@ -203,3 +203,50 @@ describe('public API surface (#131)', () => {
     expect(business.members).toEqual({});
   });
 });
+
+/**
+ * Outbound-boundary tests for rcc#240 (P34 team invites replan, contract rcc#239 §1.1, §1.2, §1.5).
+ *
+ * businesses#464 reads the rollout allowlists as `Domain.Services.*`, hands `requireLocationScope`
+ * a `resolveLocationId` option, and stamps `BusinessInvitation.name` through `Domain.Roots.*` —
+ * every one of them through the published root barrel. Same failure class as the blocks above:
+ * a reader that exists in `FeatureFlagService.ts` but never made it onto `services/index.ts`
+ * would pass every deep-import test and still be unreachable for the consumer.
+ *
+ * Callable-and-correct for the pure functions; presence-only for anything that would call
+ * `getFirestore()`, which needs an initialised app.
+ */
+describe('public API surface (#240)', () => {
+  const Roots = Lib.Domain.Roots;
+
+  it('#240 exposes the rollout allowlist reader through Domain.Services', () => {
+    const services = Lib.Domain.Services;
+    // Presence only: the readers resolve `/config/rolloutAllowlists`, which calls getFirestore().
+    expect(typeof services.getRolloutAllowlists).toBe('function');
+    expect(typeof services.isTeamRolesV2Enabled).toBe('function');
+    expect(typeof services.clearRolloutAllowlistCache).toBe('function');
+    expect(typeof services.createRolloutAllowlistService).toBe('function');
+    // Clearing the cache touches no Firestore state, so this much is callable even here.
+    expect(() => services.clearRolloutAllowlistCache()).not.toThrow();
+  });
+
+  it('#240 accepts resolveLocationId on requireLocationScope through Authorization', () => {
+    // The factory itself is pure — it hands back the handler without touching Firestore.
+    // Invoking the handler with a resolver is Authorization.test.ts's job.
+    const handler = Lib.Authorization.requireLocationScope('locationId', {
+      resolveLocationId: () => 'loc-1',
+    });
+    expect(typeof handler).toBe('function');
+  });
+
+  it('#240 exposes BusinessInvitation.name and INVITE_NAME_MAX_LENGTH through Domain.Roots', () => {
+    expect(Roots.INVITE_NAME_MAX_LENGTH).toBe(80);
+    const smsInput = {
+      channel: 'sms' as const, phoneNumber: '+14155550132', role: 'regular' as const, invitedBy: 'uid-owner',
+    };
+    // Trimmed on the write path, like `email` — the consumer stores what the factory returns.
+    expect(Roots.createBusinessInvitation({ ...smsInput, name: '  Sam  ' }).name).toBe('Sam');
+    // Absent, not `undefined`, when it is not supplied (#200 / #204 rule).
+    expect('name' in Roots.createBusinessInvitation(smsInput)).toBe(false);
+  });
+});

@@ -67,6 +67,19 @@ export function requireE164(field: string, value: unknown): void {
 }
 
 /**
+ * A string that is 1–`maxLength` characters once trimmed. Returns the trimmed value — like
+ * `requireIsoTimestamp`, the caller stores the normalized form, so returning it avoids trimming
+ * twice. Rejects a non-string, a whitespace-only string and an over-long one.
+ */
+export function requireTrimmedString(field: string, value: unknown, maxLength: number): string {
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (trimmed.length === 0 || trimmed.length > maxLength) {
+    throw new ValidationError(field, `must be 1-${maxLength} characters after trimming`);
+  }
+  return trimmed;
+}
+
+/**
  * Returns the parsed epoch millis of an ISO-8601 string. Anything else — including a `Date`,
  * a Firestore `Timestamp`, or a number — is a caller bug. Unlike the other validators this
  * returns a value: callers that go on to compare instants would otherwise parse the string twice.

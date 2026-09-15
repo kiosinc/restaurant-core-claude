@@ -4,6 +4,7 @@ export {
   InviteStatus, InviteChannel, BusinessInvitation,
   roleForPermission, isActiveMember, hasPermission, isLocationInScope,
   createBusinessMember, migrateRolesToMembers, createBusinessInvitation, INVITE_TTL_MS,
+  INVITE_NAME_MAX_LENGTH,
 } from './Business';
 export { Catalog, createCatalog } from './Catalog';
 export { Surfaces as SurfacesRoot, createSurfaces } from './Surfaces';

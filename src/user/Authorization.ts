@@ -41,6 +41,19 @@ export interface AuthorizationOptions {
    * for a route that carries it elsewhere (a body field, a sub-resource lookup, a header).
    */
   resolveBusinessId?: (req: Request) => string | undefined;
+
+  /**
+   * Where to find the location id `requireLocationScope` checks. Consulted first; `undefined`
+   * falls back to `req.params[locationIdParam]`. May be async (a device-doc lookup). Contract
+   * rcc#239 §1.2:
+   * - `''` is unresolved and answers 400 exactly like an absent param — the library trims and
+   *   maps nothing; the consumer owns any `''` → sentinel mapping.
+   * - A throw or rejection is forwarded to `next(err)` untouched and never grants, for a
+   *   sysadmin too — this is how businesses keeps its masked 404 for a missing device.
+   * - Runs AFTER steps 1–4 (principal, business id, sysadmin marker, membership), so a caller who
+   *   is not an active member never triggers the resolver's read.
+   */
+  resolveLocationId?: (req: Request) => string | undefined | Promise<string | undefined>;
 }
 
 /** The default of `AuthorizationOptions.resolveBusinessId`, hoisted so it is not rebuilt per request. */
@@ -232,7 +245,7 @@ async function decidePermission(
   return undefined;
 }
 
-/** Steps 1–4, then the route param, then the scope check. */
+/** Steps 1–4, then the location id (resolver first, route param second), then the scope check. */
 async function decideLocationScope(
   req: Request,
   locationIdParam: string,
@@ -241,7 +254,9 @@ async function decideLocationScope(
   const resolved = await resolveActiveMember(req, options);
   if ('error' in resolved) return resolved.error;
 
-  const locationId = req.params[locationIdParam];
+  // `??`, not `||`: `''` from the resolver is unresolved and must 400, not fall through to the
+  // param (contract rcc#239 §1.2).
+  const locationId = (await options.resolveLocationId?.(req)) ?? req.params[locationIdParam];
   if (!locationId) {
     return new HttpErrors.BadRequest(`${locationIdParam} is required`);
   }
@@ -289,12 +304,16 @@ export function requirePermission(
 
 /**
  * Guards a route on the member's `locationScope` against a location id read from
- * `req.params[locationIdParam]`.
+ * `options.resolveLocationId`, falling back to `req.params[locationIdParam]` when there is no
+ * resolver or it returns `undefined`.
  *
  * Steps 1–4 are `requirePermission`'s, so an absent or inactive member answers `PERMISSION_DENIED`
- * and only a genuine scope miss answers `LOCATION_OUT_OF_SCOPE`. A missing route param answers 400,
- * for the same reason step 2 does — including for a sysadmin, who clears the scope check but not
- * the route-misconfiguration check. Same two-argument `.then(next, next)` contract.
+ * and only a genuine scope miss answers `LOCATION_OUT_OF_SCOPE`. An unresolved location id answers
+ * 400 — a resolver that returns `''`, or one that returns `undefined` (or no resolver) with the route
+ * param absent — for the same reason step 2 does, including for a sysadmin, who clears the scope
+ * check but not the route-misconfiguration check. A resolver that throws or rejects is forwarded to
+ * `next(err)` untouched and never grants, sysadmin included. Same two-argument `.then(next, next)`
+ * contract.
  */
 export function requireLocationScope(
   locationIdParam: string,

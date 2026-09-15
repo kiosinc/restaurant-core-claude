@@ -1,13 +1,44 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getFlags, clearFlagCache, createFlagService } from '../FeatureFlagService';
+import {
+  getFlags,
+  clearFlagCache,
+  createFlagService,
+  getRolloutAllowlists,
+  clearRolloutAllowlistCache,
+  createRolloutAllowlistService,
+  isTeamRolesV2Enabled,
+} from '../FeatureFlagService';
 
 const mockDocGet = vi.fn();
-const mockDoc = vi.fn(() => ({ get: mockDocGet }));
+// Typed on the doc id so a test can branch per config doc (see stubConfigDocs);
+// the default implementation serves mockDocGet for every id, as before.
+const mockDoc = vi.fn((_docId: string) => ({ get: mockDocGet }));
 const mockCollection = vi.fn(() => ({ doc: mockDoc }));
 
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({ collection: mockCollection }),
 }));
+
+type ConfigDocs = {
+  writeModelFlags?: Record<string, unknown>;
+  rolloutAllowlists?: Record<string, unknown>;
+};
+
+/**
+ * Serves each config doc by id. A doc omitted from `docs` reads as missing —
+ * avoids ordering-fragile mockResolvedValueOnce chains when a test touches both
+ * `writeModelFlags` and `rolloutAllowlists`.
+ */
+function stubConfigDocs(docs: ConfigDocs) {
+  mockDoc.mockImplementation((docId: string) => {
+    const data = docs[docId as keyof ConfigDocs];
+    return {
+      get: vi.fn().mockResolvedValue(
+        data !== undefined ? { exists: true, data: () => data } : { exists: false },
+      ),
+    };
+  });
+}
 
 // Mirror of the service's DEFAULT_FLAGS (module-private) for whole-object assertions.
 const EXPECTED_DEFAULTS = {
@@ -29,7 +60,10 @@ const EXPECTED_DEFAULTS = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks keeps implementations, so undo any stubConfigDocs override.
+  mockDoc.mockImplementation(() => ({ get: mockDocGet }));
   clearFlagCache();
+  clearRolloutAllowlistCache();
 });
 
 describe('FeatureFlagService', () => {
@@ -343,5 +377,211 @@ describe('FeatureFlagService', () => {
 
     const after = await getFlags();
     expect(after.tempFlag).toBeUndefined();
+  });
+});
+
+describe('rollout allowlists (#240)', () => {
+  it('reads from config/rolloutAllowlists path', async () => {
+    mockDocGet.mockResolvedValue({ exists: false });
+
+    await getRolloutAllowlists();
+    expect(mockCollection).toHaveBeenCalledWith('config');
+    expect(mockDoc).toHaveBeenCalledWith('rolloutAllowlists');
+  });
+
+  it('returns {teamRolesV2: []} when the doc does not exist', async () => {
+    mockDocGet.mockResolvedValue({ exists: false });
+
+    const lists = await getRolloutAllowlists();
+    expect(lists).toEqual({ teamRolesV2: [] });
+  });
+
+  it('returns {teamRolesV2: []} when the field is absent', async () => {
+    mockDocGet.mockResolvedValue({ exists: true, data: () => ({}) });
+
+    const lists = await getRolloutAllowlists();
+    expect(lists).toEqual({ teamRolesV2: [] });
+  });
+
+  it('returns [] and warns when the field is not an array', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    mockDocGet.mockResolvedValue({ exists: true, data: () => ({ teamRolesV2: 'biz-1' }) });
+    expect(await getRolloutAllowlists()).toEqual({ teamRolesV2: [] });
+
+    clearRolloutAllowlistCache();
+    mockDocGet.mockResolvedValue({ exists: true, data: () => ({ teamRolesV2: { a: 1 } }) });
+    expect(await getRolloutAllowlists()).toEqual({ teamRolesV2: [] });
+
+    // `null` is a value Firestore can hold; it is not-an-array, not absent.
+    clearRolloutAllowlistCache();
+    mockDocGet.mockResolvedValue({ exists: true, data: () => ({ teamRolesV2: null }) });
+    expect(await getRolloutAllowlists()).toEqual({ teamRolesV2: [] });
+
+    expect(warnSpy).toHaveBeenCalledTimes(3);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('config/rolloutAllowlists.teamRolesV2 is not an array'),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('keeps string entries and drops non-string entries with a warn', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ teamRolesV2: ['biz-1', 2, null, { x: 1 }, 'biz-2'] }),
+    });
+
+    const lists = await getRolloutAllowlists();
+    expect(lists.teamRolesV2).toEqual(['biz-1', 'biz-2']);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('dropped 3 non-string entries'),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('does not warn when every entry is a string', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ teamRolesV2: ['biz-1', 'biz-2'] }),
+    });
+
+    const lists = await getRolloutAllowlists();
+    expect(lists.teamRolesV2).toEqual(['biz-1', 'biz-2']);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('ignores unrelated fields in the doc', async () => {
+    mockDocGet.mockResolvedValue({
+      exists: true,
+      data: () => ({ teamRolesV2: ['biz-1'], other: ['x'] }),
+    });
+
+    const lists = await getRolloutAllowlists();
+    expect(lists).toEqual({ teamRolesV2: ['biz-1'] });
+  });
+
+  it('caches within TTL', async () => {
+    mockDocGet.mockResolvedValue({ exists: false });
+
+    await getRolloutAllowlists();
+    await getRolloutAllowlists();
+    await getRolloutAllowlists();
+
+    expect(mockDocGet).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-fetches after clearRolloutAllowlistCache', async () => {
+    mockDocGet.mockResolvedValue({ exists: false });
+
+    await getRolloutAllowlists();
+    clearRolloutAllowlistCache();
+    await getRolloutAllowlists();
+
+    expect(mockDocGet).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-fetches once the 60 s TTL has elapsed', async () => {
+    mockDocGet.mockResolvedValue({ exists: false });
+    const nowSpy = vi.spyOn(Date, 'now');
+    try {
+      nowSpy.mockReturnValue(1_000_000);
+      await getRolloutAllowlists();
+      nowSpy.mockReturnValue(1_000_000 + 59_999);
+      await getRolloutAllowlists();
+      expect(mockDocGet).toHaveBeenCalledTimes(1);
+
+      nowSpy.mockReturnValue(1_000_000 + 60_000);
+      await getRolloutAllowlists();
+      expect(mockDocGet).toHaveBeenCalledTimes(2);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('createRolloutAllowlistService instances have independent caches', async () => {
+    mockDocGet.mockResolvedValue({ exists: false });
+
+    const service1 = createRolloutAllowlistService();
+    const service2 = createRolloutAllowlistService();
+
+    await service1.getRolloutAllowlists();
+    await service2.getRolloutAllowlists();
+
+    // Each instance fetched independently
+    expect(mockDocGet).toHaveBeenCalledTimes(2);
+
+    // Clearing one doesn't affect the other
+    service1.clearCache();
+    await service1.getRolloutAllowlists();
+    expect(mockDocGet).toHaveBeenCalledTimes(3);
+
+    // service2 still cached
+    await service2.getRolloutAllowlists();
+    expect(mockDocGet).toHaveBeenCalledTimes(3);
+  });
+
+  it('allowlist cache is independent of the flags cache', async () => {
+    mockDocGet.mockResolvedValue({ exists: false });
+
+    await getFlags();
+    await getRolloutAllowlists();
+    expect(mockDocGet).toHaveBeenCalledTimes(2);
+
+    clearFlagCache();
+    await getRolloutAllowlists();
+    // Clearing the flags cache did not evict the allowlist read.
+    expect(mockDocGet).toHaveBeenCalledTimes(2);
+
+    await getFlags();
+    expect(mockDocGet).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('isTeamRolesV2Enabled (#240)', () => {
+  it('is true when the global flag is on, without reading the allowlist', async () => {
+    stubConfigDocs({ writeModelFlags: { teamRolesV2: true }, rolloutAllowlists: { teamRolesV2: [] } });
+
+    expect(await isTeamRolesV2Enabled('biz-1')).toBe(true);
+    expect(mockDoc).toHaveBeenCalledWith('writeModelFlags');
+    expect(mockDoc).not.toHaveBeenCalledWith('rolloutAllowlists');
+  });
+
+  it('is true when the flag is off and the business is listed', async () => {
+    stubConfigDocs({ rolloutAllowlists: { teamRolesV2: ['biz-1'] } });
+
+    expect(await isTeamRolesV2Enabled('biz-1')).toBe(true);
+  });
+
+  it('is false when the flag is off and the business is unlisted', async () => {
+    stubConfigDocs({ rolloutAllowlists: { teamRolesV2: ['biz-2'] } });
+
+    expect(await isTeamRolesV2Enabled('biz-1')).toBe(false);
+  });
+
+  it('is false when both docs are missing', async () => {
+    stubConfigDocs({});
+
+    expect(await isTeamRolesV2Enabled('biz-1')).toBe(false);
+  });
+
+  it('is false for an empty businessId that is not listed', async () => {
+    stubConfigDocs({ rolloutAllowlists: { teamRolesV2: ['biz-1'] } });
+
+    expect(await isTeamRolesV2Enabled('')).toBe(false);
+  });
+
+  it('propagates a Firestore error rather than failing open', async () => {
+    const failure = new Error('firestore unavailable');
+    mockDoc.mockImplementation((docId: string) => ({
+      get: docId === 'rolloutAllowlists'
+        ? vi.fn().mockRejectedValue(failure)
+        : vi.fn().mockResolvedValue({ exists: false }),
+    }));
+
+    await expect(isTeamRolesV2Enabled('biz-1')).rejects.toBe(failure);
   });
 });

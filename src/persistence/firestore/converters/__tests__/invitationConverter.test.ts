@@ -57,6 +57,34 @@ describe('invitationConverter', () => {
     expect(undefinedPaths(written)).toEqual([]);
   });
 
+  it('round-trips an invitation with a name', () => {
+    const invite = createBusinessInvitation({
+      channel: 'sms', phoneNumber: '+14155550132', name: 'Sam', role: 'regular', invitedBy: 'user-1',
+    });
+    const written = invitationConverter.toFirestore(invite);
+    expect(invitationConverter.fromFirestore(written, invite.id, 'biz-1')).toEqual(invite);
+  });
+
+  it('omits an absent name rather than writing undefined', () => {
+    const written = invitationConverter.toFirestore(smsInvitation());
+    expect('name' in written).toBe(false);
+    expect(undefinedPaths(written)).toEqual([]);
+  });
+
+  it('hydrates without a name key when the document has none', () => {
+    // The conditional spread in `fromFirestore` is the thing under test: a document written before
+    // `name` existed must hydrate to an absent key, not a present-and-`undefined` one.
+    const written = invitationConverter.toFirestore(smsInvitation());
+    expect('name' in invitationConverter.fromFirestore(written, 'inv-1', 'biz-1')).toBe(false);
+  });
+
+  it('strips an explicitly undefined name instead of writing the key', () => {
+    const invite = { ...smsInvitation(), name: undefined } as BusinessInvitation;
+    const written = invitationConverter.toFirestore(invite);
+    expect('name' in written).toBe(false);
+    expect(undefinedPaths(written)).toEqual([]);
+  });
+
   it('writes both contact fields when both are present', () => {
     const invite: BusinessInvitation = {
       ...smsInvitation(),

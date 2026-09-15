@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { INVITE_TTL_MS, createBusinessInvitation } from '../Business';
+import { INVITE_NAME_MAX_LENGTH, INVITE_TTL_MS, createBusinessInvitation } from '../Business';
 import { ValidationError } from '../../validation';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -106,6 +106,56 @@ describe('createBusinessInvitation', () => {
 
     it('throws when the address is missing', () => {
       expect(() => createBusinessInvitation({ ...EMAIL_INPUT, email: undefined }))
+        .toThrow(ValidationError);
+    });
+  });
+
+  describe('name (#240)', () => {
+    it('stores the trimmed name', () => {
+      expect(createBusinessInvitation({ ...SMS_INPUT, name: '  Sam  ' }).name).toBe('Sam');
+    });
+
+    it('leaves name absent, not undefined, when not supplied', () => {
+      // Same rule as the unused channel field: consumers write with `ignoreUndefinedProperties`
+      // off, where a present-and-`undefined` key rejects the whole document.
+      expect('name' in createBusinessInvitation(SMS_INPUT)).toBe(false);
+    });
+
+    it('accepts a 1-character name', () => {
+      expect(createBusinessInvitation({ ...SMS_INPUT, name: 'S' }).name).toBe('S');
+    });
+
+    it('accepts a name at INVITE_NAME_MAX_LENGTH after trimming', () => {
+      const invite = createBusinessInvitation({
+        ...SMS_INPUT, name: ` ${'a'.repeat(INVITE_NAME_MAX_LENGTH)} `,
+      });
+      expect(invite.name).toHaveLength(INVITE_NAME_MAX_LENGTH);
+      expect(INVITE_NAME_MAX_LENGTH).toBe(80);
+    });
+
+    it('throws for a name one over INVITE_NAME_MAX_LENGTH', () => {
+      expect(() => createBusinessInvitation({ ...SMS_INPUT, name: 'a'.repeat(INVITE_NAME_MAX_LENGTH + 1) }))
+        .toThrow(ValidationError);
+    });
+
+    it('throws a ValidationError naming the field for an empty name', () => {
+      let caught: unknown;
+      try {
+        createBusinessInvitation({ ...SMS_INPUT, name: '' });
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ValidationError);
+      expect((caught as ValidationError).field).toBe('name');
+    });
+
+    it('throws for a whitespace-only name', () => {
+      expect(() => createBusinessInvitation({ ...SMS_INPUT, name: '   ' }))
+        .toThrow(ValidationError);
+    });
+
+    it('throws for a non-string name', () => {
+      expect(() => createBusinessInvitation({ ...SMS_INPUT, name: 42 as never }))
         .toThrow(ValidationError);
     });
   });

@@ -19,10 +19,10 @@ import { stripUndefined } from '../sanitize';
  *
  * **It calls `stripUndefined` itself, unlike `tokenConverter`.** `sanitize.ts`'s header names
  * `tokenConverter` as the one converter outside the strip boundary — a known hazard, not a
- * pattern to copy. `phoneNumber` and `email` are optional and are exactly the keys that arrive
- * `undefined` from an untyped caller; consumers write converter output to Firestore instances with
- * `ignoreUndefinedProperties` off, where a single `undefined` value rejects the whole document
- * (#200, #204).
+ * pattern to copy. `phoneNumber`, `email` and `name` are optional and are exactly the keys that
+ * arrive `undefined` from an untyped caller; consumers write converter output to Firestore
+ * instances with `ignoreUndefinedProperties` off, where a single `undefined` value rejects the
+ * whole document (#200, #204).
  *
  * `id` is dropped from the body because it IS the document id — the same thing `createConverter`
  * does with `Id` — and is stamped back from the snapshot on read.
@@ -50,6 +50,7 @@ export const invitationConverter: FirestoreRepositoryConfig<BusinessInvitation> 
       channel: data.channel as InviteChannel,
       ...(data.phoneNumber === undefined ? {} : { phoneNumber: data.phoneNumber as string }),
       ...(data.email === undefined ? {} : { email: data.email as string }),
+      ...(data.name === undefined ? {} : { name: data.name as string }),
       role: data.role as MemberRole,
       permissions: data.permissions as MemberPermissions,
       locationScope: data.locationScope as LocationScope,
