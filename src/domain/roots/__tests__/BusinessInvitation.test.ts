@@ -125,19 +125,28 @@ describe('createBusinessInvitation', () => {
       expect(createBusinessInvitation({ ...SMS_INPUT, name: 'S' }).name).toBe('S');
     });
 
-    it('accepts an 80-character name after trimming', () => {
-      const invite = createBusinessInvitation({ ...SMS_INPUT, name: ` ${'a'.repeat(80)} ` });
-      expect(invite.name).toHaveLength(80);
+    it('accepts a name at INVITE_NAME_MAX_LENGTH after trimming', () => {
+      const invite = createBusinessInvitation({
+        ...SMS_INPUT, name: ` ${'a'.repeat(INVITE_NAME_MAX_LENGTH)} `,
+      });
+      expect(invite.name).toHaveLength(INVITE_NAME_MAX_LENGTH);
+      expect(INVITE_NAME_MAX_LENGTH).toBe(80);
     });
 
-    it('throws for an 81-character name', () => {
-      expect(() => createBusinessInvitation({ ...SMS_INPUT, name: 'a'.repeat(81) }))
+    it('throws for a name one over INVITE_NAME_MAX_LENGTH', () => {
+      expect(() => createBusinessInvitation({ ...SMS_INPUT, name: 'a'.repeat(INVITE_NAME_MAX_LENGTH + 1) }))
         .toThrow(ValidationError);
     });
 
-    it('throws for an empty name', () => {
-      expect(() => createBusinessInvitation({ ...SMS_INPUT, name: '' }))
-        .toThrow(ValidationError);
+    it('throws a ValidationError naming the field for an empty name', () => {
+      let caught: unknown;
+      try {
+        createBusinessInvitation({ ...SMS_INPUT, name: '' });
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(ValidationError);
+      expect((caught as ValidationError).field).toBe('name');
     });
 
     it('throws for a whitespace-only name', () => {
@@ -148,21 +157,6 @@ describe('createBusinessInvitation', () => {
     it('throws for a non-string name', () => {
       expect(() => createBusinessInvitation({ ...SMS_INPUT, name: 42 as never }))
         .toThrow(ValidationError);
-    });
-
-    it('exposes INVITE_NAME_MAX_LENGTH = 80', () => {
-      expect(INVITE_NAME_MAX_LENGTH).toBe(80);
-    });
-
-    it('throws ValidationError naming the field', () => {
-      let caught: unknown;
-      try {
-        createBusinessInvitation({ ...SMS_INPUT, name: '' });
-      } catch (err) {
-        caught = err;
-      }
-      expect(caught).toBeInstanceOf(ValidationError);
-      expect((caught as ValidationError).field).toBe('name');
     });
   });
 

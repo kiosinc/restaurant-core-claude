@@ -567,7 +567,6 @@ describe('Authorization', () => {
         request(),
       );
       expect(result).toBe(notFound);
-      expect(asHttpError(result).status).toBe(404);
     });
 
     it('forwards a synchronously throwing resolver to next', async () => {
@@ -587,7 +586,6 @@ describe('Authorization', () => {
         request({ user: sysadminPrincipal() }),
       );
       expect(result).toBe(notFound);
-      expect(asHttpError(result).status).toBe(404);
       expect(mockDocRef.get).not.toHaveBeenCalled();
     });
 

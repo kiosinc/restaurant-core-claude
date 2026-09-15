@@ -63,7 +63,6 @@ describe('invitationConverter', () => {
     });
     const written = invitationConverter.toFirestore(invite);
     expect(invitationConverter.fromFirestore(written, invite.id, 'biz-1')).toEqual(invite);
-    expect(invitationConverter.fromFirestore(written, invite.id, 'biz-1').name).toBe('Sam');
   });
 
   it('omits an absent name rather than writing undefined', () => {

@@ -12,10 +12,10 @@ P34 team invites replan — contract #239 (§1.1, §1.2, §1.5), issue #240.
 - `Domain.Services.getRolloutAllowlists()`, `isTeamRolesV2Enabled(businessId)`,
   `clearRolloutAllowlistCache()`, `createRolloutAllowlistService()` and the `RolloutAllowlists`
   type — reader for `/config/rolloutAllowlists`, 60 s cache, string entries only (#239 §1.1).
-- `Authorization.AuthorizationOptions.resolveLocationId` — sync or async, consulted before
-  `req.params[locationIdParam]`; `undefined` falls back to the param, `''` does not (`??`), and no
-  value from either ⇒ 400; a throw or rejection is forwarded to `next(err)` and never grants;
-  sysadmin ordering unchanged (#239 §1.2).
+- `Authorization.AuthorizationOptions.resolveLocationId` — an optional sync or async resolver for
+  the location id `requireLocationScope` checks. It runs first; `undefined` falls back to
+  `req.params[locationIdParam]`, `''` does not. No id from either answers 400. A throw or rejection
+  goes to `next(err)` and never grants, sysadmin included (#239 §1.2).
 - `BusinessInvitation.name?` (trimmed, 1–80, absent when not supplied), accepted by
   `createBusinessInvitation`, round-tripped by `invitationConverter`; `INVITE_NAME_MAX_LENGTH` (#239 §1.5).
 

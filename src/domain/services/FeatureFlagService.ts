@@ -169,8 +169,6 @@ export interface RolloutAllowlists {
   teamRolesV2: string[];
 }
 
-const DEFAULT_ALLOWLISTS: RolloutAllowlists = { teamRolesV2: [] };
-
 /**
  * Keeps string entries only. A missing field is silently `[]`; a present but
  * non-array value is `[]` with a warning, and each dropped non-string entry is
@@ -208,10 +206,7 @@ export function createRolloutAllowlistService() {
       const doc = await db.collection('config').doc('rolloutAllowlists').get();
 
       const data = doc.exists ? doc.data()! : {};
-      cached = {
-        ...DEFAULT_ALLOWLISTS,
-        teamRolesV2: stringEntries('teamRolesV2', data.teamRolesV2),
-      };
+      cached = { teamRolesV2: stringEntries('teamRolesV2', data.teamRolesV2) };
       cacheTimestamp = now;
       return cached;
     },
