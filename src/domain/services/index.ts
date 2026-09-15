@@ -20,6 +20,11 @@ export {
   createFlagService,
   getFlags,
   clearFlagCache,
+  RolloutAllowlists,
+  createRolloutAllowlistService,
+  getRolloutAllowlists,
+  clearRolloutAllowlistCache,
+  isTeamRolesV2Enabled,
 } from './FeatureFlagService';
 
 export {

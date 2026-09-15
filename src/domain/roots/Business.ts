@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { BaseEntity, baseEntityDefaults, generateId } from '../BaseEntity';
 import {
-  requireE164, requireNonEmptyString, requireNonNegativeInteger, requireOneOf,
+  requireE164, requireNonEmptyString, requireNonNegativeInteger, requireOneOf, requireTrimmedString,
 } from '../validation';
 import { BusinessProfile } from '../misc/BusinessProfile';
 
@@ -52,6 +52,8 @@ export interface BusinessInvitation {
   channel: InviteChannel;
   phoneNumber?: string;
   email?: string;
+  /** Invitee display name (rcc#239 §1.5): trimmed, 1–80 chars, absent when not supplied. */
+  name?: string;
   role: MemberRole;
   permissions: MemberPermissions;
   locationScope: LocationScope;
@@ -232,6 +234,8 @@ export function migrateRolesToMembers(business: Business): { [uid: string]: Busi
 
 /** Contract §1.1: an invitation expires 7 days after it was created. */
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Contract rcc#239 §1.5: the invitee `name` is 1–80 characters once trimmed. Shared with businesses and remy. */
+export const INVITE_NAME_MAX_LENGTH = 80;
 
 /**
  * Builds an invitation document. `id` and the bearer `token` are each minted when the caller does
@@ -248,12 +252,16 @@ export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
  * agree. The channel that was not used is left **absent** rather than present-and-`undefined`:
  * consumers write to instances with `ignoreUndefinedProperties` off, where one `undefined` value
  * rejects the whole document (#200, #204).
+ *
+ * `name`, when supplied, is stored trimmed and must be 1–`INVITE_NAME_MAX_LENGTH` chars; `null`
+ * from an untyped caller is rejected like any non-string — map it to absent upstream.
  */
 export function createBusinessInvitation(input: {
   id?: string;
   channel: InviteChannel;
   phoneNumber?: string;
   email?: string;
+  name?: string;
   role: MemberRole;
   permissions?: MemberPermissions;
   locationScope?: LocationScope;
@@ -283,11 +291,17 @@ export function createBusinessInvitation(input: {
     contact = { email: (input.email as string).trim().toLowerCase() };
   }
 
+  // Absent when not supplied, never present-and-undefined — the same rule as the channel fields.
+  const name = input.name === undefined
+    ? {}
+    : { name: requireTrimmedString('name', input.name, INVITE_NAME_MAX_LENGTH) };
+
   const createdAt = input.createdAt ?? Date.now();
   return {
     id: input.id ?? generateId(),
     channel: input.channel,
     ...contact,
+    ...name,
     role: input.role,
     permissions: input.permissions ?? roleForPermission(input.role),
     locationScope: input.locationScope ?? 'all',

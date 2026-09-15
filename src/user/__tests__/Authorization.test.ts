@@ -499,6 +499,177 @@ describe('Authorization', () => {
     });
   });
 
+  /**
+   * `options.resolveLocationId` (contract rcc#239 §1.2). The resolver is consulted first and
+   * `req.params[locationIdParam]` is the fallback for `undefined` only — an `''` is unresolved and
+   * 400s, a throw or rejection reaches `next(err)` and never grants. The suite above is the
+   * no-resolver control: it proves the param path is unchanged.
+   */
+  describe('requireLocationScope with options.resolveLocationId (#240)', () => {
+    it("uses the resolver's value over req.params", async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': memberWithScope(['loc-9']) } }));
+      expect(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => 'loc-9' }),
+        request({ params: { businessId: 'biz-1', locationId: 'loc-1' } }),
+      )).toBeUndefined();
+    });
+
+    /** NEGATIVE pairing of the case above: the param would allow, the resolver's value denies. */
+    it("denies on the resolver's value even when req.params would be in scope", async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': memberWithScope(['loc-1']) } }));
+      const error = asHttpError(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => 'loc-9' }),
+        request({ params: { businessId: 'biz-1', locationId: 'loc-1' } }),
+      ));
+      expect(error.status).toBe(403);
+      expect(error.code).toBe(LOCATION_OUT_OF_SCOPE);
+    });
+
+    it('awaits an async resolver', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': memberWithScope(['loc-9']) } }));
+      expect(await run(
+        requireLocationScope('locationId', { resolveLocationId: async () => 'loc-9' }),
+        request(),
+      )).toBeUndefined();
+    });
+
+    it('falls back to req.params when the resolver returns undefined', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': memberWithScope(['loc-1']) } }));
+      expect(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => undefined }),
+        request(),
+      )).toBeUndefined();
+    });
+
+    /** `??`, not `||`: `''` is unresolved, and the present param must NOT rescue it. */
+    it("answers 400 when the resolver returns '' even though the param is present", async () => {
+      const error = asHttpError(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => '' }),
+        request({ params: { businessId: 'biz-1', locationId: 'loc-1' } }),
+      ));
+      expect(error.status).toBe(400);
+      // Membership was read: the resolver runs after steps 1–4, not before.
+      expect(mockDocRef.get).toHaveBeenCalledTimes(1);
+    });
+
+    it('answers 400 when both resolver and param are undefined', async () => {
+      const error = asHttpError(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => undefined }),
+        request({ params: { businessId: 'biz-1' } }),
+      ));
+      expect(error.status).toBe(400);
+    });
+
+    it('forwards a rejecting resolver to next with the error and never grants', async () => {
+      const notFound = new HttpErrors.NotFound('Device not found');
+      const result = await run(
+        requireLocationScope('locationId', { resolveLocationId: async () => { throw notFound; } }),
+        request(),
+      );
+      expect(result).toBe(notFound);
+      expect(asHttpError(result).status).toBe(404);
+    });
+
+    it('forwards a synchronously throwing resolver to next', async () => {
+      const boom = new Error('boom');
+      const result = await run(
+        requireLocationScope('locationId', { resolveLocationId: () => { throw boom; } }),
+        request(),
+      );
+      expect(result).toBe(boom);
+    });
+
+    /** The claim clears the scope check, not a resolver failure — the masked 404 survives it. */
+    it('forwards a rejecting resolver for a sysadmin too', async () => {
+      const notFound = new HttpErrors.NotFound('Device not found');
+      const result = await run(
+        requireLocationScope('locationId', { resolveLocationId: async () => { throw notFound; } }),
+        request({ user: sysadminPrincipal() }),
+      );
+      expect(result).toBe(notFound);
+      expect(asHttpError(result).status).toBe(404);
+      expect(mockDocRef.get).not.toHaveBeenCalled();
+    });
+
+    it('calls next exactly once when the resolver rejects', async () => {
+      const notFound = new HttpErrors.NotFound('Device not found');
+      const next = vi.fn();
+      requireLocationScope('locationId', { resolveLocationId: async () => { throw notFound; } })(
+        request() as unknown as Request,
+        {} as Response,
+        next as unknown as NextFunction,
+      );
+      await flush();
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(next).toHaveBeenCalledWith(notFound);
+    });
+
+    it('still answers 400 to a sysadmin when the resolver and param are both unresolved', async () => {
+      const error = asHttpError(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => undefined }),
+        request({ user: sysadminPrincipal(), params: { businessId: 'biz-1' } }),
+      ));
+      expect(error.status).toBe(400);
+    });
+
+    it('sysadmin passes a resolved location without a members read', async () => {
+      expect(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => 'loc-x' }),
+        request({ user: sysadminPrincipal(), params: { businessId: 'biz-1' } }),
+      )).toBeUndefined();
+      expect(mockDocRef.get).not.toHaveBeenCalled();
+    });
+
+    it("scope 'all' passes a resolver-supplied location", async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': memberWithScope('all') } }));
+      expect(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => 'loc-x' }),
+        request({ params: { businessId: 'biz-1' } }),
+      )).toBeUndefined();
+    });
+
+    it('a listed id passes', async () => {
+      mockDocRef.get.mockResolvedValue(
+        snapshotOf({ members: { 'uid-1': memberWithScope(['loc-9', 'loc-x']) } }),
+      );
+      expect(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => 'loc-x' }),
+        request({ params: { businessId: 'biz-1' } }),
+      )).toBeUndefined();
+    });
+
+    it('an unlisted id is 403 LOCATION_OUT_OF_SCOPE', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: { 'uid-1': memberWithScope(['loc-9']) } }));
+      const error = asHttpError(await run(
+        requireLocationScope('locationId', { resolveLocationId: () => 'loc-x' }),
+        request({ params: { businessId: 'biz-1' } }),
+      ));
+      expect(error.status).toBe(403);
+      expect(error.code).toBe(LOCATION_OUT_OF_SCOPE);
+    });
+
+    /** After steps 1–4: a non-member must never trigger the consumer's device read. */
+    it('does not invoke the resolver when the caller is not an active member', async () => {
+      mockDocRef.get.mockResolvedValue(snapshotOf({ members: {} }));
+      const resolveLocationId = vi.fn(() => 'loc-1');
+      const error = asHttpError(await run(
+        requireLocationScope('locationId', { resolveLocationId }),
+        request(),
+      ));
+      expect(error.status).toBe(403);
+      expect(error.code).toBe(PERMISSION_DENIED);
+      expect(resolveLocationId).not.toHaveBeenCalled();
+    });
+
+    it('passes the request object to the resolver', async () => {
+      const req = request();
+      const resolveLocationId = vi.fn(() => 'loc-1');
+      expect(await run(requireLocationScope('locationId', { resolveLocationId }), req)).toBeUndefined();
+      expect(resolveLocationId).toHaveBeenCalledTimes(1);
+      expect(resolveLocationId.mock.calls[0][0]).toBe(req);
+    });
+  });
+
   describe('resolveMember', () => {
     it('returns the member from a prefetched Business without reading', async () => {
       const member = await resolveMember(

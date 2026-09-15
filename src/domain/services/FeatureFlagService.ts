@@ -27,6 +27,11 @@ import { getFirestore } from 'firebase-admin/firestore';
  *
  * Sanitization: non-boolean doc values are dropped (logged as a warning);
  * known keys with a non-boolean value fall back to their `DEFAULT_FLAGS` value.
+ *
+ * The non-boolean drop is intentional, so per-business rollout allowlists —
+ * string arrays — do not live in this doc. They live in the sibling doc
+ * `/config/rolloutAllowlists`, read by `getRolloutAllowlists()` below
+ * (contract rcc#239 §1.1).
  */
 export interface WriteModelFlags {
   [key: string]: boolean | undefined;
@@ -83,11 +88,13 @@ export interface WriteModelFlags {
    * endpoints and Remy's Team tab — rather than the legacy `roles` map. Defaults
    * off, so declaring it changes no behavior. Rollback is a pure flag flip:
    * contract §3.2 dual-write keeps `roles[uid]='owner'` populated for every
-   * admin, so flipping back needs no data restoration. **This library never reads
-   * the flag** — `Authorization.requirePermission` / `requireLocationScope` are
-   * unconditional and each consumer decides where to mount them. A library-side
-   * read would turn one boolean into an authorization kill switch, which is not
-   * what the contract asks for.
+   * admin, so flipping back needs no data restoration. The library **exposes**
+   * both readers — `getFlags().teamRolesV2` and the per-business
+   * `isTeamRolesV2Enabled(businessId)` (contract rcc#239 §1.1: global flag OR
+   * `/config/rolloutAllowlists.teamRolesV2`) — and still mounts nothing on them:
+   * `Authorization.requirePermission` / `requireLocationScope` are unconditional
+   * and each consumer decides where to mount them. Keeping the guards flag-blind
+   * is what stops one boolean from becoming an authorization kill switch.
    */
   teamRolesV2: boolean;
 }
@@ -149,3 +156,83 @@ export function createFlagService() {
 const defaultService = createFlagService();
 export const getFlags = defaultService.getFlags;
 export const clearFlagCache = defaultService.clearCache;
+
+/**
+ * Contract rcc#239 §1.1. Per-business rollout allowlists, read from
+ * `/config/rolloutAllowlists`. Its own reader rather than a widening of
+ * `getFlags()`: the flags doc is booleans-only by design and its reader drops
+ * every non-boolean field. Closed shape (no index signature) — a new list is a
+ * declared key here, unlike a new flag.
+ */
+export interface RolloutAllowlists {
+  /** Business ids for which `teamRolesV2` is on while the global flag is off. */
+  teamRolesV2: string[];
+}
+
+const DEFAULT_ALLOWLISTS: RolloutAllowlists = { teamRolesV2: [] };
+
+/**
+ * Keeps string entries only. A missing field is silently `[]`; a present but
+ * non-array value is `[]` with a warning, and each dropped non-string entry is
+ * counted in a warning — the same posture as the flags reader.
+ */
+function stringEntries(field: string, value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    console.warn(
+      `FeatureFlagService: config/rolloutAllowlists.${field} is not an array; treating as []`,
+    );
+    return [];
+  }
+  const strings = value.filter((entry): entry is string => typeof entry === 'string');
+  if (strings.length !== value.length) {
+    console.warn(
+      `FeatureFlagService: dropped ${value.length - strings.length} non-string entries from config/rolloutAllowlists.${field}`,
+    );
+  }
+  return strings;
+}
+
+export function createRolloutAllowlistService() {
+  let cached: RolloutAllowlists | null = null;
+  let cacheTimestamp = 0;
+
+  return {
+    getRolloutAllowlists: async (): Promise<RolloutAllowlists> => {
+      const now = Date.now();
+      if (cached && now - cacheTimestamp < CACHE_TTL_MS) {
+        return cached;
+      }
+
+      const db = getFirestore();
+      const doc = await db.collection('config').doc('rolloutAllowlists').get();
+
+      const data = doc.exists ? doc.data()! : {};
+      cached = {
+        ...DEFAULT_ALLOWLISTS,
+        teamRolesV2: stringEntries('teamRolesV2', data.teamRolesV2),
+      };
+      cacheTimestamp = now;
+      return cached;
+    },
+    clearCache: () => {
+      cached = null;
+      cacheTimestamp = 0;
+    },
+  };
+}
+
+const defaultAllowlistService = createRolloutAllowlistService();
+export const getRolloutAllowlists = defaultAllowlistService.getRolloutAllowlists;
+export const clearRolloutAllowlistCache = defaultAllowlistService.clearCache;
+
+/**
+ * Contract rcc#239 §1.1 effective flag: the global boolean OR the per-business
+ * allowlist. Reads the allowlist only when the flag is off. Both reads memoise
+ * for `CACHE_TTL_MS` and, like `getFlags`, neither swallows a Firestore error —
+ * a consumer that wants fail-closed catches and treats it as false.
+ */
+export async function isTeamRolesV2Enabled(businessId: string): Promise<boolean> {
+  if ((await getFlags()).teamRolesV2 === true) return true;
+  return (await getRolloutAllowlists()).teamRolesV2.includes(businessId);
+}
