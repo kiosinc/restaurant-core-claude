@@ -254,9 +254,8 @@ async function decideLocationScope(
   const resolved = await resolveActiveMember(req, options);
   if ('error' in resolved) return resolved.error;
 
-  // `??`, not `||`: an `''` from the resolver is unresolved and must 400, not fall through to the
-  // param (contract §1.2). A resolver throw or rejection rejects this promise, which the handler's
-  // `.then(next, next)` hands to `next(err)` — so it can never reach the sysadmin grant below.
+  // `??`, not `||`: `''` from the resolver is unresolved and must 400, not fall through to the
+  // param (contract rcc#239 §1.2).
   const locationId = (await options.resolveLocationId?.(req)) ?? req.params[locationIdParam];
   if (!locationId) {
     return new HttpErrors.BadRequest(`${locationIdParam} is required`);
@@ -309,11 +308,12 @@ export function requirePermission(
  * resolver or it returns `undefined`.
  *
  * Steps 1–4 are `requirePermission`'s, so an absent or inactive member answers `PERMISSION_DENIED`
- * and only a genuine scope miss answers `LOCATION_OUT_OF_SCOPE`. An unresolved location id — no
- * resolver value (`undefined` or `''`) and no route param — answers 400, for the same reason step 2
- * does — including for a sysadmin, who clears the scope check but not the route-misconfiguration
- * check. A resolver that throws or rejects is forwarded to `next(err)` untouched and never grants,
- * sysadmin included. Same two-argument `.then(next, next)` contract.
+ * and only a genuine scope miss answers `LOCATION_OUT_OF_SCOPE`. An unresolved location id answers
+ * 400 — a resolver that returns `''`, or one that returns `undefined` (or no resolver) with the route
+ * param absent — for the same reason step 2 does, including for a sysadmin, who clears the scope
+ * check but not the route-misconfiguration check. A resolver that throws or rejects is forwarded to
+ * `next(err)` untouched and never grants, sysadmin included. Same two-argument `.then(next, next)`
+ * contract.
  */
 export function requireLocationScope(
   locationIdParam: string,
